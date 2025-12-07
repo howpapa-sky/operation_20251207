@@ -1,0 +1,207 @@
+import { create } from 'zustand';
+import { supabase } from '../lib/supabase';
+import { ApiCredential, SalesChannel, SyncStatus } from '../types';
+
+interface ApiCredentialsState {
+  credentials: ApiCredential[];
+  isLoading: boolean;
+  error: string | null;
+
+  // CRUD
+  fetchCredentials: () => Promise<void>;
+  saveCredential: (channel: SalesChannel, data: Partial<ApiCredential>) => Promise<boolean>;
+  deleteCredential: (channel: SalesChannel) => Promise<void>;
+  toggleActive: (channel: SalesChannel, isActive: boolean) => Promise<void>;
+
+  // 동기화
+  updateSyncStatus: (channel: SalesChannel, status: SyncStatus, error?: string) => Promise<void>;
+
+  // 헬퍼
+  getCredential: (channel: SalesChannel) => ApiCredential | undefined;
+}
+
+export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => ({
+  credentials: [],
+  isLoading: false,
+  error: null,
+
+  fetchCredentials: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    set({ isLoading: true, error: null });
+    try {
+      const { data, error } = await supabase
+        .from('api_credentials')
+        .select('*')
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      const credentials: ApiCredential[] = (data || []).map((row) => ({
+        id: row.id,
+        channel: row.channel as SalesChannel,
+        isActive: row.is_active,
+        lastSyncAt: row.last_sync_at || undefined,
+        syncStatus: row.sync_status as SyncStatus,
+        syncError: row.sync_error || undefined,
+        cafe24: row.channel === 'cafe24' ? {
+          mallId: row.cafe24_mall_id || '',
+          clientId: row.cafe24_client_id || '',
+          clientSecret: row.cafe24_client_secret || '',
+          accessToken: row.cafe24_access_token || undefined,
+          refreshToken: row.cafe24_refresh_token || undefined,
+          tokenExpiresAt: row.cafe24_token_expires_at || undefined,
+        } : undefined,
+        naver: row.channel === 'naver_smartstore' ? {
+          clientId: row.naver_client_id || '',
+          clientSecret: row.naver_client_secret || '',
+          accessToken: row.naver_access_token || undefined,
+          refreshToken: row.naver_refresh_token || undefined,
+          tokenExpiresAt: row.naver_token_expires_at || undefined,
+        } : undefined,
+        coupang: row.channel === 'coupang' ? {
+          vendorId: row.coupang_vendor_id || '',
+          accessKey: row.coupang_access_key || '',
+          secretKey: row.coupang_secret_key || '',
+        } : undefined,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
+
+      set({ credentials });
+    } catch (error) {
+      console.error('Fetch credentials error:', error);
+      set({ error: '자격증명을 불러오는데 실패했습니다.' });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  saveCredential: async (channel, data) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    try {
+      // 기본 데이터
+      const dbData = {
+        user_id: user.id,
+        channel,
+        is_active: data.isActive ?? false,
+        // 카페24 필드
+        cafe24_mall_id: channel === 'cafe24' && data.cafe24 ? data.cafe24.mallId : null,
+        cafe24_client_id: channel === 'cafe24' && data.cafe24 ? data.cafe24.clientId : null,
+        cafe24_client_secret: channel === 'cafe24' && data.cafe24 ? data.cafe24.clientSecret : null,
+        // 네이버 필드
+        naver_client_id: channel === 'naver_smartstore' && data.naver ? data.naver.clientId : null,
+        naver_client_secret: channel === 'naver_smartstore' && data.naver ? data.naver.clientSecret : null,
+        // 쿠팡 필드
+        coupang_vendor_id: channel === 'coupang' && data.coupang ? data.coupang.vendorId : null,
+        coupang_access_key: channel === 'coupang' && data.coupang ? data.coupang.accessKey : null,
+        coupang_secret_key: channel === 'coupang' && data.coupang ? data.coupang.secretKey : null,
+      };
+
+      // Upsert (있으면 업데이트, 없으면 삽입)
+      const { error } = await supabase
+        .from('api_credentials')
+        .upsert(dbData, {
+          onConflict: 'user_id,channel',
+        });
+
+      if (error) throw error;
+
+      await get().fetchCredentials();
+      return true;
+    } catch (error) {
+      console.error('Save credential error:', error);
+      set({ error: '자격증명 저장에 실패했습니다.' });
+      return false;
+    }
+  },
+
+  deleteCredential: async (channel) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('api_credentials')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('channel', channel);
+
+      if (error) throw error;
+
+      set((state) => ({
+        credentials: state.credentials.filter((c) => c.channel !== channel),
+      }));
+    } catch (error) {
+      console.error('Delete credential error:', error);
+      set({ error: '자격증명 삭제에 실패했습니다.' });
+    }
+  },
+
+  toggleActive: async (channel, isActive) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('api_credentials')
+        .update({ is_active: isActive })
+        .eq('user_id', user.id)
+        .eq('channel', channel);
+
+      if (error) throw error;
+
+      set((state) => ({
+        credentials: state.credentials.map((c) =>
+          c.channel === channel ? { ...c, isActive } : c
+        ),
+      }));
+    } catch (error) {
+      console.error('Toggle active error:', error);
+    }
+  },
+
+  updateSyncStatus: async (channel, status, error) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    try {
+      const updates: Record<string, unknown> = {
+        sync_status: status,
+        sync_error: error || null,
+      };
+
+      if (status === 'success') {
+        updates.last_sync_at = new Date().toISOString();
+      }
+
+      await supabase
+        .from('api_credentials')
+        .update(updates)
+        .eq('user_id', user.id)
+        .eq('channel', channel);
+
+      set((state) => ({
+        credentials: state.credentials.map((c) =>
+          c.channel === channel
+            ? {
+                ...c,
+                syncStatus: status,
+                syncError: error,
+                lastSyncAt: status === 'success' ? new Date().toISOString() : c.lastSyncAt,
+              }
+            : c
+        ),
+      }));
+    } catch (err) {
+      console.error('Update sync status error:', err);
+    }
+  },
+
+  getCredential: (channel) => {
+    return get().credentials.find((c) => c.channel === channel);
+  },
+}));

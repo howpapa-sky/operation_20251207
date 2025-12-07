@@ -305,3 +305,87 @@ export interface MonthlySalesSummary {
   }>;
   dailyData: { date: string; revenue: number; profit: number }[];
 }
+
+// ========== API 연동 관련 타입 ==========
+
+// API 동기화 상태
+export type SyncStatus = 'never' | 'syncing' | 'success' | 'failed';
+
+// 카페24 자격증명
+export interface Cafe24Credentials {
+  mallId: string;
+  clientId: string;
+  clientSecret: string;
+  accessToken?: string;
+  refreshToken?: string;
+  tokenExpiresAt?: string;
+}
+
+// 네이버 스마트스토어 자격증명
+export interface NaverCredentials {
+  clientId: string;
+  clientSecret: string;
+  accessToken?: string;
+  refreshToken?: string;
+  tokenExpiresAt?: string;
+}
+
+// 쿠팡 자격증명
+export interface CoupangCredentials {
+  vendorId: string;
+  accessKey: string;
+  secretKey: string;
+}
+
+// API 자격증명 (통합)
+export interface ApiCredential {
+  id: string;
+  channel: SalesChannel;
+  isActive: boolean;
+  lastSyncAt?: string;
+  syncStatus: SyncStatus;
+  syncError?: string;
+
+  // 채널별 자격증명 (해당 채널만 값이 있음)
+  cafe24?: Cafe24Credentials;
+  naver?: NaverCredentials;
+  coupang?: CoupangCredentials;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+// API 동기화 로그
+export interface ApiSyncLog {
+  id: string;
+  channel: SalesChannel;
+  syncType: 'manual' | 'scheduled';
+  status: 'started' | 'success' | 'failed';
+  recordsFetched: number;
+  recordsCreated: number;
+  recordsUpdated: number;
+  errorMessage?: string;
+  startedAt: string;
+  completedAt?: string;
+}
+
+// API 연동 설정 폼 데이터
+export interface ApiSettingsFormData {
+  cafe24: {
+    enabled: boolean;
+    mallId: string;
+    clientId: string;
+    clientSecret: string;
+  };
+  naver: {
+    enabled: boolean;
+    clientId: string;
+    clientSecret: string;
+  };
+  coupang: {
+    enabled: boolean;
+    vendorId: string;
+    accessKey: string;
+    secretKey: string;
+  };
+}

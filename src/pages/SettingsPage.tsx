@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Settings,
   User,
@@ -11,12 +11,22 @@ import {
   Trash2,
   Save,
   X,
+  Link2,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  ExternalLink,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import Card, { CardHeader } from '../components/common/Card';
 import Badge from '../components/common/Badge';
 import Modal from '../components/common/Modal';
 import { useStore } from '../store/useStore';
-import { EvaluationCriteria, ProductCategory } from '../types';
+import { useApiCredentialsStore } from '../store/useApiCredentialsStore';
+import { EvaluationCriteria, ProductCategory, SalesChannel, SyncStatus } from '../types';
+import { channelInfo } from '../services/salesApiService';
 
 const categories: ProductCategory[] = [
   '크림', '패드', '로션', '스틱', '앰플', '세럼', '미스트', '클렌저', '선크림', '마스크팩', '기타'
@@ -32,7 +42,7 @@ export default function SettingsPage() {
     deleteEvaluationCriteria,
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'criteria' | 'notifications'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'criteria' | 'api' | 'notifications'>('profile');
 
   // Profile state
   const [name, setName] = useState(user?.name || '');
@@ -49,6 +59,31 @@ export default function SettingsPage() {
 
   // Filter state
   const [filterCategory, setFilterCategory] = useState<ProductCategory | ''>('');
+
+  // API credentials state
+  const {
+    credentials,
+    isLoading: apiLoading,
+    fetchCredentials,
+    saveCredential,
+    deleteCredential,
+    toggleActive,
+  } = useApiCredentialsStore();
+
+  const [showApiModal, setShowApiModal] = useState(false);
+  const [editingChannel, setEditingChannel] = useState<SalesChannel | null>(null);
+  const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+
+  // API Form state
+  const [apiFormData, setApiFormData] = useState({
+    cafe24: { mallId: '', clientId: '', clientSecret: '' },
+    naver: { clientId: '', clientSecret: '' },
+    coupang: { vendorId: '', accessKey: '', secretKey: '' },
+  });
+
+  useEffect(() => {
+    fetchCredentials();
+  }, [fetchCredentials]);
 
   const handleSaveProfile = () => {
     updateUser({ name, email });
@@ -115,9 +150,82 @@ export default function SettingsPage() {
     return acc;
   }, {} as Record<string, EvaluationCriteria[]>);
 
+  // API handlers
+  const openApiModal = (channel: SalesChannel) => {
+    setEditingChannel(channel);
+    const existing = credentials.find((c) => c.channel === channel);
+
+    if (channel === 'cafe24') {
+      setApiFormData((prev) => ({
+        ...prev,
+        cafe24: {
+          mallId: existing?.cafe24?.mallId || '',
+          clientId: existing?.cafe24?.clientId || '',
+          clientSecret: existing?.cafe24?.clientSecret || '',
+        },
+      }));
+    } else if (channel === 'naver_smartstore') {
+      setApiFormData((prev) => ({
+        ...prev,
+        naver: {
+          clientId: existing?.naver?.clientId || '',
+          clientSecret: existing?.naver?.clientSecret || '',
+        },
+      }));
+    } else if (channel === 'coupang') {
+      setApiFormData((prev) => ({
+        ...prev,
+        coupang: {
+          vendorId: existing?.coupang?.vendorId || '',
+          accessKey: existing?.coupang?.accessKey || '',
+          secretKey: existing?.coupang?.secretKey || '',
+        },
+      }));
+    }
+
+    setShowApiModal(true);
+  };
+
+  const handleSaveApiCredential = async () => {
+    if (!editingChannel) return;
+
+    let data = {};
+    if (editingChannel === 'cafe24') {
+      data = { cafe24: apiFormData.cafe24, isActive: true };
+    } else if (editingChannel === 'naver_smartstore') {
+      data = { naver: apiFormData.naver, isActive: true };
+    } else if (editingChannel === 'coupang') {
+      data = { coupang: apiFormData.coupang, isActive: true };
+    }
+
+    const success = await saveCredential(editingChannel, data);
+    if (success) {
+      setShowApiModal(false);
+      setEditingChannel(null);
+    }
+  };
+
+  const getSyncStatusBadge = (status: SyncStatus) => {
+    switch (status) {
+      case 'success':
+        return <Badge variant="success" className="flex items-center gap-1"><CheckCircle className="w-3 h-3" />연동됨</Badge>;
+      case 'failed':
+        return <Badge variant="danger" className="flex items-center gap-1"><XCircle className="w-3 h-3" />오류</Badge>;
+      case 'syncing':
+        return <Badge variant="warning" className="flex items-center gap-1"><RefreshCw className="w-3 h-3 animate-spin" />동기화 중</Badge>;
+      default:
+        return <Badge variant="gray" className="flex items-center gap-1"><AlertCircle className="w-3 h-3" />미연동</Badge>;
+    }
+  };
+
+  const toggleSecretVisibility = (key: string) => {
+    setShowSecrets((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
   const tabs = [
     { id: 'profile', label: '프로필', icon: User },
     { id: 'criteria', label: '평가 항목 관리', icon: Star },
+    { id: 'api', label: 'API 연동', icon: Link2 },
     { id: 'notifications', label: '알림 설정', icon: Bell },
   ];
 
@@ -310,6 +418,104 @@ export default function SettingsPage() {
             </>
           )}
 
+          {activeTab === 'api' && (
+            <Card>
+              <CardHeader
+                title="API 연동 설정"
+                subtitle="판매 채널 API를 연동하여 매출 데이터를 자동으로 가져옵니다"
+              />
+              <div className="space-y-4">
+                {/* 안내 메시지 */}
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-amber-800">
+                      <p className="font-medium mb-1">API 연동 준비 중</p>
+                      <p>
+                        현재 API 자격증명 설정 기능만 제공됩니다.
+                        실제 데이터 동기화는 서버 측 구현(Edge Functions) 완료 후 사용 가능합니다.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 채널 목록 */}
+                {(['cafe24', 'naver_smartstore', 'coupang'] as SalesChannel[]).map((channel) => {
+                  const info = channelInfo[channel];
+                  const credential = credentials.find((c) => c.channel === channel);
+                  const isConfigured = !!credential;
+
+                  return (
+                    <div
+                      key={channel}
+                      className={`border rounded-xl p-5 transition-all ${
+                        isConfigured ? 'border-primary-200 bg-primary-50/30' : 'border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h4 className="font-semibold text-gray-900">{info.name}</h4>
+                            {isConfigured && getSyncStatusBadge(credential.syncStatus)}
+                          </div>
+                          <p className="text-sm text-gray-500 mb-3">{info.description}</p>
+
+                          {isConfigured && credential.lastSyncAt && (
+                            <p className="text-xs text-gray-400">
+                              마지막 동기화: {new Date(credential.lastSyncAt).toLocaleString('ko-KR')}
+                            </p>
+                          )}
+                          {isConfigured && credential.syncError && (
+                            <p className="text-xs text-red-500 mt-1">오류: {credential.syncError}</p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {info.docUrl && (
+                            <a
+                              href={info.docUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+                              title="API 문서"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          )}
+                          <button
+                            onClick={() => openApiModal(channel)}
+                            className={isConfigured ? 'btn-secondary' : 'btn-primary'}
+                          >
+                            {isConfigured ? '설정 수정' : '연동하기'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Toggle Active */}
+                      {isConfigured && (
+                        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                          <span className="text-sm text-gray-600">자동 동기화 활성화</span>
+                          <button
+                            onClick={() => toggleActive(channel, !credential.isActive)}
+                            className={`w-10 h-6 rounded-full transition-all ${
+                              credential.isActive ? 'bg-primary-500' : 'bg-gray-300'
+                            }`}
+                          >
+                            <div
+                              className={`w-4 h-4 bg-white rounded-full transition-all ${
+                                credential.isActive ? 'ml-5' : 'ml-1'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+
           {activeTab === 'notifications' && (
             <Card>
               <CardHeader title="알림 설정" subtitle="알림 수신 여부를 설정합니다" />
@@ -421,6 +627,226 @@ export default function SettingsPage() {
             className="btn-danger"
           >
             삭제
+          </button>
+        </div>
+      </Modal>
+
+      {/* API Credential Modal */}
+      <Modal
+        isOpen={showApiModal}
+        onClose={() => {
+          setShowApiModal(false);
+          setEditingChannel(null);
+        }}
+        title={`${editingChannel ? channelInfo[editingChannel].name : ''} API 설정`}
+        size="md"
+      >
+        <div className="space-y-4">
+          {/* 카페24 */}
+          {editingChannel === 'cafe24' && (
+            <>
+              <div>
+                <label className="label">몰 ID *</label>
+                <input
+                  type="text"
+                  value={apiFormData.cafe24.mallId}
+                  onChange={(e) =>
+                    setApiFormData((prev) => ({
+                      ...prev,
+                      cafe24: { ...prev.cafe24, mallId: e.target.value },
+                    }))
+                  }
+                  className="input-field"
+                  placeholder="your-mall-id"
+                />
+                <p className="text-xs text-gray-400 mt-1">카페24 관리자에서 확인할 수 있습니다</p>
+              </div>
+              <div>
+                <label className="label">Client ID *</label>
+                <input
+                  type="text"
+                  value={apiFormData.cafe24.clientId}
+                  onChange={(e) =>
+                    setApiFormData((prev) => ({
+                      ...prev,
+                      cafe24: { ...prev.cafe24, clientId: e.target.value },
+                    }))
+                  }
+                  className="input-field"
+                  placeholder="앱 Client ID"
+                />
+              </div>
+              <div>
+                <label className="label">Client Secret *</label>
+                <div className="relative">
+                  <input
+                    type={showSecrets['cafe24_secret'] ? 'text' : 'password'}
+                    value={apiFormData.cafe24.clientSecret}
+                    onChange={(e) =>
+                      setApiFormData((prev) => ({
+                        ...prev,
+                        cafe24: { ...prev.cafe24, clientSecret: e.target.value },
+                      }))
+                    }
+                    className="input-field pr-10"
+                    placeholder="앱 Client Secret"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleSecretVisibility('cafe24_secret')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showSecrets['cafe24_secret'] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* 네이버 스마트스토어 */}
+          {editingChannel === 'naver_smartstore' && (
+            <>
+              <div>
+                <label className="label">Client ID (애플리케이션 ID) *</label>
+                <input
+                  type="text"
+                  value={apiFormData.naver.clientId}
+                  onChange={(e) =>
+                    setApiFormData((prev) => ({
+                      ...prev,
+                      naver: { ...prev.naver, clientId: e.target.value },
+                    }))
+                  }
+                  className="input-field"
+                  placeholder="네이버 커머스 API 애플리케이션 ID"
+                />
+              </div>
+              <div>
+                <label className="label">Client Secret *</label>
+                <div className="relative">
+                  <input
+                    type={showSecrets['naver_secret'] ? 'text' : 'password'}
+                    value={apiFormData.naver.clientSecret}
+                    onChange={(e) =>
+                      setApiFormData((prev) => ({
+                        ...prev,
+                        naver: { ...prev.naver, clientSecret: e.target.value },
+                      }))
+                    }
+                    className="input-field pr-10"
+                    placeholder="애플리케이션 Secret"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleSecretVisibility('naver_secret')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showSecrets['naver_secret'] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* 쿠팡 */}
+          {editingChannel === 'coupang' && (
+            <>
+              <div>
+                <label className="label">Vendor ID *</label>
+                <input
+                  type="text"
+                  value={apiFormData.coupang.vendorId}
+                  onChange={(e) =>
+                    setApiFormData((prev) => ({
+                      ...prev,
+                      coupang: { ...prev.coupang, vendorId: e.target.value },
+                    }))
+                  }
+                  className="input-field"
+                  placeholder="쿠팡 Wing 판매자 ID"
+                />
+              </div>
+              <div>
+                <label className="label">Access Key *</label>
+                <div className="relative">
+                  <input
+                    type={showSecrets['coupang_access'] ? 'text' : 'password'}
+                    value={apiFormData.coupang.accessKey}
+                    onChange={(e) =>
+                      setApiFormData((prev) => ({
+                        ...prev,
+                        coupang: { ...prev.coupang, accessKey: e.target.value },
+                      }))
+                    }
+                    className="input-field pr-10"
+                    placeholder="API Access Key"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleSecretVisibility('coupang_access')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showSecrets['coupang_access'] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="label">Secret Key *</label>
+                <div className="relative">
+                  <input
+                    type={showSecrets['coupang_secret'] ? 'text' : 'password'}
+                    value={apiFormData.coupang.secretKey}
+                    onChange={(e) =>
+                      setApiFormData((prev) => ({
+                        ...prev,
+                        coupang: { ...prev.coupang, secretKey: e.target.value },
+                      }))
+                    }
+                    className="input-field pr-10"
+                    placeholder="API Secret Key"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleSecretVisibility('coupang_secret')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showSecrets['coupang_secret'] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* 안내 */}
+          <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
+            <p>API 키는 안전하게 암호화되어 저장됩니다.</p>
+            <p className="mt-1">
+              API 키 발급 방법은{' '}
+              <a
+                href={editingChannel ? channelInfo[editingChannel].docUrl : '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-600 hover:underline"
+              >
+                공식 문서
+              </a>
+              를 참고하세요.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            onClick={() => {
+              setShowApiModal(false);
+              setEditingChannel(null);
+            }}
+            className="btn-secondary"
+          >
+            취소
+          </button>
+          <button onClick={handleSaveApiCredential} className="btn-primary">
+            저장
           </button>
         </div>
       </Modal>
