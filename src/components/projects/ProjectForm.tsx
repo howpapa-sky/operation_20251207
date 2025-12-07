@@ -342,26 +342,34 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
               <div className="mt-6">
                 <h4 className="text-sm font-medium text-gray-900 mb-4">평가 항목</h4>
                 <div className="space-y-4">
-                  {ratings.map((rating) => (
-                    <div key={rating.criteriaId} className="flex items-center gap-4">
-                      <span className="w-24 text-sm text-gray-600">{rating.criteriaName}</span>
-                      <div className="flex gap-1">
-                        {[1, 2, 3, 4, 5].map((score) => (
-                          <button
-                            key={score}
-                            type="button"
-                            onClick={() => updateRating(rating.criteriaId, score)}
-                            className={`p-1 transition-all ${
-                              score <= rating.score ? 'text-yellow-400' : 'text-gray-300'
-                            }`}
-                          >
-                            <Star className="w-6 h-6 fill-current" />
-                          </button>
-                        ))}
+                  {ratings.map((rating) => {
+                    const criteria = evaluationCriteria.find(c => c.id === rating.criteriaId);
+                    return (
+                      <div key={rating.criteriaId} className="flex items-start gap-4">
+                        <div className="w-32 flex-shrink-0">
+                          <span className="text-sm font-medium text-gray-700">{rating.criteriaName}</span>
+                          {criteria?.description && (
+                            <p className="text-xs text-gray-400 mt-0.5">{criteria.description}</p>
+                          )}
+                        </div>
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map((score) => (
+                            <button
+                              key={score}
+                              type="button"
+                              onClick={() => updateRating(rating.criteriaId, score)}
+                              className={`p-1 transition-all ${
+                                score <= rating.score ? 'text-yellow-400' : 'text-gray-300'
+                              }`}
+                            >
+                              <Star className="w-6 h-6 fill-current" />
+                            </button>
+                          ))}
+                        </div>
+                        <span className="text-sm text-gray-500">{rating.score}/5</span>
                       </div>
-                      <span className="text-sm text-gray-500">{rating.score}/5</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
