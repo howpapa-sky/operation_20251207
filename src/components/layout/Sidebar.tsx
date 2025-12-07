@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  DollarSign,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 
@@ -23,6 +24,7 @@ const menuItems = [
   { icon: Package, label: '제품 발주', path: '/product-order' },
   { icon: ShoppingCart, label: '공동구매', path: '/group-purchase' },
   { icon: FolderOpen, label: '기타 프로젝트', path: '/other' },
+  { icon: DollarSign, label: '매출 관리', path: '/sales' },
   { icon: BarChart3, label: '통계', path: '/statistics' },
   { icon: Settings, label: '설정', path: '/settings' },
 ];

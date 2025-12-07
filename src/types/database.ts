@@ -123,6 +123,90 @@ export interface Database {
         };
         Relationships: [];
       };
+      products: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          brand: string;
+          category: string;
+          sku: string;
+          cost_price: number;
+          selling_price: number;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          brand: string;
+          category: string;
+          sku: string;
+          cost_price?: number;
+          selling_price?: number;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          name?: string;
+          brand?: string;
+          category?: string;
+          sku?: string;
+          cost_price?: number;
+          selling_price?: number;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      sales_records: {
+        Row: {
+          id: string;
+          user_id: string;
+          date: string;
+          channel: string;
+          product_id: string | null;
+          product_name: string;
+          quantity: number;
+          unit_price: number;
+          cost_price: number;
+          total_revenue: number;
+          total_cost: number;
+          profit: number;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          date: string;
+          channel: string;
+          product_id?: string | null;
+          product_name: string;
+          quantity?: number;
+          unit_price?: number;
+          cost_price?: number;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          date?: string;
+          channel?: string;
+          product_id?: string | null;
+          product_name?: string;
+          quantity?: number;
+          unit_price?: number;
+          cost_price?: number;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;

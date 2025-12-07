@@ -238,3 +238,70 @@ export interface SortOptions {
   field: string;
   direction: 'asc' | 'desc';
 }
+
+// ========== 매출 관리 관련 타입 ==========
+
+// 판매 채널
+export type SalesChannel = 'cafe24' | 'naver_smartstore' | 'coupang' | 'other';
+
+// 제품 (매입가 포함)
+export interface Product {
+  id: string;
+  name: string;
+  brand: Brand;
+  category: ProductCategory;
+  sku: string; // 제품 코드
+  costPrice: number; // 매입가
+  sellingPrice: number; // 판매가
+  isActive: boolean;
+  createdAt: string;
+}
+
+// 매출 기록
+export interface SalesRecord {
+  id: string;
+  date: string; // YYYY-MM-DD
+  channel: SalesChannel;
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number; // 판매 단가
+  costPrice: number; // 매입 단가
+  totalRevenue: number; // 총 매출 (quantity * unitPrice)
+  totalCost: number; // 총 매입가 (quantity * costPrice)
+  profit: number; // 이익 (totalRevenue - totalCost)
+  notes?: string;
+  createdAt: string;
+}
+
+// 일별 매출 요약
+export interface DailySalesSummary {
+  date: string;
+  totalRevenue: number;
+  totalCost: number;
+  totalProfit: number;
+  orderCount: number;
+  byChannel: Record<SalesChannel, {
+    revenue: number;
+    cost: number;
+    profit: number;
+    orderCount: number;
+  }>;
+}
+
+// 월별 매출 요약
+export interface MonthlySalesSummary {
+  month: string; // YYYY-MM
+  totalRevenue: number;
+  totalCost: number;
+  totalProfit: number;
+  profitMargin: number; // 이익률 (%)
+  orderCount: number;
+  byChannel: Record<SalesChannel, {
+    revenue: number;
+    cost: number;
+    profit: number;
+    orderCount: number;
+  }>;
+  dailyData: { date: string; revenue: number; profit: number }[];
+}

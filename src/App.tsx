@@ -14,6 +14,7 @@ import GroupPurchasePage from './pages/GroupPurchasePage';
 import OtherPage from './pages/OtherPage';
 import StatisticsPage from './pages/StatisticsPage';
 import SettingsPage from './pages/SettingsPage';
+import SalesPage from './pages/SalesPage';
 
 // Loading Screen
 function LoadingScreen() {
@@ -107,6 +108,7 @@ function App() {
           <Route path="group-purchase/:id" element={<GroupPurchasePage />} />
           <Route path="other" element={<OtherPage />} />
           <Route path="other/:id" element={<OtherPage />} />
+          <Route path="sales" element={<SalesPage />} />
           <Route path="statistics" element={<StatisticsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
