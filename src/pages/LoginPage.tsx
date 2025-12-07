@@ -30,11 +30,11 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const success = await login(email, password);
-      if (success) {
+      const result = await login(email, password);
+      if (result.success) {
         navigate('/');
       } else {
-        setError('로그인에 실패했습니다. 다시 시도해주세요.');
+        setError(result.error || '로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.');
       }
     } catch {
       setError('오류가 발생했습니다. 다시 시도해주세요.');

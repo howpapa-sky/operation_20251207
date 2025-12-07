@@ -43,11 +43,11 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      const success = await register(email, password, name);
-      if (success) {
+      const result = await register(email, password, name);
+      if (result.success) {
         navigate('/');
       } else {
-        setError('회원가입에 실패했습니다. 다시 시도해주세요.');
+        setError(result.error || '회원가입에 실패했습니다. 다시 시도해주세요.');
       }
     } catch {
       setError('오류가 발생했습니다. 다시 시도해주세요.');

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { supabase } from '../lib/supabase';
 import {
   User,
   Project,
@@ -10,12 +11,14 @@ import {
   ProjectStatus,
   ProjectType,
 } from '../types';
+import type { Json } from '../types/database';
 import { v4 as uuidv4 } from 'uuid';
 
 interface AppState {
   // 인증
   user: User | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
 
   // 프로젝트
   projects: Project[];
@@ -36,21 +39,24 @@ interface AppState {
   currentView: 'list' | 'calendar' | 'board';
 
   // 액션 - 인증
-  login: (email: string, password: string) => Promise<boolean>;
-  register: (email: string, password: string, name: string) => Promise<boolean>;
-  logout: () => void;
-  updateUser: (user: Partial<User>) => void;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  updateUser: (user: Partial<User>) => Promise<void>;
+  checkAuth: () => Promise<void>;
 
   // 액션 - 프로젝트
-  addProject: (project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateProject: (id: string, updates: Partial<Project>) => void;
-  deleteProject: (id: string) => void;
+  fetchProjects: () => Promise<void>;
+  addProject: (project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
   selectProject: (project: Project | null) => void;
 
   // 액션 - 평가 항목
-  addEvaluationCriteria: (criteria: Omit<EvaluationCriteria, 'id'>) => void;
-  updateEvaluationCriteria: (id: string, updates: Partial<EvaluationCriteria>) => void;
-  deleteEvaluationCriteria: (id: string) => void;
+  fetchEvaluationCriteria: () => Promise<void>;
+  addEvaluationCriteria: (criteria: Omit<EvaluationCriteria, 'id'>) => Promise<void>;
+  updateEvaluationCriteria: (id: string, updates: Partial<EvaluationCriteria>) => Promise<void>;
+  deleteEvaluationCriteria: (id: string) => Promise<void>;
 
   // 액션 - 알림
   addNotification: (notification: Omit<Notification, 'id' | 'createdAt'>) => void;
@@ -74,112 +80,362 @@ interface AppState {
   getUsedBudget: () => number;
 }
 
+// DB 레코드를 프로젝트 타입으로 변환
+function dbToProject(record: any): Project {
+  const base = {
+    id: record.id,
+    title: record.title,
+    type: record.type,
+    status: record.status,
+    priority: record.priority,
+    startDate: record.start_date,
+    targetDate: record.target_date,
+    completedDate: record.completed_date || undefined,
+    assignee: record.assignee || undefined,
+    notes: record.notes || '',
+    createdAt: record.created_at,
+    updatedAt: record.updated_at,
+  };
+
+  // data 필드에서 타입별 추가 데이터 병합
+  const data = record.data || {};
+  return { ...base, ...data } as Project;
+}
+
+// 프로젝트를 DB 레코드로 변환
+function projectToDb(project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>, userId: string) {
+  const { title, type, status, priority, startDate, targetDate, completedDate, assignee, notes, ...rest } = project;
+
+  return {
+    user_id: userId,
+    title,
+    type,
+    status,
+    priority,
+    start_date: startDate,
+    target_date: targetDate,
+    completed_date: completedDate || null,
+    assignee: assignee || null,
+    notes: notes || null,
+    data: JSON.parse(JSON.stringify(rest)) as Json, // 나머지 타입별 데이터를 JSON으로 저장
+  };
+}
+
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
       // 초기 상태
       user: null,
       isAuthenticated: false,
+      isLoading: true,
       projects: [],
       selectedProject: null,
-      evaluationCriteria: getDefaultEvaluationCriteria(),
+      evaluationCriteria: [],
       notifications: [],
       filters: {},
       sortOptions: { field: 'createdAt', direction: 'desc' },
       sidebarCollapsed: false,
       currentView: 'list',
 
-      // 인증 액션
+      // 인증 체크
+      checkAuth: async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+
+          if (session?.user) {
+            // 프로필 정보 가져오기
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+
+            if (profile) {
+              const user: User = {
+                id: profile.id,
+                email: profile.email,
+                name: profile.name,
+                role: profile.role as 'admin' | 'member' | 'viewer',
+                createdAt: profile.created_at,
+                avatar: profile.avatar_url || undefined,
+              };
+              set({ user, isAuthenticated: true, isLoading: false });
+
+              // 데이터 로드
+              get().fetchProjects();
+              get().fetchEvaluationCriteria();
+              return;
+            }
+          }
+
+          set({ user: null, isAuthenticated: false, isLoading: false });
+        } catch (error) {
+          console.error('Auth check error:', error);
+          set({ user: null, isAuthenticated: false, isLoading: false });
+        }
+      },
+
+      // 로그인
       login: async (email: string, password: string) => {
-        // 데모용 로그인 (실제로는 API 호출)
-        if (email && password.length >= 6) {
-          const user: User = {
-            id: uuidv4(),
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({
             email,
-            name: email.split('@')[0],
-            role: 'admin',
-            createdAt: new Date().toISOString(),
-          };
-          set({ user, isAuthenticated: true });
-          return true;
+            password,
+          });
+
+          if (error) {
+            return { success: false, error: error.message };
+          }
+
+          if (data.user) {
+            // 프로필 정보 가져오기
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', data.user.id)
+              .single();
+
+            if (profile) {
+              const user: User = {
+                id: profile.id,
+                email: profile.email,
+                name: profile.name,
+                role: profile.role as 'admin' | 'member' | 'viewer',
+                createdAt: profile.created_at,
+                avatar: profile.avatar_url || undefined,
+              };
+              set({ user, isAuthenticated: true });
+
+              // 데이터 로드
+              get().fetchProjects();
+              get().fetchEvaluationCriteria();
+            }
+          }
+
+          return { success: true };
+        } catch (error: any) {
+          return { success: false, error: error.message };
         }
-        return false;
       },
 
+      // 회원가입
       register: async (email: string, password: string, name: string) => {
-        if (email && password.length >= 6 && name) {
-          const user: User = {
-            id: uuidv4(),
+        try {
+          const { data, error } = await supabase.auth.signUp({
             email,
-            name,
-            role: 'member',
-            createdAt: new Date().toISOString(),
-          };
-          set({ user, isAuthenticated: true });
-          return true;
+            password,
+            options: {
+              data: { name },
+            },
+          });
+
+          if (error) {
+            return { success: false, error: error.message };
+          }
+
+          if (data.user) {
+            // 회원가입 후 자동 로그인 (이메일 확인 비활성화 시)
+            const user: User = {
+              id: data.user.id,
+              email: email,
+              name: name,
+              role: 'member',
+              createdAt: new Date().toISOString(),
+            };
+            set({ user, isAuthenticated: true });
+
+            // 기본 평가 항목 생성
+            await supabase.rpc('create_default_criteria', { p_user_id: data.user.id });
+
+            // 데이터 로드
+            get().fetchEvaluationCriteria();
+          }
+
+          return { success: true };
+        } catch (error: any) {
+          return { success: false, error: error.message };
         }
-        return false;
       },
 
-      logout: () => {
-        set({ user: null, isAuthenticated: false });
-      },
-
-      updateUser: (updates) => {
-        const { user } = get();
-        if (user) {
-          set({ user: { ...user, ...updates } });
-        }
-      },
-
-      // 프로젝트 액션
-      addProject: (projectData) => {
-        const now = new Date().toISOString();
-        const project = {
-          ...projectData,
-          id: uuidv4(),
-          createdAt: now,
-          updatedAt: now,
-        } as Project;
-
-        set((state) => ({
-          projects: [...state.projects, project],
-        }));
-
-        get().addNotification({
-          title: '프로젝트 생성',
-          message: `"${project.title}" 프로젝트가 생성되었습니다.`,
-          type: 'success',
-          read: false,
-          projectId: project.id,
+      // 로그아웃
+      logout: async () => {
+        await supabase.auth.signOut();
+        set({
+          user: null,
+          isAuthenticated: false,
+          projects: [],
+          evaluationCriteria: [],
+          notifications: [],
         });
       },
 
-      updateProject: (id, updates) => {
-        set((state) => ({
-          projects: state.projects.map((p) =>
-            p.id === id
-              ? { ...p, ...updates, updatedAt: new Date().toISOString() }
-              : p
-          ) as Project[],
-        }));
+      // 사용자 정보 업데이트
+      updateUser: async (updates) => {
+        const { user } = get();
+        if (!user) return;
+
+        try {
+          const { error } = await supabase
+            .from('profiles')
+            .update({
+              name: updates.name,
+              avatar_url: updates.avatar,
+            })
+            .eq('id', user.id);
+
+          if (!error) {
+            set({ user: { ...user, ...updates } });
+          }
+        } catch (error) {
+          console.error('Update user error:', error);
+        }
       },
 
-      deleteProject: (id) => {
-        const project = get().projects.find((p) => p.id === id);
-        set((state) => ({
-          projects: state.projects.filter((p) => p.id !== id),
-          selectedProject:
-            state.selectedProject?.id === id ? null : state.selectedProject,
-        }));
+      // 프로젝트 목록 가져오기
+      fetchProjects: async () => {
+        const { user } = get();
+        if (!user) return;
 
-        if (project) {
-          get().addNotification({
-            title: '프로젝트 삭제',
-            message: `"${project.title}" 프로젝트가 삭제되었습니다.`,
-            type: 'info',
-            read: false,
-          });
+        try {
+          const { data, error } = await supabase
+            .from('projects')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false });
+
+          if (!error && data) {
+            const projects = data.map(dbToProject);
+            set({ projects });
+          }
+        } catch (error) {
+          console.error('Fetch projects error:', error);
+        }
+      },
+
+      // 프로젝트 추가
+      addProject: async (projectData) => {
+        const { user } = get();
+        if (!user) return;
+
+        try {
+          const dbRecord = projectToDb(projectData, user.id);
+
+          const { data, error } = await supabase
+            .from('projects')
+            .insert(dbRecord)
+            .select()
+            .single();
+
+          if (!error && data) {
+            const project = dbToProject(data);
+            set((state) => ({
+              projects: [project, ...state.projects],
+            }));
+
+            get().addNotification({
+              title: '프로젝트 생성',
+              message: `"${project.title}" 프로젝트가 생성되었습니다.`,
+              type: 'success',
+              read: false,
+              projectId: project.id,
+            });
+          }
+        } catch (error) {
+          console.error('Add project error:', error);
+        }
+      },
+
+      // 프로젝트 업데이트
+      updateProject: async (id, updates) => {
+        const { user } = get();
+        if (!user) return;
+
+        try {
+          // 업데이트할 데이터 준비
+          const { title, status, priority, startDate, targetDate, completedDate, assignee, notes, ...rest } = updates;
+
+          const dbUpdates: any = {};
+          if (title !== undefined) dbUpdates.title = title;
+          if (status !== undefined) dbUpdates.status = status;
+          if (priority !== undefined) dbUpdates.priority = priority;
+          if (startDate !== undefined) dbUpdates.start_date = startDate;
+          if (targetDate !== undefined) dbUpdates.target_date = targetDate;
+          if (completedDate !== undefined) dbUpdates.completed_date = completedDate || null;
+          if (assignee !== undefined) dbUpdates.assignee = assignee || null;
+          if (notes !== undefined) dbUpdates.notes = notes || null;
+
+          // 기존 data 필드와 병합
+          const currentProject = get().projects.find((p) => p.id === id);
+          if (currentProject && Object.keys(rest).length > 0) {
+            const existingData = { ...currentProject };
+            delete (existingData as any).id;
+            delete (existingData as any).title;
+            delete (existingData as any).type;
+            delete (existingData as any).status;
+            delete (existingData as any).priority;
+            delete (existingData as any).startDate;
+            delete (existingData as any).targetDate;
+            delete (existingData as any).completedDate;
+            delete (existingData as any).assignee;
+            delete (existingData as any).notes;
+            delete (existingData as any).createdAt;
+            delete (existingData as any).updatedAt;
+
+            dbUpdates.data = { ...existingData, ...rest };
+          }
+
+          const { error } = await supabase
+            .from('projects')
+            .update(dbUpdates)
+            .eq('id', id)
+            .eq('user_id', user.id);
+
+          if (!error) {
+            set((state) => ({
+              projects: state.projects.map((p) =>
+                p.id === id
+                  ? { ...p, ...updates, updatedAt: new Date().toISOString() }
+                  : p
+              ) as Project[],
+            }));
+          }
+        } catch (error) {
+          console.error('Update project error:', error);
+        }
+      },
+
+      // 프로젝트 삭제
+      deleteProject: async (id) => {
+        const { user } = get();
+        if (!user) return;
+
+        const project = get().projects.find((p) => p.id === id);
+
+        try {
+          const { error } = await supabase
+            .from('projects')
+            .delete()
+            .eq('id', id)
+            .eq('user_id', user.id);
+
+          if (!error) {
+            set((state) => ({
+              projects: state.projects.filter((p) => p.id !== id),
+              selectedProject:
+                state.selectedProject?.id === id ? null : state.selectedProject,
+            }));
+
+            if (project) {
+              get().addNotification({
+                title: '프로젝트 삭제',
+                message: `"${project.title}" 프로젝트가 삭제되었습니다.`,
+                type: 'info',
+                read: false,
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Delete project error:', error);
         }
       },
 
@@ -187,32 +443,125 @@ export const useStore = create<AppState>()(
         set({ selectedProject: project });
       },
 
-      // 평가 항목 액션
-      addEvaluationCriteria: (criteriaData) => {
-        const criteria: EvaluationCriteria = {
-          ...criteriaData,
-          id: uuidv4(),
-        };
-        set((state) => ({
-          evaluationCriteria: [...state.evaluationCriteria, criteria],
-        }));
+      // 평가 항목 목록 가져오기
+      fetchEvaluationCriteria: async () => {
+        const { user } = get();
+        if (!user) return;
+
+        try {
+          const { data, error } = await supabase
+            .from('evaluation_criteria')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('category', { ascending: true });
+
+          if (!error && data) {
+            const criteria: EvaluationCriteria[] = data.map((c) => ({
+              id: c.id,
+              name: c.name,
+              description: c.description || undefined,
+              category: c.category as any,
+              maxScore: c.max_score,
+              isActive: c.is_active,
+            }));
+            set({ evaluationCriteria: criteria });
+          }
+        } catch (error) {
+          console.error('Fetch criteria error:', error);
+        }
       },
 
-      updateEvaluationCriteria: (id, updates) => {
-        set((state) => ({
-          evaluationCriteria: state.evaluationCriteria.map((c) =>
-            c.id === id ? { ...c, ...updates } : c
-          ),
-        }));
+      // 평가 항목 추가
+      addEvaluationCriteria: async (criteriaData) => {
+        const { user } = get();
+        if (!user) return;
+
+        try {
+          const { data, error } = await supabase
+            .from('evaluation_criteria')
+            .insert({
+              user_id: user.id,
+              name: criteriaData.name,
+              description: criteriaData.description || null,
+              category: criteriaData.category,
+              max_score: criteriaData.maxScore,
+              is_active: criteriaData.isActive,
+            })
+            .select()
+            .single();
+
+          if (!error && data) {
+            const criteria: EvaluationCriteria = {
+              id: data.id,
+              name: data.name,
+              description: data.description || undefined,
+              category: data.category as any,
+              maxScore: data.max_score,
+              isActive: data.is_active,
+            };
+            set((state) => ({
+              evaluationCriteria: [...state.evaluationCriteria, criteria],
+            }));
+          }
+        } catch (error) {
+          console.error('Add criteria error:', error);
+        }
       },
 
-      deleteEvaluationCriteria: (id) => {
-        set((state) => ({
-          evaluationCriteria: state.evaluationCriteria.filter((c) => c.id !== id),
-        }));
+      // 평가 항목 업데이트
+      updateEvaluationCriteria: async (id, updates) => {
+        const { user } = get();
+        if (!user) return;
+
+        try {
+          const dbUpdates: any = {};
+          if (updates.name !== undefined) dbUpdates.name = updates.name;
+          if (updates.description !== undefined) dbUpdates.description = updates.description || null;
+          if (updates.category !== undefined) dbUpdates.category = updates.category;
+          if (updates.maxScore !== undefined) dbUpdates.max_score = updates.maxScore;
+          if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
+
+          const { error } = await supabase
+            .from('evaluation_criteria')
+            .update(dbUpdates)
+            .eq('id', id)
+            .eq('user_id', user.id);
+
+          if (!error) {
+            set((state) => ({
+              evaluationCriteria: state.evaluationCriteria.map((c) =>
+                c.id === id ? { ...c, ...updates } : c
+              ),
+            }));
+          }
+        } catch (error) {
+          console.error('Update criteria error:', error);
+        }
       },
 
-      // 알림 액션
+      // 평가 항목 삭제
+      deleteEvaluationCriteria: async (id) => {
+        const { user } = get();
+        if (!user) return;
+
+        try {
+          const { error } = await supabase
+            .from('evaluation_criteria')
+            .delete()
+            .eq('id', id)
+            .eq('user_id', user.id);
+
+          if (!error) {
+            set((state) => ({
+              evaluationCriteria: state.evaluationCriteria.filter((c) => c.id !== id),
+            }));
+          }
+        } catch (error) {
+          console.error('Delete criteria error:', error);
+        }
+      },
+
+      // 알림 액션 (로컬 전용)
       addNotification: (notificationData) => {
         const notification: Notification = {
           ...notificationData,
@@ -363,65 +712,9 @@ export const useStore = create<AppState>()(
     {
       name: 'howpapa-storage',
       partialize: (state) => ({
-        user: state.user,
-        isAuthenticated: state.isAuthenticated,
-        projects: state.projects,
-        evaluationCriteria: state.evaluationCriteria,
         sidebarCollapsed: state.sidebarCollapsed,
+        notifications: state.notifications,
       }),
     }
   )
 );
-
-// 기본 평가 항목
-function getDefaultEvaluationCriteria(): EvaluationCriteria[] {
-  const categories = ['크림', '패드', '로션', '앰플', '세럼', '미스트'] as const;
-  const criteria: EvaluationCriteria[] = [];
-
-  categories.forEach((category) => {
-    criteria.push(
-      {
-        id: uuidv4(),
-        name: '발림성',
-        description: '제품이 피부에 잘 발리는 정도',
-        category,
-        maxScore: 5,
-        isActive: true,
-      },
-      {
-        id: uuidv4(),
-        name: '흡수력',
-        description: '피부에 흡수되는 속도와 정도',
-        category,
-        maxScore: 5,
-        isActive: true,
-      },
-      {
-        id: uuidv4(),
-        name: '보습력',
-        description: '보습 지속 효과',
-        category,
-        maxScore: 5,
-        isActive: true,
-      },
-      {
-        id: uuidv4(),
-        name: '향',
-        description: '향의 적절성과 지속성',
-        category,
-        maxScore: 5,
-        isActive: true,
-      },
-      {
-        id: uuidv4(),
-        name: '제형',
-        description: '제형의 적절성',
-        category,
-        maxScore: 5,
-        isActive: true,
-      }
-    );
-  });
-
-  return criteria;
-}
