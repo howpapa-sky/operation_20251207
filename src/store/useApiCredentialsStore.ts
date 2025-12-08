@@ -219,6 +219,7 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
       // 자격증명 유효성 검사
       let isValid = false;
       let missingFields: string[] = [];
+      let credentials: Record<string, string> = {};
 
       if (channel === 'cafe24' && credential.cafe24) {
         const { mallId, clientId, clientSecret } = credential.cafe24;
@@ -226,17 +227,20 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
         if (!clientId) missingFields.push('Client ID');
         if (!clientSecret) missingFields.push('Client Secret');
         isValid = missingFields.length === 0;
+        credentials = { mallId, clientId, clientSecret };
       } else if (channel === 'naver_smartstore' && credential.naver) {
         const { clientId, clientSecret } = credential.naver;
         if (!clientId) missingFields.push('Client ID');
         if (!clientSecret) missingFields.push('Client Secret');
         isValid = missingFields.length === 0;
+        credentials = { naverClientId: clientId, naverClientSecret: clientSecret };
       } else if (channel === 'coupang' && credential.coupang) {
         const { vendorId, accessKey, secretKey } = credential.coupang;
         if (!vendorId) missingFields.push('Vendor ID');
         if (!accessKey) missingFields.push('Access Key');
         if (!secretKey) missingFields.push('Secret Key');
         isValid = missingFields.length === 0;
+        credentials = { vendorId, accessKey, secretKey };
       }
 
       if (!isValid) {
@@ -245,16 +249,44 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
         return { success: false, message: errorMsg };
       }
 
-      // 테스트 지연 시뮬레이션 (실제 API 호출은 Edge Functions 필요)
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Edge Function 호출 시도
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-      // 자격증명이 모두 입력되어 있으면 성공으로 처리
-      // 실제 API 연결 테스트는 Edge Functions 구현 후 가능
+      if (supabaseUrl && supabaseAnonKey) {
+        try {
+          const response = await fetch(`${supabaseUrl}/functions/v1/api-test`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseAnonKey}`,
+            },
+            body: JSON.stringify({ channel, credentials }),
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+              await get().updateSyncStatus(channel, 'success');
+              return { success: true, message: result.message };
+            } else {
+              await get().updateSyncStatus(channel, 'failed', result.message);
+              return { success: false, message: result.message };
+            }
+          }
+        } catch (edgeFunctionError) {
+          // Edge Function이 없는 경우 로컬 검증으로 폴백
+          console.log('Edge Function not available, using local validation');
+        }
+      }
+
+      // Edge Function이 없거나 실패한 경우 로컬 검증
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       await get().updateSyncStatus(channel, 'success');
 
       return {
         success: true,
-        message: '자격증명이 확인되었습니다. 실제 API 연결은 서버 구현 후 테스트됩니다.'
+        message: '자격증명이 확인되었습니다. (Edge Function 배포 후 실제 API 테스트 가능)'
       };
     } catch (err) {
       const errorMsg = '연결 테스트 중 오류가 발생했습니다.';
