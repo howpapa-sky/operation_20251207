@@ -64,15 +64,18 @@ export default function SettingsPage() {
   const {
     credentials,
     isLoading: apiLoading,
+    testingChannel,
     fetchCredentials,
     saveCredential,
     deleteCredential,
     toggleActive,
+    testConnection,
   } = useApiCredentialsStore();
 
   const [showApiModal, setShowApiModal] = useState(false);
   const [editingChannel, setEditingChannel] = useState<SalesChannel | null>(null);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+  const [testResult, setTestResult] = useState<{ channel: SalesChannel; success: boolean; message: string } | null>(null);
 
   // API Form state
   const [apiFormData, setApiFormData] = useState({
@@ -203,6 +206,17 @@ export default function SettingsPage() {
       setShowApiModal(false);
       setEditingChannel(null);
     }
+  };
+
+  const handleTestConnection = async (channel: SalesChannel) => {
+    setTestResult(null);
+    const result = await testConnection(channel);
+    setTestResult({ channel, ...result });
+
+    // 3초 후 결과 메시지 숨김
+    setTimeout(() => {
+      setTestResult(null);
+    }, 5000);
   };
 
   const getSyncStatusBadge = (status: SyncStatus) => {
@@ -482,6 +496,22 @@ export default function SettingsPage() {
                               <ExternalLink className="w-4 h-4" />
                             </a>
                           )}
+                          {isConfigured && (
+                            <button
+                              onClick={() => handleTestConnection(channel)}
+                              disabled={testingChannel === channel}
+                              className="btn-secondary flex items-center gap-2"
+                            >
+                              {testingChannel === channel ? (
+                                <>
+                                  <RefreshCw className="w-4 h-4 animate-spin" />
+                                  테스트 중...
+                                </>
+                              ) : (
+                                '연결 테스트'
+                              )}
+                            </button>
+                          )}
                           <button
                             onClick={() => openApiModal(channel)}
                             className={isConfigured ? 'btn-secondary' : 'btn-primary'}
@@ -507,6 +537,24 @@ export default function SettingsPage() {
                               }`}
                             />
                           </button>
+                        </div>
+                      )}
+
+                      {/* 테스트 결과 메시지 */}
+                      {testResult && testResult.channel === channel && (
+                        <div className={`mt-3 p-3 rounded-lg text-sm ${
+                          testResult.success
+                            ? 'bg-green-50 text-green-700 border border-green-200'
+                            : 'bg-red-50 text-red-700 border border-red-200'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            {testResult.success ? (
+                              <CheckCircle className="w-4 h-4" />
+                            ) : (
+                              <XCircle className="w-4 h-4" />
+                            )}
+                            {testResult.message}
+                          </div>
                         </div>
                       )}
                     </div>

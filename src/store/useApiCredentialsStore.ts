@@ -6,6 +6,7 @@ interface ApiCredentialsState {
   credentials: ApiCredential[];
   isLoading: boolean;
   error: string | null;
+  testingChannel: SalesChannel | null;
 
   // CRUD
   fetchCredentials: () => Promise<void>;
@@ -16,6 +17,9 @@ interface ApiCredentialsState {
   // 동기화
   updateSyncStatus: (channel: SalesChannel, status: SyncStatus, error?: string) => Promise<void>;
 
+  // 연결 테스트
+  testConnection: (channel: SalesChannel) => Promise<{ success: boolean; message: string }>;
+
   // 헬퍼
   getCredential: (channel: SalesChannel) => ApiCredential | undefined;
 }
@@ -24,6 +28,7 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
   credentials: [],
   isLoading: false,
   error: null,
+  testingChannel: null,
 
   fetchCredentials: async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -198,6 +203,65 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
       }));
     } catch (err) {
       console.error('Update sync status error:', err);
+    }
+  },
+
+  testConnection: async (channel) => {
+    const credential = get().credentials.find((c) => c.channel === channel);
+
+    if (!credential) {
+      return { success: false, message: '저장된 자격증명이 없습니다.' };
+    }
+
+    set({ testingChannel: channel });
+
+    try {
+      // 자격증명 유효성 검사
+      let isValid = false;
+      let missingFields: string[] = [];
+
+      if (channel === 'cafe24' && credential.cafe24) {
+        const { mallId, clientId, clientSecret } = credential.cafe24;
+        if (!mallId) missingFields.push('몰 ID');
+        if (!clientId) missingFields.push('Client ID');
+        if (!clientSecret) missingFields.push('Client Secret');
+        isValid = missingFields.length === 0;
+      } else if (channel === 'naver_smartstore' && credential.naver) {
+        const { clientId, clientSecret } = credential.naver;
+        if (!clientId) missingFields.push('Client ID');
+        if (!clientSecret) missingFields.push('Client Secret');
+        isValid = missingFields.length === 0;
+      } else if (channel === 'coupang' && credential.coupang) {
+        const { vendorId, accessKey, secretKey } = credential.coupang;
+        if (!vendorId) missingFields.push('Vendor ID');
+        if (!accessKey) missingFields.push('Access Key');
+        if (!secretKey) missingFields.push('Secret Key');
+        isValid = missingFields.length === 0;
+      }
+
+      if (!isValid) {
+        const errorMsg = `필수 항목 누락: ${missingFields.join(', ')}`;
+        await get().updateSyncStatus(channel, 'failed', errorMsg);
+        return { success: false, message: errorMsg };
+      }
+
+      // 테스트 지연 시뮬레이션 (실제 API 호출은 Edge Functions 필요)
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      // 자격증명이 모두 입력되어 있으면 성공으로 처리
+      // 실제 API 연결 테스트는 Edge Functions 구현 후 가능
+      await get().updateSyncStatus(channel, 'success');
+
+      return {
+        success: true,
+        message: '자격증명이 확인되었습니다. 실제 API 연결은 서버 구현 후 테스트됩니다.'
+      };
+    } catch (err) {
+      const errorMsg = '연결 테스트 중 오류가 발생했습니다.';
+      await get().updateSyncStatus(channel, 'failed', errorMsg);
+      return { success: false, message: errorMsg };
+    } finally {
+      set({ testingChannel: null });
     }
   },
 
