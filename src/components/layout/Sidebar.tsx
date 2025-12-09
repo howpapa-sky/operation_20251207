@@ -15,6 +15,10 @@ import {
   Sparkles,
   DollarSign,
   LucideIcon,
+  StickyNote,
+  CheckSquare,
+  MessageSquare,
+  User,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useProjectSettingsStore } from '../../store/useProjectSettingsStore';
@@ -38,6 +42,12 @@ const allMenuItems: MenuItem[] = [
   { icon: DollarSign, label: '매출 관리', path: '/sales' },
   { icon: BarChart3, label: '통계', path: '/statistics' },
   { icon: Settings, label: '설정', path: '/settings' },
+];
+
+const personalMenuItems: MenuItem[] = [
+  { icon: StickyNote, label: '비공개 메모', path: '/personal/notes' },
+  { icon: CheckSquare, label: '내 작업 현황', path: '/personal/my-tasks' },
+  { icon: MessageSquare, label: '상태 업데이트', path: '/personal/status-updates' },
 ];
 
 export default function Sidebar() {
@@ -65,6 +75,23 @@ export default function Sidebar() {
     }
     return item.label;
   };
+
+  const renderMenuItem = (item: MenuItem, isActive: boolean) => (
+    <li key={item.path}>
+      <NavLink
+        to={item.path}
+        className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 ${
+          isActive
+            ? 'bg-primary-50 text-primary-700 font-medium'
+            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+        }`}
+        title={sidebarCollapsed ? getMenuLabel(item) : undefined}
+      >
+        <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-primary-600' : ''}`} />
+        {!sidebarCollapsed && <span>{getMenuLabel(item)}</span>}
+      </NavLink>
+    </li>
+  );
 
   return (
     <aside
@@ -94,25 +121,36 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-3">
+        {/* Main Menu */}
         <ul className="space-y-1">
           {menuItems.map((item) => {
+            const isActive = location.pathname === item.path ||
+              (item.path !== '/' && location.pathname.startsWith(item.path));
+            return renderMenuItem(item, isActive);
+          })}
+        </ul>
+
+        {/* Personal Section Divider */}
+        <div className="my-4 border-t border-gray-200" />
+
+        {/* Personal Section Header */}
+        {!sidebarCollapsed && (
+          <div className="px-3 mb-2 flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <User className="w-4 h-4" />
+            개인 업무
+          </div>
+        )}
+        {sidebarCollapsed && (
+          <div className="flex justify-center mb-2">
+            <User className="w-4 h-4 text-gray-400" />
+          </div>
+        )}
+
+        {/* Personal Menu Items */}
+        <ul className="space-y-1">
+          {personalMenuItems.map((item) => {
             const isActive = location.pathname === item.path;
-            return (
-              <li key={item.path}>
-                <NavLink
-                  to={item.path}
-                  className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 ${
-                    isActive
-                      ? 'bg-primary-50 text-primary-700 font-medium'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                  title={sidebarCollapsed ? getMenuLabel(item) : undefined}
-                >
-                  <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-primary-600' : ''}`} />
-                  {!sidebarCollapsed && <span>{getMenuLabel(item)}</span>}
-                </NavLink>
-              </li>
-            );
+            return renderMenuItem(item, isActive);
           })}
         </ul>
       </nav>

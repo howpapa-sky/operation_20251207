@@ -13,6 +13,7 @@ import { useState } from 'react';
 import Card from '../common/Card';
 import Badge from '../common/Badge';
 import Modal from '../common/Modal';
+import SamplingEmailGenerator from './SamplingEmailGenerator';
 import { Project, SamplingProject } from '../../types';
 import { useStore } from '../../store/useStore';
 import {
@@ -273,6 +274,9 @@ export default function ProjectDetail({ project }: ProjectDetailProps) {
           목록으로
         </button>
         <div className="flex items-center gap-3">
+          {project.type === 'sampling' && (
+            <SamplingEmailGenerator project={project as SamplingProject} />
+          )}
           <button
             onClick={() => navigate(`${basePath}/${project.id}/edit`)}
             className="btn-secondary flex items-center gap-2"

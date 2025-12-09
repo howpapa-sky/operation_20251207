@@ -15,6 +15,9 @@ import OtherPage from './pages/OtherPage';
 import StatisticsPage from './pages/StatisticsPage';
 import SettingsPage from './pages/SettingsPage';
 import SalesPage from './pages/SalesPage';
+import PersonalNotesPage from './pages/PersonalNotesPage';
+import MyTasksPage from './pages/MyTasksPage';
+import StatusUpdatesPage from './pages/StatusUpdatesPage';
 
 // Loading Screen
 function LoadingScreen() {
@@ -117,6 +120,9 @@ function App() {
           <Route path="sales" element={<SalesPage />} />
           <Route path="statistics" element={<StatisticsPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="personal/notes" element={<PersonalNotesPage />} />
+          <Route path="personal/my-tasks" element={<MyTasksPage />} />
+          <Route path="personal/status-updates" element={<StatusUpdatesPage />} />
         </Route>
 
         {/* Catch all - redirect to home */}

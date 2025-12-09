@@ -13,12 +13,27 @@ import {
   Eye,
   Download,
   X,
+  Kanban,
+  GanttChart,
+  Clock,
+  GitBranch,
+  LayoutDashboard,
+  Users,
 } from 'lucide-react';
 import Card from '../common/Card';
 import Badge from '../common/Badge';
 import Modal from '../common/Modal';
 import EmptyState from '../common/EmptyState';
 import { useStore } from '../../store/useStore';
+import {
+  BoardView,
+  GanttView,
+  CalendarView,
+  TimelineView,
+  WorkflowView,
+  DashboardView,
+  WorkloadView,
+} from './views';
 import {
   Project,
   ProjectType,
@@ -38,6 +53,26 @@ import {
   exportToCSV,
 } from '../../utils/helpers';
 
+type ViewMode = 'list' | 'grid' | 'board' | 'gantt' | 'calendar' | 'timeline' | 'workflow' | 'dashboard' | 'workload';
+
+interface ViewOption {
+  id: ViewMode;
+  label: string;
+  icon: React.ElementType;
+}
+
+const viewOptions: ViewOption[] = [
+  { id: 'list', label: '목록', icon: List },
+  { id: 'grid', label: '그리드', icon: Grid3X3 },
+  { id: 'board', label: '보드', icon: Kanban },
+  { id: 'gantt', label: '간트', icon: GanttChart },
+  { id: 'calendar', label: '캘린더', icon: Calendar },
+  { id: 'timeline', label: '타임라인', icon: Clock },
+  { id: 'workflow', label: '워크플로', icon: GitBranch },
+  { id: 'dashboard', label: '대시보드', icon: LayoutDashboard },
+  { id: 'workload', label: '워크로드', icon: Users },
+];
+
 interface ProjectListProps {
   type: ProjectType;
   title: string;
@@ -48,7 +83,8 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
   const navigate = useNavigate();
   const { projects, deleteProject, filters, setFilters } = useStore();
 
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [showViewOptions, setShowViewOptions] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<ProjectStatus | ''>('');
@@ -108,6 +144,9 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
   };
 
   const hasFilters = searchQuery || selectedStatus || selectedPriority || selectedBrand;
+
+  const currentViewOption = viewOptions.find((v) => v.id === viewMode);
+  const CurrentViewIcon = currentViewOption?.icon || List;
 
   const renderProjectCard = (project: Project) => {
     const isMenuOpen = actionMenuId === project.id;
@@ -307,6 +346,75 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
     );
   };
 
+  const renderContent = () => {
+    if (filteredProjects.length === 0) {
+      return (
+        <Card>
+          <EmptyState
+            title="프로젝트가 없습니다"
+            description="새 프로젝트를 만들어 시작하세요"
+            action={
+              <button
+                onClick={() => navigate(`/${type.replace('_', '-')}/new`)}
+                className="btn-primary flex items-center gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                새 프로젝트 만들기
+              </button>
+            }
+          />
+        </Card>
+      );
+    }
+
+    switch (viewMode) {
+      case 'board':
+        return <BoardView projects={filteredProjects} type={type} onDelete={(id) => setDeleteModalId(id)} />;
+      case 'gantt':
+        return <GanttView projects={filteredProjects} type={type} />;
+      case 'calendar':
+        return <CalendarView projects={filteredProjects} type={type} />;
+      case 'timeline':
+        return <TimelineView projects={filteredProjects} type={type} />;
+      case 'workflow':
+        return <WorkflowView projects={filteredProjects} type={type} />;
+      case 'dashboard':
+        return <DashboardView projects={filteredProjects} type={type} />;
+      case 'workload':
+        return <WorkloadView projects={filteredProjects} type={type} />;
+      case 'grid':
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredProjects.map(renderProjectCard)}
+          </div>
+        );
+      case 'list':
+      default:
+        return (
+          <Card padding="none">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="table-header">프로젝트명</th>
+                    <th className="table-header">상태</th>
+                    <th className="table-header">우선순위</th>
+                    <th className="table-header">시작일</th>
+                    <th className="table-header">목표일</th>
+                    <th className="table-header">D-day</th>
+                    <th className="table-header w-20"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filteredProjects.map(renderProjectRow)}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        );
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -335,7 +443,7 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filters & View Options */}
       <Card className="p-4">
         <div className="flex items-center gap-4 flex-wrap">
           {/* Search */}
@@ -362,20 +470,46 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
             )}
           </button>
 
-          {/* View Mode */}
-          <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
+          {/* View Mode Dropdown */}
+          <div className="relative">
             <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 ${viewMode === 'list' ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
+              onClick={() => setShowViewOptions(!showViewOptions)}
+              className="btn-secondary flex items-center gap-2"
             >
-              <List className="w-5 h-5 text-gray-600" />
+              <CurrentViewIcon className="w-4 h-4" />
+              {currentViewOption?.label}
             </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 ${viewMode === 'grid' ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
-            >
-              <Grid3X3 className="w-5 h-5 text-gray-600" />
-            </button>
+
+            {showViewOptions && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowViewOptions(false)}
+                />
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-elegant-lg border border-gray-100 z-20 overflow-hidden">
+                  {viewOptions.map((option) => {
+                    const Icon = option.icon;
+                    return (
+                      <button
+                        key={option.id}
+                        onClick={() => {
+                          setViewMode(option.id);
+                          setShowViewOptions(false);
+                        }}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                          viewMode === option.id
+                            ? 'bg-primary-50 text-primary-700 font-medium'
+                            : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -432,49 +566,8 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
         )}
       </Card>
 
-      {/* Project List/Grid */}
-      {filteredProjects.length === 0 ? (
-        <Card>
-          <EmptyState
-            title="프로젝트가 없습니다"
-            description="새 프로젝트를 만들어 시작하세요"
-            action={
-              <button
-                onClick={() => navigate(`/${type.replace('_', '-')}/new`)}
-                className="btn-primary flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                새 프로젝트 만들기
-              </button>
-            }
-          />
-        </Card>
-      ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProjects.map(renderProjectCard)}
-        </div>
-      ) : (
-        <Card padding="none">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="table-header">프로젝트명</th>
-                  <th className="table-header">상태</th>
-                  <th className="table-header">우선순위</th>
-                  <th className="table-header">시작일</th>
-                  <th className="table-header">목표일</th>
-                  <th className="table-header">D-day</th>
-                  <th className="table-header w-20"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filteredProjects.map(renderProjectRow)}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+      {/* Content based on view mode */}
+      {renderContent()}
 
       {/* Delete Modal */}
       <Modal
