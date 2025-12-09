@@ -1,5 +1,3 @@
-import { supabase } from './supabase'
-
 interface SendEmailParams {
   to: string | string[]
   subject: string
@@ -15,20 +13,25 @@ interface SendEmailResult {
 }
 
 /**
- * Supabase Edge Function을 통해 이메일을 발송합니다.
+ * Netlify Function을 통해 이메일을 발송합니다.
  * 네이버 웍스 SMTP를 사용합니다.
  */
 export async function sendEmail(params: SendEmailParams): Promise<SendEmailResult> {
   try {
-    const { data, error } = await supabase.functions.invoke('send-email', {
-      body: params
+    const response = await fetch('/.netlify/functions/send-email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params),
     })
 
-    if (error) {
-      console.error('이메일 발송 오류:', error)
+    const data = await response.json()
+
+    if (!response.ok) {
       return {
         success: false,
-        error: error.message || '이메일 발송에 실패했습니다.'
+        error: data.error || '이메일 발송에 실패했습니다.'
       }
     }
 
