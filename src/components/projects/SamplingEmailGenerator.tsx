@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
-import { Mail, Copy, Check, RefreshCw, Sparkles, Download, Send } from 'lucide-react';
+import { Mail, Copy, Check, RefreshCw, Sparkles, Download, Send, Loader2 } from 'lucide-react';
 import Card from '../common/Card';
 import Modal from '../common/Modal';
 import { SamplingProject } from '../../types';
 import { brandLabels } from '../../utils/helpers';
+import { sendSamplingEmail } from '../../lib/sendEmail';
 
 interface SamplingEmailGeneratorProps {
   project: SamplingProject;
@@ -15,6 +16,9 @@ export default function SamplingEmailGenerator({ project }: SamplingEmailGenerat
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [emailType, setEmailType] = useState<'feedback' | 'approval' | 'revision'>('feedback');
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [sendStatus, setSendStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Calculate overall rating status
   const ratingStatus = useMemo(() => {
@@ -171,8 +175,56 @@ ${brandName} 담당자 드림`;
 
   const handleOpenModal = () => {
     setIsModalOpen(true);
+    setSendStatus(null);
     if (!emailContent) {
       generateEmail();
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!recipientEmail) {
+      setSendStatus({ type: 'error', message: '받는 사람 이메일 주소를 입력해주세요.' });
+      return;
+    }
+
+    if (!emailContent) {
+      setSendStatus({ type: 'error', message: '이메일 내용을 먼저 생성해주세요.' });
+      return;
+    }
+
+    // 이메일 형식 검증
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(recipientEmail)) {
+      setSendStatus({ type: 'error', message: '올바른 이메일 주소 형식이 아닙니다.' });
+      return;
+    }
+
+    setIsSending(true);
+    setSendStatus(null);
+
+    try {
+      // 제목 제거하고 본문만 추출
+      const bodyContent = emailContent.replace(/^제목:.*\n\n/, '');
+
+      const result = await sendSamplingEmail(
+        recipientEmail,
+        project.title,
+        emailType,
+        bodyContent
+      );
+
+      if (result.success) {
+        setSendStatus({ type: 'success', message: '이메일이 성공적으로 발송되었습니다!' });
+      } else {
+        setSendStatus({ type: 'error', message: result.error || '이메일 발송에 실패했습니다.' });
+      }
+    } catch (error) {
+      setSendStatus({
+        type: 'error',
+        message: error instanceof Error ? error.message : '이메일 발송 중 오류가 발생했습니다.'
+      });
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -308,6 +360,53 @@ ${brandName} 담당자 드림`;
             )}
           </div>
 
+          {/* Recipient Email Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              받는 사람 이메일
+            </label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="email"
+                  value={recipientEmail}
+                  onChange={(e) => setRecipientEmail(e.target.value)}
+                  placeholder="manufacturer@example.com"
+                  className="input-field pl-10"
+                />
+              </div>
+              <button
+                onClick={handleSendEmail}
+                disabled={!emailContent || isGenerating || isSending || !recipientEmail}
+                className="btn-primary flex items-center gap-2 whitespace-nowrap"
+              >
+                {isSending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    발송 중...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    이메일 발송
+                  </>
+                )}
+              </button>
+            </div>
+            {/* Send Status Message */}
+            {sendStatus && (
+              <div className={`mt-2 p-3 rounded-lg text-sm ${
+                sendStatus.type === 'success'
+                  ? 'bg-green-50 text-green-700 border border-green-200'
+                  : 'bg-red-50 text-red-700 border border-red-200'
+              }`}>
+                {sendStatus.type === 'success' ? '✓ ' : '✕ '}
+                {sendStatus.message}
+              </div>
+            )}
+          </div>
+
           {/* Actions */}
           <div className="flex justify-between pt-4 border-t border-gray-200">
             <div className="flex gap-2">
@@ -339,7 +438,7 @@ ${brandName} 담당자 드림`;
             </div>
             <button
               onClick={() => setIsModalOpen(false)}
-              className="btn-primary"
+              className="btn-secondary"
             >
               닫기
             </button>
