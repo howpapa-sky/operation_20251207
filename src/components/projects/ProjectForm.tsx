@@ -6,23 +6,17 @@ import Modal from '../common/Modal';
 import {
   ProjectStatus,
   Priority,
-  Brand,
-  ProductCategory,
-  Manufacturer,
-  SamplingProject,
-  DetailPageProject,
-  InfluencerProject,
-  ProductOrderProject,
-  GroupPurchaseProject,
-  OtherProject,
   Project,
   SampleRating,
+  ProjectType,
+  ProjectFieldSetting,
+  FieldType,
 } from '../../types';
 import { useStore } from '../../store/useStore';
+import { useProjectFieldsStore } from '../../store/useProjectFieldsStore';
 import {
   statusLabels,
   priorityLabels,
-  brandLabels,
   formatDate,
 } from '../../utils/helpers';
 
@@ -33,24 +27,24 @@ interface ProjectFormProps {
   onDelete?: () => void;
 }
 
-const categories: ProductCategory[] = [
-  '크림', '패드', '로션', '스틱', '앰플', '세럼', '미스트', '클렌저', '선크림', '마스크팩', '기타'
-];
-
-const manufacturers: Manufacturer[] = ['콜마', '코스맥스', '기타'];
-
 const statusOptions: ProjectStatus[] = [
   'planning', 'in_progress', 'review', 'completed', 'on_hold', 'cancelled'
 ];
 
 const priorityOptions: Priority[] = ['low', 'medium', 'high', 'urgent'];
 
-const brandOptions: Brand[] = ['howpapa', 'nuccio'];
-
 export default function ProjectForm({ type, project, onSave, onDelete }: ProjectFormProps) {
   const navigate = useNavigate();
   const { evaluationCriteria } = useStore();
+  const { getFieldsForType, fetchFieldSettings, fieldSettings } = useProjectFieldsStore();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  // 필드 설정 가져오기
+  useEffect(() => {
+    if (fieldSettings.length === 0) {
+      fetchFieldSettings();
+    }
+  }, [fieldSettings.length, fetchFieldSettings]);
 
   // 공통 필드
   const [title, setTitle] = useState(project?.title || '');
@@ -62,90 +56,37 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
   const [notes, setNotes] = useState(project?.notes || '');
   const [assignee, setAssignee] = useState(project?.assignee || '');
 
-  // 샘플링 필드
-  const [brand, setBrand] = useState<Brand>(
-    (project && 'brand' in project) ? project.brand : 'howpapa'
-  );
-  const [category, setCategory] = useState<ProductCategory>(
-    (project && 'category' in project) ? project.category : '크림'
-  );
-  const [manufacturer, setManufacturer] = useState<Manufacturer>(
-    (project && 'manufacturer' in project) ? project.manufacturer : '콜마'
-  );
-  const [sampleCode, setSampleCode] = useState(
-    (project && 'sampleCode' in project) ? project.sampleCode : ''
-  );
-  const [round, setRound] = useState(
-    (project && 'round' in project) ? project.round : 1
-  );
+  // 동적 필드 값 관리
+  const [dynamicFieldValues, setDynamicFieldValues] = useState<Record<string, string | number | boolean>>({});
+
+  // 샘플링 전용: 평가 항목
   const [ratings, setRatings] = useState<SampleRating[]>(
     (project && 'ratings' in project) ? project.ratings : []
   );
 
-  // 상세페이지 제작 필드
-  const [productName, setProductName] = useState(
-    (project && 'productName' in project) ? project.productName : ''
-  );
-  const [productionCompany, setProductionCompany] = useState(
-    (project && 'productionCompany' in project) ? project.productionCompany : ''
-  );
-  const [workType, setWorkType] = useState<'new' | 'renewal'>(
-    (project && 'workType' in project) ? project.workType : 'new'
-  );
-  const [includesPhotography, setIncludesPhotography] = useState(
-    (project && 'includesPhotography' in project) ? project.includesPhotography : false
-  );
-  const [includesPlanning, setIncludesPlanning] = useState(
-    (project && 'includesPlanning' in project) ? project.includesPlanning : false
-  );
-  const [budget, setBudget] = useState(
-    (project && 'budget' in project) ? project.budget : 0
-  );
-  const [actualCost, setActualCost] = useState(
-    (project && 'actualCost' in project) ? project.actualCost : 0
-  );
+  // 프로젝트 데이터에서 동적 필드 값 초기화
+  useEffect(() => {
+    if (project) {
+      const values: Record<string, string | number | boolean> = {};
+      const fields = getFieldsForType(type);
 
-  // 인플루언서 필드
-  const [collaborationType, setCollaborationType] = useState<'sponsorship' | 'paid_content'>(
-    (project && 'collaborationType' in project) ? project.collaborationType : 'sponsorship'
-  );
-  const [influencerName, setInfluencerName] = useState(
-    (project && 'influencerName' in project) ? project.influencerName || '' : ''
-  );
-  const [platform, setPlatform] = useState(
-    (project && 'platform' in project) ? project.platform || '' : ''
-  );
+      fields.forEach((field) => {
+        const key = field.fieldKey;
+        if (key in project) {
+          values[key] = (project as unknown as Record<string, unknown>)[key] as string | number | boolean;
+        }
+      });
 
-  // 제품 발주 필드
-  const [containerMaterial, setContainerMaterial] = useState(
-    (project && 'containerMaterial' in project) ? project.containerMaterial : ''
-  );
-  const [boxMaterial, setBoxMaterial] = useState(
-    (project && 'boxMaterial' in project) ? project.boxMaterial : ''
-  );
-  const [quantity, setQuantity] = useState(
-    (project && 'quantity' in project) ? project.quantity || 0 : 0
-  );
-  const [unitPrice, setUnitPrice] = useState(
-    (project && 'unitPrice' in project) ? project.unitPrice || 0 : 0
-  );
+      setDynamicFieldValues(values);
+    }
+  }, [project, type, getFieldsForType]);
 
-  // 공동구매 필드
-  const [sellerName, setSellerName] = useState(
-    (project && 'sellerName' in project) ? project.sellerName : ''
-  );
-  const [revenue, setRevenue] = useState(
-    (project && 'revenue' in project) ? project.revenue : 0
-  );
-  const [contributionProfit, setContributionProfit] = useState(
-    (project && 'contributionProfit' in project) ? project.contributionProfit : 0
-  );
-
-  // 평가 항목 초기화
+  // 평가 항목 초기화 (샘플링용)
   useEffect(() => {
     if (type === 'sampling' && ratings.length === 0) {
+      const categoryValue = dynamicFieldValues['category'] as string || '크림';
       const categoryRatings = evaluationCriteria
-        .filter((c) => c.category === category && c.isActive)
+        .filter((c) => c.category === categoryValue && c.isActive)
         .map((c) => ({
           criteriaId: c.id,
           criteriaName: c.name,
@@ -153,7 +94,27 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
         }));
       setRatings(categoryRatings);
     }
-  }, [type, category, evaluationCriteria, ratings.length]);
+  }, [type, dynamicFieldValues, evaluationCriteria, ratings.length]);
+
+  // 동적 필드 값 변경 핸들러
+  const handleFieldChange = (fieldKey: string, value: string | number | boolean) => {
+    setDynamicFieldValues((prev) => ({
+      ...prev,
+      [fieldKey]: value,
+    }));
+
+    // 샘플링에서 카테고리가 변경되면 평가 항목 초기화
+    if (type === 'sampling' && fieldKey === 'category') {
+      const newRatings = evaluationCriteria
+        .filter((c) => c.category === value && c.isActive)
+        .map((c) => ({
+          criteriaId: c.id,
+          criteriaName: c.name,
+          score: 0,
+        }));
+      setRatings(newRatings);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,89 +130,36 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
       assignee,
     };
 
-    let projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>;
+    // 동적 필드 값 추가
+    const projectData: Record<string, unknown> = {
+      ...baseData,
+      type,
+      ...dynamicFieldValues,
+    };
 
-    switch (type) {
-      case 'sampling':
-        projectData = {
-          ...baseData,
-          type: 'sampling',
-          brand,
-          category,
-          manufacturer,
-          sampleCode,
-          round,
-          ratings,
-          averageRating: ratings.length > 0
-            ? ratings.reduce((sum, r) => sum + r.score, 0) / ratings.length
-            : undefined,
-        } as Omit<SamplingProject, 'id' | 'createdAt' | 'updatedAt'>;
-        break;
-
-      case 'detail_page':
-        projectData = {
-          ...baseData,
-          type: 'detail_page',
-          brand,
-          category,
-          productName,
-          productionCompany,
-          workType,
-          includesPhotography,
-          includesPlanning,
-          budget,
-          actualCost,
-        } as Omit<DetailPageProject, 'id' | 'createdAt' | 'updatedAt'>;
-        break;
-
-      case 'influencer':
-        projectData = {
-          ...baseData,
-          type: 'influencer',
-          collaborationType,
-          influencerName,
-          platform,
-          budget,
-          actualCost,
-        } as Omit<InfluencerProject, 'id' | 'createdAt' | 'updatedAt'>;
-        break;
-
-      case 'product_order':
-        projectData = {
-          ...baseData,
-          type: 'product_order',
-          brand,
-          manufacturer,
-          containerMaterial,
-          boxMaterial,
-          quantity,
-          unitPrice,
-          totalAmount: quantity * unitPrice,
-        } as Omit<ProductOrderProject, 'id' | 'createdAt' | 'updatedAt'>;
-        break;
-
-      case 'group_purchase':
-        projectData = {
-          ...baseData,
-          type: 'group_purchase',
-          brand,
-          sellerName,
-          revenue,
-          contributionProfit,
-          profitMargin: revenue > 0 ? (contributionProfit / revenue) * 100 : undefined,
-        } as Omit<GroupPurchaseProject, 'id' | 'createdAt' | 'updatedAt'>;
-        break;
-
-      case 'other':
-      default:
-        projectData = {
-          ...baseData,
-          type: 'other',
-        } as Omit<OtherProject, 'id' | 'createdAt' | 'updatedAt'>;
-        break;
+    // 샘플링인 경우 평가 항목 추가
+    if (type === 'sampling') {
+      projectData.ratings = ratings;
+      projectData.averageRating = ratings.length > 0
+        ? ratings.reduce((sum, r) => sum + r.score, 0) / ratings.length
+        : undefined;
     }
 
-    onSave(projectData);
+    // 제품 발주인 경우 총액 계산
+    if (type === 'product_order') {
+      const qty = dynamicFieldValues['quantity'] as number || 0;
+      const price = dynamicFieldValues['unitPrice'] as number || 0;
+      projectData.totalAmount = qty * price;
+    }
+
+    // 공동구매인 경우 이익률 계산
+    if (type === 'group_purchase') {
+      const rev = dynamicFieldValues['revenue'] as number || 0;
+      const profit = dynamicFieldValues['contributionProfit'] as number || 0;
+      projectData.profitMargin = rev > 0 ? (profit / rev) * 100 : undefined;
+    }
+
+    onSave(projectData as Omit<Project, 'id' | 'createdAt' | 'updatedAt'>);
   };
 
   const updateRating = (criteriaId: string, score: number) => {
@@ -260,382 +168,183 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
     );
   };
 
-  const renderTypeSpecificFields = () => {
-    switch (type) {
-      case 'sampling':
-        return (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="label">브랜드</label>
-                <select
-                  value={brand}
-                  onChange={(e) => setBrand(e.target.value as Brand)}
-                  className="select-field"
-                >
-                  {brandOptions.map((b) => (
-                    <option key={b} value={b}>{brandLabels[b]}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="label">카테고리</label>
-                <select
-                  value={category}
-                  onChange={(e) => {
-                    setCategory(e.target.value as ProductCategory);
-                    // Reset ratings when category changes
-                    const newRatings = evaluationCriteria
-                      .filter((c) => c.category === e.target.value && c.isActive)
-                      .map((c) => ({
-                        criteriaId: c.id,
-                        criteriaName: c.name,
-                        score: 0,
-                      }));
-                    setRatings(newRatings);
-                  }}
-                  className="select-field"
-                >
-                  {categories.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="label">제조사</label>
-                <select
-                  value={manufacturer}
-                  onChange={(e) => setManufacturer(e.target.value as Manufacturer)}
-                  className="select-field"
-                >
-                  {manufacturers.map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="label">샘플 코드</label>
-                <input
-                  type="text"
-                  value={sampleCode}
-                  onChange={(e) => setSampleCode(e.target.value)}
-                  className="input-field"
-                  placeholder="샘플 코드 입력"
-                />
-              </div>
-              <div>
-                <label className="label">회차</label>
-                <select
-                  value={round}
-                  onChange={(e) => setRound(Number(e.target.value))}
-                  className="select-field"
-                >
-                  {Array.from({ length: 20 }, (_, i) => i + 1).map((r) => (
-                    <option key={r} value={r}>{r}회</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+  // 동적 필드 렌더링
+  const renderDynamicField = (field: ProjectFieldSetting) => {
+    const value = dynamicFieldValues[field.fieldKey];
+    const isRequired = field.isRequired;
 
-            {/* 평가 항목 */}
-            {ratings.length > 0 && (
-              <div className="mt-6">
-                <h4 className="text-sm font-medium text-gray-900 mb-4">평가 항목</h4>
-                <div className="space-y-4">
-                  {ratings.map((rating) => {
-                    const criteria = evaluationCriteria.find(c => c.id === rating.criteriaId);
-                    return (
-                      <div key={rating.criteriaId} className="flex items-start gap-4">
-                        <div className="w-32 flex-shrink-0">
-                          <span className="text-sm font-medium text-gray-700">{rating.criteriaName}</span>
-                          {criteria?.description && (
-                            <p className="text-xs text-gray-400 mt-0.5">{criteria.description}</p>
-                          )}
-                        </div>
-                        <div className="flex gap-1">
-                          {[1, 2, 3, 4, 5].map((score) => (
-                            <button
-                              key={score}
-                              type="button"
-                              onClick={() => updateRating(rating.criteriaId, score)}
-                              className={`p-1 transition-all ${
-                                score <= rating.score ? 'text-yellow-400' : 'text-gray-300'
-                              }`}
-                            >
-                              <Star className="w-6 h-6 fill-current" />
-                            </button>
-                          ))}
-                        </div>
-                        <span className="text-sm text-gray-500">{rating.score}/5</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </>
-        );
-
-      case 'detail_page':
+    switch (field.fieldType) {
+      case 'text':
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="label">브랜드</label>
-              <select
-                value={brand}
-                onChange={(e) => setBrand(e.target.value as Brand)}
-                className="select-field"
-              >
-                {brandOptions.map((b) => (
-                  <option key={b} value={b}>{brandLabels[b]}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label">카테고리</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value as ProductCategory)}
-                className="select-field"
-              >
-                {categories.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label">제품명</label>
-              <input
-                type="text"
-                value={productName}
-                onChange={(e) => setProductName(e.target.value)}
-                className="input-field"
-                placeholder="제품명 입력"
-              />
-            </div>
-            <div>
-              <label className="label">제작 업체</label>
-              <input
-                type="text"
-                value={productionCompany}
-                onChange={(e) => setProductionCompany(e.target.value)}
-                className="input-field"
-                placeholder="제작 업체 입력"
-              />
-            </div>
-            <div>
-              <label className="label">업무 구분</label>
-              <select
-                value={workType}
-                onChange={(e) => setWorkType(e.target.value as 'new' | 'renewal')}
-                className="select-field"
-              >
-                <option value="new">신규</option>
-                <option value="renewal">리뉴얼</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">예산</label>
-              <input
-                type="number"
-                value={budget}
-                onChange={(e) => setBudget(Number(e.target.value))}
-                className="input-field"
-                placeholder="예산 입력"
-              />
-            </div>
-            <div className="flex items-center gap-6">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includesPhotography}
-                  onChange={(e) => setIncludesPhotography(e.target.checked)}
-                  className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                />
-                <span className="text-sm text-gray-700">촬영 포함</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includesPlanning}
-                  onChange={(e) => setIncludesPlanning(e.target.checked)}
-                  className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                />
-                <span className="text-sm text-gray-700">기획 포함</span>
-              </label>
-            </div>
+          <div key={field.id}>
+            <label className="label">
+              {field.fieldLabel}
+              {isRequired && ' *'}
+            </label>
+            <input
+              type="text"
+              value={(value as string) || ''}
+              onChange={(e) => handleFieldChange(field.fieldKey, e.target.value)}
+              className="input-field"
+              placeholder={field.placeholder || `${field.fieldLabel} 입력`}
+              required={isRequired}
+            />
           </div>
         );
 
-      case 'influencer':
+      case 'number':
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="label">협업 유형</label>
-              <select
-                value={collaborationType}
-                onChange={(e) => setCollaborationType(e.target.value as 'sponsorship' | 'paid_content')}
-                className="select-field"
-              >
-                <option value="sponsorship">제품 협찬</option>
-                <option value="paid_content">유가 콘텐츠</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">인플루언서</label>
-              <input
-                type="text"
-                value={influencerName}
-                onChange={(e) => setInfluencerName(e.target.value)}
-                className="input-field"
-                placeholder="인플루언서 이름"
-              />
-            </div>
-            <div>
-              <label className="label">플랫폼</label>
-              <input
-                type="text"
-                value={platform}
-                onChange={(e) => setPlatform(e.target.value)}
-                className="input-field"
-                placeholder="인스타그램, 유튜브 등"
-              />
-            </div>
-            <div>
-              <label className="label">예산</label>
-              <input
-                type="number"
-                value={budget}
-                onChange={(e) => setBudget(Number(e.target.value))}
-                className="input-field"
-                placeholder="예산 입력"
-              />
-            </div>
+          <div key={field.id}>
+            <label className="label">
+              {field.fieldLabel}
+              {isRequired && ' *'}
+            </label>
+            <input
+              type="number"
+              value={(value as number) || ''}
+              onChange={(e) => handleFieldChange(field.fieldKey, Number(e.target.value))}
+              className="input-field"
+              placeholder={field.placeholder || `${field.fieldLabel} 입력`}
+              required={isRequired}
+            />
           </div>
         );
 
-      case 'product_order':
+      case 'select':
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="label">브랜드</label>
-              <select
-                value={brand}
-                onChange={(e) => setBrand(e.target.value as Brand)}
-                className="select-field"
-              >
-                {brandOptions.map((b) => (
-                  <option key={b} value={b}>{brandLabels[b]}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label">제조사</label>
-              <select
-                value={manufacturer}
-                onChange={(e) => setManufacturer(e.target.value as Manufacturer)}
-                className="select-field"
-              >
-                {manufacturers.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label">용기 부자재</label>
-              <input
-                type="text"
-                value={containerMaterial}
-                onChange={(e) => setContainerMaterial(e.target.value)}
-                className="input-field"
-                placeholder="용기 부자재 입력"
-              />
-            </div>
-            <div>
-              <label className="label">단상자 부자재</label>
-              <input
-                type="text"
-                value={boxMaterial}
-                onChange={(e) => setBoxMaterial(e.target.value)}
-                className="input-field"
-                placeholder="단상자 부자재 입력"
-              />
-            </div>
-            <div>
-              <label className="label">수량</label>
-              <input
-                type="number"
-                value={quantity}
-                onChange={(e) => setQuantity(Number(e.target.value))}
-                className="input-field"
-                placeholder="수량 입력"
-              />
-            </div>
-            <div>
-              <label className="label">단가</label>
-              <input
-                type="number"
-                value={unitPrice}
-                onChange={(e) => setUnitPrice(Number(e.target.value))}
-                className="input-field"
-                placeholder="단가 입력"
-              />
-            </div>
+          <div key={field.id}>
+            <label className="label">
+              {field.fieldLabel}
+              {isRequired && ' *'}
+            </label>
+            <select
+              value={(value as string) || (field.fieldOptions?.[0] || '')}
+              onChange={(e) => handleFieldChange(field.fieldKey, e.target.value)}
+              className="select-field"
+              required={isRequired}
+            >
+              {field.fieldOptions?.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
           </div>
         );
 
-      case 'group_purchase':
+      case 'checkbox':
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="label">브랜드</label>
-              <select
-                value={brand}
-                onChange={(e) => setBrand(e.target.value as Brand)}
-                className="select-field"
-              >
-                {brandOptions.map((b) => (
-                  <option key={b} value={b}>{brandLabels[b]}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label">셀러</label>
+          <div key={field.id} className="flex items-center">
+            <label className="flex items-center gap-2 cursor-pointer">
               <input
-                type="text"
-                value={sellerName}
-                onChange={(e) => setSellerName(e.target.value)}
-                className="input-field"
-                placeholder="셀러 이름 입력"
+                type="checkbox"
+                checked={(value as boolean) || false}
+                onChange={(e) => handleFieldChange(field.fieldKey, e.target.checked)}
+                className="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
               />
-            </div>
-            <div>
-              <label className="label">매출</label>
-              <input
-                type="number"
-                value={revenue}
-                onChange={(e) => setRevenue(Number(e.target.value))}
-                className="input-field"
-                placeholder="매출 입력"
-              />
-            </div>
-            <div>
-              <label className="label">공헌 이익</label>
-              <input
-                type="number"
-                value={contributionProfit}
-                onChange={(e) => setContributionProfit(Number(e.target.value))}
-                className="input-field"
-                placeholder="공헌 이익 입력"
-              />
-            </div>
+              <span className="text-sm text-gray-700">{field.fieldLabel}</span>
+            </label>
           </div>
         );
 
-      case 'other':
+      case 'date':
+        return (
+          <div key={field.id}>
+            <label className="label">
+              {field.fieldLabel}
+              {isRequired && ' *'}
+            </label>
+            <input
+              type="date"
+              value={(value as string) || ''}
+              onChange={(e) => handleFieldChange(field.fieldKey, e.target.value)}
+              className="input-field"
+              required={isRequired}
+            />
+          </div>
+        );
+
+      case 'textarea':
+        return (
+          <div key={field.id} className="md:col-span-2">
+            <label className="label">
+              {field.fieldLabel}
+              {isRequired && ' *'}
+            </label>
+            <textarea
+              value={(value as string) || ''}
+              onChange={(e) => handleFieldChange(field.fieldKey, e.target.value)}
+              className="input-field min-h-24"
+              placeholder={field.placeholder || `${field.fieldLabel} 입력`}
+              required={isRequired}
+            />
+          </div>
+        );
+
       default:
         return null;
     }
+  };
+
+  // 동적 필드 목록 렌더링
+  const renderTypeSpecificFields = () => {
+    const fields = getFieldsForType(type);
+
+    // 체크박스 필드와 나머지 필드 분리
+    const checkboxFields = fields.filter((f) => f.fieldType === 'checkbox');
+    const otherFields = fields.filter((f) => f.fieldType !== 'checkbox');
+
+    return (
+      <>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {otherFields.map(renderDynamicField)}
+
+          {/* 체크박스 필드들은 한 줄에 모아서 표시 */}
+          {checkboxFields.length > 0 && (
+            <div className="flex items-center gap-6 md:col-span-2">
+              {checkboxFields.map(renderDynamicField)}
+            </div>
+          )}
+        </div>
+
+        {/* 샘플링인 경우 평가 항목 렌더링 */}
+        {type === 'sampling' && ratings.length > 0 && (
+          <div className="mt-6">
+            <h4 className="text-sm font-medium text-gray-900 mb-4">평가 항목</h4>
+            <div className="space-y-4">
+              {ratings.map((rating) => {
+                const criteria = evaluationCriteria.find(c => c.id === rating.criteriaId);
+                return (
+                  <div key={rating.criteriaId} className="flex items-start gap-4">
+                    <div className="w-32 flex-shrink-0">
+                      <span className="text-sm font-medium text-gray-700">{rating.criteriaName}</span>
+                      {criteria?.description && (
+                        <p className="text-xs text-gray-400 mt-0.5">{criteria.description}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((score) => (
+                        <button
+                          key={score}
+                          type="button"
+                          onClick={() => updateRating(rating.criteriaId, score)}
+                          className={`p-1 transition-all ${
+                            score <= rating.score ? 'text-yellow-400' : 'text-gray-300'
+                          }`}
+                        >
+                          <Star className="w-6 h-6 fill-current" />
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-sm text-gray-500">{rating.score}/5</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </>
+    );
   };
 
   return (
