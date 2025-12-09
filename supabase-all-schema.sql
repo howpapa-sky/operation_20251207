@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   email TEXT NOT NULL,
   name TEXT NOT NULL,
-  role TEXT DEFAULT 'member' CHECK (role IN ('admin', 'member', 'viewer')),
+  role TEXT DEFAULT 'member' CHECK (role IN ('super_admin', 'admin', 'manager', 'member')),
   avatar_url TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
@@ -458,6 +458,15 @@ BEGIN
 
 END;
 $$ LANGUAGE plpgsql;
+
+-- =============================================
+-- 9. 최고 관리자 설정
+-- =============================================
+
+-- yong@howlab.co.kr을 최고 관리자로 설정
+UPDATE public.profiles
+SET role = 'super_admin'
+WHERE email = 'yong@howlab.co.kr';
 
 -- =============================================
 -- 완료!

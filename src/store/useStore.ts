@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { supabase } from '../lib/supabase';
 import {
   User,
+  UserRole,
   Project,
   EvaluationCriteria,
   Notification,
@@ -155,7 +156,7 @@ export const useStore = create<AppState>()(
                 id: profile.id,
                 email: profile.email,
                 name: profile.name,
-                role: profile.role as 'admin' | 'member' | 'viewer',
+                role: (profile.role || 'member') as UserRole,
                 createdAt: profile.created_at,
                 avatar: profile.avatar_url || undefined,
               };
@@ -200,7 +201,7 @@ export const useStore = create<AppState>()(
                 id: profile.id,
                 email: profile.email,
                 name: profile.name,
-                role: profile.role as 'admin' | 'member' | 'viewer',
+                role: (profile.role || 'member') as UserRole,
                 createdAt: profile.created_at,
                 avatar: profile.avatar_url || undefined,
               };

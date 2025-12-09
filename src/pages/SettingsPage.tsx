@@ -20,6 +20,8 @@ import {
   Eye,
   EyeOff,
   List,
+  Users as UsersIcon,
+  Crown,
 } from 'lucide-react';
 import Card, { CardHeader } from '../components/common/Card';
 import Badge from '../components/common/Badge';
@@ -28,7 +30,8 @@ import { useStore } from '../store/useStore';
 import { useApiCredentialsStore } from '../store/useApiCredentialsStore';
 import { useProjectSettingsStore, defaultProjectTypeLabels } from '../store/useProjectSettingsStore';
 import { useProjectFieldsStore, fieldTypeLabels, defaultFieldSettings } from '../store/useProjectFieldsStore';
-import { EvaluationCriteria, ProductCategory, SalesChannel, SyncStatus, ProjectType, ProjectFieldSetting, FieldType } from '../types';
+import { useUserManagementStore, canManageUsers } from '../store/useUserManagementStore';
+import { EvaluationCriteria, ProductCategory, SalesChannel, SyncStatus, ProjectType, ProjectFieldSetting, FieldType, UserRole, userRoleLabels } from '../types';
 import { channelInfo } from '../services/salesApiService';
 import {
   Beaker,
@@ -55,7 +58,17 @@ export default function SettingsPage() {
     deleteEvaluationCriteria,
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'criteria' | 'project_types' | 'project_fields' | 'api' | 'notifications'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'criteria' | 'project_types' | 'project_fields' | 'api' | 'notifications' | 'user_management'>('profile');
+
+  // User management state
+  const {
+    users,
+    isLoading: isUsersLoading,
+    fetchUsers,
+    updateUserRole,
+    canManageUser,
+    canChangeRole,
+  } = useUserManagementStore();
 
   // Project settings state
   const {
@@ -97,7 +110,10 @@ export default function SettingsPage() {
     fetchProjectTypeSettings();
     fetchNotificationSettings();
     fetchFieldSettings();
-  }, [fetchProjectTypeSettings, fetchNotificationSettings, fetchFieldSettings]);
+    if (canManageUsers(user)) {
+      fetchUsers();
+    }
+  }, [fetchProjectTypeSettings, fetchNotificationSettings, fetchFieldSettings, fetchUsers, user]);
 
   // 프로젝트 유형 아이콘 매핑
   const projectTypeIcons: Record<ProjectType, React.ReactNode> = {
@@ -389,7 +405,7 @@ export default function SettingsPage() {
   // 현재 선택된 프로젝트 유형의 필드 목록
   const currentFields = getFieldsForType(selectedFieldType);
 
-  const tabs = [
+  const baseTabs = [
     { id: 'profile', label: '프로필', icon: User },
     { id: 'criteria', label: '평가 항목 관리', icon: Star },
     { id: 'project_types', label: '프로젝트 유형 관리', icon: FolderOpen },
@@ -397,6 +413,11 @@ export default function SettingsPage() {
     { id: 'api', label: 'API 연동', icon: Link2 },
     { id: 'notifications', label: '알림 설정', icon: Bell },
   ];
+
+  // 관리자 이상만 사용자 관리 탭 표시
+  const tabs = canManageUsers(user)
+    ? [...baseTabs, { id: 'user_management', label: '사용자 권한 관리', icon: Shield }]
+    : baseTabs;
 
   return (
     <div className="space-y-6">
@@ -447,8 +468,16 @@ export default function SettingsPage() {
                   <div>
                     <p className="text-lg font-medium text-gray-900">{user?.name}</p>
                     <p className="text-gray-500">{user?.email}</p>
-                    <Badge variant="primary" className="mt-2">
-                      {user?.role === 'admin' ? '관리자' : user?.role === 'member' ? '멤버' : '뷰어'}
+                    <Badge
+                      variant={
+                        user?.role === 'super_admin' ? 'warning'
+                          : user?.role === 'admin' ? 'primary'
+                          : user?.role === 'manager' ? 'info'
+                          : 'gray'
+                      }
+                      className="mt-2"
+                    >
+                      {user?.role ? userRoleLabels[user.role] : '일반'}
                     </Badge>
                   </div>
                 </div>
@@ -1048,6 +1077,128 @@ export default function SettingsPage() {
                 </div>
               </div>
             </>
+          )}
+
+          {activeTab === 'user_management' && canManageUsers(user) && (
+            <Card>
+              <CardHeader
+                title="사용자 권한 관리"
+                subtitle="사용자별 권한을 설정합니다. 관리자 이상만 이 페이지에 접근할 수 있습니다."
+              />
+              <div className="space-y-4">
+                {isUsersLoading ? (
+                  <div className="text-center py-8">
+                    <RefreshCw className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-2" />
+                    <p className="text-gray-500">사용자 목록 로딩 중...</p>
+                  </div>
+                ) : users.length === 0 ? (
+                  <div className="text-center py-8">
+                    <UsersIcon className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                    <p className="text-gray-500">등록된 사용자가 없습니다</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {users.map((targetUser) => {
+                      const isSuperAdmin = targetUser.email === 'yong@howlab.co.kr';
+                      const canManage = canManageUser(user, targetUser);
+
+                      return (
+                        <div
+                          key={targetUser.id}
+                          className={`p-4 rounded-xl border ${
+                            isSuperAdmin ? 'border-amber-200 bg-amber-50' : 'border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                isSuperAdmin
+                                  ? 'bg-amber-100 text-amber-600'
+                                  : 'bg-primary-100 text-primary-600'
+                              }`}>
+                                {isSuperAdmin ? (
+                                  <Crown className="w-5 h-5" />
+                                ) : (
+                                  <span className="font-semibold">
+                                    {targetUser.name?.charAt(0).toUpperCase() || 'U'}
+                                  </span>
+                                )}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium text-gray-900">{targetUser.name}</p>
+                                  {isSuperAdmin && (
+                                    <Badge variant="warning" size="sm">최고 관리자</Badge>
+                                  )}
+                                  {targetUser.id === user?.id && (
+                                    <Badge variant="primary" size="sm">나</Badge>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-500">{targetUser.email}</p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              {canManage ? (
+                                <select
+                                  value={targetUser.role}
+                                  onChange={(e) => updateUserRole(targetUser.id, e.target.value as UserRole)}
+                                  className="input-field py-2 w-32"
+                                >
+                                  {(['member', 'manager', 'admin'] as UserRole[]).map((role) => (
+                                    <option
+                                      key={role}
+                                      value={role}
+                                      disabled={!canChangeRole(user, role)}
+                                    >
+                                      {userRoleLabels[role]}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <Badge
+                                  variant={
+                                    targetUser.role === 'super_admin' ? 'warning'
+                                      : targetUser.role === 'admin' ? 'primary'
+                                      : targetUser.role === 'manager' ? 'info'
+                                      : 'gray'
+                                  }
+                                >
+                                  {userRoleLabels[targetUser.role]}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* 권한 설명 */}
+                <div className="mt-6 p-4 bg-gray-50 rounded-xl">
+                  <h4 className="font-medium text-gray-900 mb-3">권한 등급 설명</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="warning" size="sm">최고 관리자</Badge>
+                      <span className="text-gray-600">모든 권한 (변경 불가)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="primary" size="sm">관리자</Badge>
+                      <span className="text-gray-600">사용자 권한 관리, 모든 설정 변경</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="info" size="sm">매니저</Badge>
+                      <span className="text-gray-600">프로젝트 삭제, 설정 변경</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="gray" size="sm">일반</Badge>
+                      <span className="text-gray-600">프로젝트 생성/수정, 조회</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
           )}
         </div>
       </div>

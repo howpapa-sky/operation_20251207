@@ -1,9 +1,28 @@
+// 사용자 역할 타입
+export type UserRole = 'super_admin' | 'admin' | 'manager' | 'member';
+
+// 사용자 역할 라벨
+export const userRoleLabels: Record<UserRole, string> = {
+  super_admin: '최고 관리자',
+  admin: '관리자',
+  manager: '매니저',
+  member: '일반',
+};
+
+// 사용자 역할 권한 레벨 (숫자가 높을수록 권한이 높음)
+export const userRoleLevels: Record<UserRole, number> = {
+  super_admin: 100,
+  admin: 80,
+  manager: 50,
+  member: 10,
+};
+
 // 사용자 타입
 export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'member' | 'viewer';
+  role: UserRole;
   createdAt: string;
   avatar?: string;
 }
