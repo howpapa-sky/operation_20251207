@@ -291,7 +291,7 @@ export const useStore = create<AppState>()(
         }
       },
 
-      // 프로젝트 목록 가져오기
+      // 프로젝트 목록 가져오기 (모든 사용자 공유)
       fetchProjects: async () => {
         const { user } = get();
         if (!user) return;
@@ -300,7 +300,6 @@ export const useStore = create<AppState>()(
           const { data, error } = await supabase
             .from('projects')
             .select('*')
-            .eq('user_id', user.id)
             .order('created_at', { ascending: false });
 
           if (!error && data) {

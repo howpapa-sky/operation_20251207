@@ -70,7 +70,6 @@ export const useSalesStore = create<SalesState>((set, get) => ({
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .eq('user_id', user.id)
         .order('name', { ascending: true });
 
       if (!error && data) {
@@ -152,8 +151,7 @@ export const useSalesStore = create<SalesState>((set, get) => ({
       const { error } = await supabase
         .from('products')
         .update(dbUpdates)
-        .eq('id', id)
-        .eq('user_id', user.id);
+        .eq('id', id);
 
       if (!error) {
         set((state) => ({
@@ -176,8 +174,7 @@ export const useSalesStore = create<SalesState>((set, get) => ({
       const { error } = await supabase
         .from('products')
         .delete()
-        .eq('id', id)
-        .eq('user_id', user.id);
+        .eq('id', id);
 
       if (!error) {
         set((state) => ({
@@ -199,7 +196,6 @@ export const useSalesStore = create<SalesState>((set, get) => ({
       let query = supabase
         .from('sales_records')
         .select('*')
-        .eq('user_id', user.id)
         .order('date', { ascending: false });
 
       if (startDate) {
@@ -303,7 +299,6 @@ export const useSalesStore = create<SalesState>((set, get) => ({
         .from('sales_records')
         .update(dbUpdates)
         .eq('id', id)
-        .eq('user_id', user.id)
         .select()
         .single();
 
@@ -336,8 +331,7 @@ export const useSalesStore = create<SalesState>((set, get) => ({
       const { error } = await supabase
         .from('sales_records')
         .delete()
-        .eq('id', id)
-        .eq('user_id', user.id);
+        .eq('id', id);
 
       if (!error) {
         set((state) => ({
