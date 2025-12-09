@@ -120,6 +120,14 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
   },
 
   updateProjectTypeSetting: async (projectType, updates) => {
+    // 먼저 UI 상태 업데이트 (즉시 반영)
+    set((state) => ({
+      projectTypeSettings: state.projectTypeSettings.map((s) =>
+        s.projectType === projectType ? { ...s, ...updates, updatedAt: new Date().toISOString() } : s
+      ),
+    }));
+
+    // 백그라운드에서 DB 업데이트 시도
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -129,19 +137,11 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
       if (updates.displayOrder !== undefined) dbUpdates.display_order = updates.displayOrder;
       if (updates.customName !== undefined) dbUpdates.custom_name = updates.customName || null;
 
-      const { error } = await supabase
+      await supabase
         .from('project_type_settings')
         .update(dbUpdates)
         .eq('user_id', user.id)
         .eq('project_type', projectType);
-
-      if (error) throw error;
-
-      set((state) => ({
-        projectTypeSettings: state.projectTypeSettings.map((s) =>
-          s.projectType === projectType ? { ...s, ...updates, updatedAt: new Date().toISOString() } : s
-        ),
-      }));
     } catch (error) {
       console.error('Update project type setting error:', error);
     }
