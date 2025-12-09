@@ -15,12 +15,13 @@ import {
   LineChart,
   Line,
 } from 'recharts';
-import { Star, TrendingUp, Package, Factory, Filter, Sparkles } from 'lucide-react';
+import { Star, TrendingUp, Package, Factory, Filter, Sparkles, MessageCircle, Send } from 'lucide-react';
 import Card from '../common/Card';
 import Badge from '../common/Badge';
 import CombinedEmailGenerator from './CombinedEmailGenerator';
 import { SamplingProject, ProductCategory, Brand, Manufacturer } from '../../types';
 import { brandLabels, statusLabels, statusColors } from '../../utils/helpers';
+import { sendNaverWorksMessage } from '../../lib/sendNaverWorks';
 
 interface SamplingDashboardProps {
   projects: SamplingProject[];
@@ -48,6 +49,53 @@ export default function SamplingDashboard({ projects }: SamplingDashboardProps) 
   const [selectedBrand, setSelectedBrand] = useState<Brand | ''>('');
   const [selectedManufacturer, setSelectedManufacturer] = useState<Manufacturer | ''>('');
   const [showEmailGenerator, setShowEmailGenerator] = useState(false);
+  const [sendingNotification, setSendingNotification] = useState(false);
+
+  // 메신저 알림 전송
+  const handleSendNotification = async () => {
+    if (filteredProjects.length === 0) return;
+
+    setSendingNotification(true);
+    try {
+      // 요약 정보 생성
+      const avgRating = filteredProjects.reduce((sum, p) => sum + (p.averageRating || 0), 0) / filteredProjects.length;
+      const highRated = filteredProjects.filter(p => (p.averageRating || 0) >= 4).length;
+      const lowRated = filteredProjects.filter(p => (p.averageRating || 0) < 3).length;
+
+      let filterInfo = '';
+      if (selectedCategory) filterInfo += `카테고리: ${selectedCategory}\n`;
+      if (selectedBrand) filterInfo += `브랜드: ${brandLabels[selectedBrand]}\n`;
+      if (selectedManufacturer) filterInfo += `제조사: ${selectedManufacturer}\n`;
+
+      const message = `📊 [샘플링 현황 리포트]
+
+${filterInfo ? `🔍 필터 조건:\n${filterInfo}\n` : ''}📦 총 샘플: ${filteredProjects.length}개
+⭐ 평균 평점: ${avgRating.toFixed(2)}점
+✅ 고평점 (4점↑): ${highRated}개
+⚠️ 저평점 (3점↓): ${lowRated}개
+
+📋 최근 샘플 TOP 5:
+${filteredProjects
+  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  .slice(0, 5)
+  .map((p, i) => `${i + 1}. ${p.title} (${brandLabels[p.brand]}) - ${p.averageRating?.toFixed(1) || '-'}점`)
+  .join('\n')}
+
+📅 ${new Date().toLocaleString('ko-KR')}`;
+
+      const result = await sendNaverWorksMessage({ message });
+
+      if (result.success) {
+        alert('메신저로 알림을 전송했습니다.');
+      } else {
+        alert(`알림 전송 실패: ${result.error}`);
+      }
+    } catch (error) {
+      alert(`오류 발생: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+    } finally {
+      setSendingNotification(false);
+    }
+  };
 
   // 필터링된 프로젝트
   const filteredProjects = useMemo(() => {
@@ -290,6 +338,25 @@ export default function SamplingDashboard({ projects }: SamplingDashboardProps) 
               </button>
             </>
           )}
+
+          {/* 메신저 알림 버튼 */}
+          <button
+            onClick={handleSendNotification}
+            disabled={sendingNotification || filteredProjects.length === 0}
+            className="btn-secondary flex items-center gap-2 ml-auto"
+          >
+            {sendingNotification ? (
+              <>
+                <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                전송중...
+              </>
+            ) : (
+              <>
+                <MessageCircle className="w-4 h-4" />
+                메신저 알림
+              </>
+            )}
+          </button>
         </div>
       </Card>
 
