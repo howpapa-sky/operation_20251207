@@ -15,9 +15,10 @@ import {
   LineChart,
   Line,
 } from 'recharts';
-import { Star, TrendingUp, Package, Factory, Filter } from 'lucide-react';
+import { Star, TrendingUp, Package, Factory, Filter, Sparkles } from 'lucide-react';
 import Card from '../common/Card';
 import Badge from '../common/Badge';
+import CombinedEmailGenerator from './CombinedEmailGenerator';
 import { SamplingProject, ProductCategory, Brand, Manufacturer } from '../../types';
 import { brandLabels, statusLabels, statusColors } from '../../utils/helpers';
 
@@ -46,6 +47,7 @@ export default function SamplingDashboard({ projects }: SamplingDashboardProps) 
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | ''>('');
   const [selectedBrand, setSelectedBrand] = useState<Brand | ''>('');
   const [selectedManufacturer, setSelectedManufacturer] = useState<Manufacturer | ''>('');
+  const [showEmailGenerator, setShowEmailGenerator] = useState(false);
 
   // 필터링된 프로젝트
   const filteredProjects = useMemo(() => {
@@ -268,19 +270,35 @@ export default function SamplingDashboard({ projects }: SamplingDashboardProps) 
           </select>
 
           {(selectedCategory || selectedBrand || selectedManufacturer) && (
-            <button
-              onClick={() => {
-                setSelectedCategory('');
-                setSelectedBrand('');
-                setSelectedManufacturer('');
-              }}
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
-              필터 초기화
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  setSelectedCategory('');
+                  setSelectedBrand('');
+                  setSelectedManufacturer('');
+                }}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                필터 초기화
+              </button>
+              <button
+                onClick={() => setShowEmailGenerator(true)}
+                className="btn-primary flex items-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                AI 종합 이메일 ({filteredProjects.length}개 통합)
+              </button>
+            </>
           )}
         </div>
       </Card>
+
+      {/* 종합 이메일 생성기 */}
+      <CombinedEmailGenerator
+        projects={filteredProjects}
+        isOpen={showEmailGenerator}
+        onClose={() => setShowEmailGenerator(false)}
+      />
 
       {/* 요약 카드 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
