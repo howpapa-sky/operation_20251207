@@ -389,3 +389,29 @@ export interface ApiSettingsFormData {
     secretKey: string;
   };
 }
+
+// ========== 프로젝트 설정 관련 타입 ==========
+
+// 프로젝트 유형 설정
+export interface ProjectTypeSetting {
+  id: string;
+  projectType: ProjectType;
+  isVisible: boolean;
+  displayOrder: number;
+  customName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 알림 설정
+export interface NotificationSettings {
+  id: string;
+  ddayEmailEnabled: boolean;
+  ddayDaysBefore: number[];
+  ddayOverdueEnabled: boolean;
+  statusChangeEnabled: boolean;
+  weeklySummaryEnabled: boolean;
+  notificationEmail?: string;
+  createdAt: string;
+  updatedAt: string;
+}

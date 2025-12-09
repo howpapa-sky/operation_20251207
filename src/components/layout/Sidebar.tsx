@@ -1,4 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import {
   LayoutDashboard,
   Beaker,
@@ -13,17 +14,27 @@ import {
   ChevronRight,
   Sparkles,
   DollarSign,
+  LucideIcon,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
+import { useProjectSettingsStore } from '../../store/useProjectSettingsStore';
+import { ProjectType } from '../../types';
 
-const menuItems = [
+interface MenuItem {
+  icon: LucideIcon;
+  label: string;
+  path: string;
+  projectType?: ProjectType;
+}
+
+const allMenuItems: MenuItem[] = [
   { icon: LayoutDashboard, label: '대시보드', path: '/' },
-  { icon: Beaker, label: '샘플링', path: '/sampling' },
-  { icon: FileImage, label: '상세페이지 제작', path: '/detail-page' },
-  { icon: Users, label: '인플루언서 협업', path: '/influencer' },
-  { icon: Package, label: '제품 발주', path: '/product-order' },
-  { icon: ShoppingCart, label: '공동구매', path: '/group-purchase' },
-  { icon: FolderOpen, label: '기타 프로젝트', path: '/other' },
+  { icon: Beaker, label: '샘플링', path: '/sampling', projectType: 'sampling' },
+  { icon: FileImage, label: '상세페이지 제작', path: '/detail-page', projectType: 'detail_page' },
+  { icon: Users, label: '인플루언서 협업', path: '/influencer', projectType: 'influencer' },
+  { icon: Package, label: '제품 발주', path: '/product-order', projectType: 'product_order' },
+  { icon: ShoppingCart, label: '공동구매', path: '/group-purchase', projectType: 'group_purchase' },
+  { icon: FolderOpen, label: '기타 프로젝트', path: '/other', projectType: 'other' },
   { icon: DollarSign, label: '매출 관리', path: '/sales' },
   { icon: BarChart3, label: '통계', path: '/statistics' },
   { icon: Settings, label: '설정', path: '/settings' },
@@ -32,6 +43,28 @@ const menuItems = [
 export default function Sidebar() {
   const { sidebarCollapsed, toggleSidebar } = useStore();
   const location = useLocation();
+  const { projectTypeSettings, fetchProjectTypeSettings, isProjectTypeVisible } = useProjectSettingsStore();
+
+  useEffect(() => {
+    if (projectTypeSettings.length === 0) {
+      fetchProjectTypeSettings();
+    }
+  }, [projectTypeSettings.length, fetchProjectTypeSettings]);
+
+  // 프로젝트 유형 설정에 따라 메뉴 필터링
+  const menuItems = allMenuItems.filter((item) => {
+    if (!item.projectType) return true; // 프로젝트 유형이 아닌 메뉴는 항상 표시
+    return isProjectTypeVisible(item.projectType);
+  });
+
+  // 커스텀 이름 적용
+  const getMenuLabel = (item: MenuItem): string => {
+    if (item.projectType) {
+      const setting = projectTypeSettings.find((s) => s.projectType === item.projectType);
+      if (setting?.customName) return setting.customName;
+    }
+    return item.label;
+  };
 
   return (
     <aside
@@ -73,10 +106,10 @@ export default function Sidebar() {
                       ? 'bg-primary-50 text-primary-700 font-medium'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   }`}
-                  title={sidebarCollapsed ? item.label : undefined}
+                  title={sidebarCollapsed ? getMenuLabel(item) : undefined}
                 >
                   <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-primary-600' : ''}`} />
-                  {!sidebarCollapsed && <span>{item.label}</span>}
+                  {!sidebarCollapsed && <span>{getMenuLabel(item)}</span>}
                 </NavLink>
               </li>
             );

@@ -327,6 +327,78 @@ export interface Database {
         };
         Relationships: [];
       };
+      project_type_settings: {
+        Row: {
+          id: string;
+          user_id: string;
+          project_type: string;
+          is_visible: boolean;
+          display_order: number;
+          custom_name: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          project_type: string;
+          is_visible?: boolean;
+          display_order?: number;
+          custom_name?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          project_type?: string;
+          is_visible?: boolean;
+          display_order?: number;
+          custom_name?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      notification_settings: {
+        Row: {
+          id: string;
+          user_id: string;
+          dday_email_enabled: boolean;
+          dday_days_before: number[];
+          dday_overdue_enabled: boolean;
+          status_change_enabled: boolean;
+          weekly_summary_enabled: boolean;
+          notification_email: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          dday_email_enabled?: boolean;
+          dday_days_before?: number[];
+          dday_overdue_enabled?: boolean;
+          status_change_enabled?: boolean;
+          weekly_summary_enabled?: boolean;
+          notification_email?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          dday_email_enabled?: boolean;
+          dday_days_before?: number[];
+          dday_overdue_enabled?: boolean;
+          status_change_enabled?: boolean;
+          weekly_summary_enabled?: boolean;
+          notification_email?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;

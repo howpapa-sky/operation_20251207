@@ -25,8 +25,19 @@ import Badge from '../components/common/Badge';
 import Modal from '../components/common/Modal';
 import { useStore } from '../store/useStore';
 import { useApiCredentialsStore } from '../store/useApiCredentialsStore';
-import { EvaluationCriteria, ProductCategory, SalesChannel, SyncStatus } from '../types';
+import { useProjectSettingsStore, defaultProjectTypeLabels } from '../store/useProjectSettingsStore';
+import { EvaluationCriteria, ProductCategory, SalesChannel, SyncStatus, ProjectType } from '../types';
 import { channelInfo } from '../services/salesApiService';
+import {
+  Beaker,
+  FileImage,
+  Users,
+  Package,
+  ShoppingCart,
+  FolderOpen,
+  GripVertical,
+  Mail,
+} from 'lucide-react';
 
 const categories: ProductCategory[] = [
   '크림', '패드', '로션', '스틱', '앰플', '세럼', '미스트', '클렌저', '선크림', '마스크팩', '기타'
@@ -42,7 +53,33 @@ export default function SettingsPage() {
     deleteEvaluationCriteria,
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'criteria' | 'api' | 'notifications'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'criteria' | 'project_types' | 'api' | 'notifications'>('profile');
+
+  // Project settings state
+  const {
+    projectTypeSettings,
+    notificationSettings,
+    fetchProjectTypeSettings,
+    fetchNotificationSettings,
+    updateProjectTypeSetting,
+    toggleProjectTypeVisibility,
+    updateNotificationSettings,
+  } = useProjectSettingsStore();
+
+  useEffect(() => {
+    fetchProjectTypeSettings();
+    fetchNotificationSettings();
+  }, [fetchProjectTypeSettings, fetchNotificationSettings]);
+
+  // 프로젝트 유형 아이콘 매핑
+  const projectTypeIcons: Record<ProjectType, React.ReactNode> = {
+    sampling: <Beaker className="w-5 h-5" />,
+    detail_page: <FileImage className="w-5 h-5" />,
+    influencer: <Users className="w-5 h-5" />,
+    product_order: <Package className="w-5 h-5" />,
+    group_purchase: <ShoppingCart className="w-5 h-5" />,
+    other: <FolderOpen className="w-5 h-5" />,
+  };
 
   // Profile state
   const [name, setName] = useState(user?.name || '');
@@ -239,6 +276,7 @@ export default function SettingsPage() {
   const tabs = [
     { id: 'profile', label: '프로필', icon: User },
     { id: 'criteria', label: '평가 항목 관리', icon: Star },
+    { id: 'project_types', label: '프로젝트 유형 관리', icon: FolderOpen },
     { id: 'api', label: 'API 연동', icon: Link2 },
     { id: 'notifications', label: '알림 설정', icon: Bell },
   ];
@@ -432,6 +470,75 @@ export default function SettingsPage() {
             </>
           )}
 
+          {activeTab === 'project_types' && (
+            <Card>
+              <CardHeader
+                title="프로젝트 유형 관리"
+                subtitle="프로젝트 유형별 메뉴 노출 여부와 이름을 설정합니다"
+              />
+              <div className="space-y-3">
+                {projectTypeSettings
+                  .sort((a, b) => a.displayOrder - b.displayOrder)
+                  .map((setting) => (
+                    <div
+                      key={setting.projectType}
+                      className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
+                        setting.isVisible
+                          ? 'bg-white border-gray-200'
+                          : 'bg-gray-50 border-gray-100 opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="text-gray-400">
+                          <GripVertical className="w-5 h-5" />
+                        </div>
+                        <div className="text-gray-600">
+                          {projectTypeIcons[setting.projectType]}
+                        </div>
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            value={setting.customName || defaultProjectTypeLabels[setting.projectType]}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              updateProjectTypeSetting(setting.projectType, {
+                                customName: value === defaultProjectTypeLabels[setting.projectType] ? undefined : value,
+                              });
+                            }}
+                            className="font-medium text-gray-900 bg-transparent border-none focus:outline-none focus:ring-0 p-0"
+                          />
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            기본: {defaultProjectTypeLabels[setting.projectType]}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <span className="text-sm text-gray-600">메뉴 표시</span>
+                          <button
+                            onClick={() => toggleProjectTypeVisibility(setting.projectType)}
+                            className={`w-10 h-6 rounded-full transition-all ${
+                              setting.isVisible ? 'bg-primary-500' : 'bg-gray-300'
+                            }`}
+                          >
+                            <div
+                              className={`w-4 h-4 bg-white rounded-full transition-all ${
+                                setting.isVisible ? 'ml-5' : 'ml-1'
+                              }`}
+                            />
+                          </button>
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+              <div className="mt-4 p-3 bg-gray-50 rounded-lg text-sm text-gray-500">
+                체크를 해제하면 해당 프로젝트 유형이 사이드바 메뉴에서 숨겨집니다.
+                이름을 클릭하여 직접 수정할 수 있습니다.
+              </div>
+            </Card>
+          )}
+
           {activeTab === 'api' && (
             <Card>
               <CardHeader
@@ -565,29 +672,172 @@ export default function SettingsPage() {
           )}
 
           {activeTab === 'notifications' && (
-            <Card>
-              <CardHeader title="알림 설정" subtitle="알림 수신 여부를 설정합니다" />
-              <div className="space-y-4">
-                {[
-                  { id: 'deadline', label: '마감일 알림', desc: '프로젝트 마감일 D-3, D-1일 알림' },
-                  { id: 'status', label: '상태 변경 알림', desc: '프로젝트 상태가 변경되면 알림' },
-                  { id: 'mention', label: '멘션 알림', desc: '누군가 나를 멘션하면 알림' },
-                ].map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between p-4 rounded-xl border border-gray-200"
-                  >
-                    <div>
-                      <p className="font-medium text-gray-900">{item.label}</p>
-                      <p className="text-sm text-gray-500">{item.desc}</p>
+            <>
+              {/* D-DAY 이메일 알림 */}
+              <Card>
+                <CardHeader
+                  title="D-DAY 이메일 알림"
+                  subtitle="프로젝트 마감일 관련 이메일 알림을 설정합니다"
+                />
+                <div className="space-y-4">
+                  {/* 마감일 알림 활성화 */}
+                  <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200">
+                    <div className="flex items-center gap-3">
+                      <Mail className="w-5 h-5 text-gray-400" />
+                      <div>
+                        <p className="font-medium text-gray-900">마감일 알림 이메일</p>
+                        <p className="text-sm text-gray-500">마감일이 다가오면 이메일로 알림을 받습니다</p>
+                      </div>
                     </div>
-                    <button className="w-10 h-6 bg-primary-500 rounded-full">
-                      <div className="w-4 h-4 bg-white rounded-full ml-5" />
+                    <button
+                      onClick={() => updateNotificationSettings({
+                        ddayEmailEnabled: !notificationSettings?.ddayEmailEnabled
+                      })}
+                      className={`w-10 h-6 rounded-full transition-all ${
+                        notificationSettings?.ddayEmailEnabled ? 'bg-primary-500' : 'bg-gray-300'
+                      }`}
+                    >
+                      <div
+                        className={`w-4 h-4 bg-white rounded-full transition-all ${
+                          notificationSettings?.ddayEmailEnabled ? 'ml-5' : 'ml-1'
+                        }`}
+                      />
                     </button>
                   </div>
-                ))}
+
+                  {/* 마감일 지난 프로젝트 알림 */}
+                  <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200">
+                    <div className="flex items-center gap-3">
+                      <AlertCircle className="w-5 h-5 text-red-400" />
+                      <div>
+                        <p className="font-medium text-gray-900">마감일 초과 알림</p>
+                        <p className="text-sm text-gray-500">D-DAY가 지난 미완료 프로젝트 알림</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => updateNotificationSettings({
+                        ddayOverdueEnabled: !notificationSettings?.ddayOverdueEnabled
+                      })}
+                      className={`w-10 h-6 rounded-full transition-all ${
+                        notificationSettings?.ddayOverdueEnabled ? 'bg-primary-500' : 'bg-gray-300'
+                      }`}
+                    >
+                      <div
+                        className={`w-4 h-4 bg-white rounded-full transition-all ${
+                          notificationSettings?.ddayOverdueEnabled ? 'ml-5' : 'ml-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* 알림 받을 D-DAY 선택 */}
+                  {notificationSettings?.ddayEmailEnabled && (
+                    <div className="p-4 rounded-xl border border-gray-200">
+                      <p className="font-medium text-gray-900 mb-3">알림 받을 시점</p>
+                      <div className="flex flex-wrap gap-2">
+                        {[7, 3, 1, 0].map((day) => {
+                          const isSelected = notificationSettings?.ddayDaysBefore?.includes(day);
+                          return (
+                            <button
+                              key={day}
+                              onClick={() => {
+                                const current = notificationSettings?.ddayDaysBefore || [];
+                                const updated = isSelected
+                                  ? current.filter((d) => d !== day)
+                                  : [...current, day].sort((a, b) => b - a);
+                                updateNotificationSettings({ ddayDaysBefore: updated });
+                              }}
+                              className={`px-4 py-2 rounded-lg border transition-all ${
+                                isSelected
+                                  ? 'bg-primary-50 border-primary-300 text-primary-700'
+                                  : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                              }`}
+                            >
+                              {day === 0 ? 'D-DAY' : `D-${day}`}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 알림 이메일 주소 */}
+                  <div className="p-4 rounded-xl border border-gray-200">
+                    <label className="label">알림 받을 이메일 주소</label>
+                    <input
+                      type="email"
+                      value={notificationSettings?.notificationEmail || user?.email || ''}
+                      onChange={(e) => updateNotificationSettings({ notificationEmail: e.target.value })}
+                      className="input-field"
+                      placeholder="이메일 주소 입력"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">비워두면 로그인 이메일로 발송됩니다</p>
+                  </div>
+                </div>
+              </Card>
+
+              {/* 기타 알림 */}
+              <Card>
+                <CardHeader title="기타 알림" subtitle="기타 알림 설정" />
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200">
+                    <div>
+                      <p className="font-medium text-gray-900">상태 변경 알림</p>
+                      <p className="text-sm text-gray-500">프로젝트 상태가 변경되면 알림</p>
+                    </div>
+                    <button
+                      onClick={() => updateNotificationSettings({
+                        statusChangeEnabled: !notificationSettings?.statusChangeEnabled
+                      })}
+                      className={`w-10 h-6 rounded-full transition-all ${
+                        notificationSettings?.statusChangeEnabled ? 'bg-primary-500' : 'bg-gray-300'
+                      }`}
+                    >
+                      <div
+                        className={`w-4 h-4 bg-white rounded-full transition-all ${
+                          notificationSettings?.statusChangeEnabled ? 'ml-5' : 'ml-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200">
+                    <div>
+                      <p className="font-medium text-gray-900">주간 요약 이메일</p>
+                      <p className="text-sm text-gray-500">매주 월요일 프로젝트 현황 요약</p>
+                    </div>
+                    <button
+                      onClick={() => updateNotificationSettings({
+                        weeklySummaryEnabled: !notificationSettings?.weeklySummaryEnabled
+                      })}
+                      className={`w-10 h-6 rounded-full transition-all ${
+                        notificationSettings?.weeklySummaryEnabled ? 'bg-primary-500' : 'bg-gray-300'
+                      }`}
+                    >
+                      <div
+                        className={`w-4 h-4 bg-white rounded-full transition-all ${
+                          notificationSettings?.weeklySummaryEnabled ? 'ml-5' : 'ml-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </Card>
+
+              {/* 안내 메시지 */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-amber-800">
+                    <p className="font-medium mb-1">이메일 알림 준비 중</p>
+                    <p>
+                      현재 알림 설정 저장 기능만 제공됩니다.
+                      실제 이메일 발송은 서버 측 구현(Edge Functions) 완료 후 사용 가능합니다.
+                    </p>
+                  </div>
+                </div>
               </div>
-            </Card>
+            </>
           )}
         </div>
       </div>
