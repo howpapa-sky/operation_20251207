@@ -237,6 +237,9 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
           </Badge>
         </td>
         <td className="table-cell text-gray-500">
+          {formatDate(project.startDate)}
+        </td>
+        <td className="table-cell text-gray-500">
           {formatDate(project.targetDate)}
         </td>
         <td className="table-cell">
@@ -459,6 +462,7 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
                   <th className="table-header">프로젝트명</th>
                   <th className="table-header">상태</th>
                   <th className="table-header">우선순위</th>
+                  <th className="table-header">시작일</th>
                   <th className="table-header">목표일</th>
                   <th className="table-header">D-day</th>
                   <th className="table-header w-20"></th>

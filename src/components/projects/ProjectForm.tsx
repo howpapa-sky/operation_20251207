@@ -727,17 +727,15 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
                 required
               />
             </div>
-            {status === 'completed' && (
-              <div>
-                <label className="label">완료일</label>
-                <input
-                  type="date"
-                  value={completedDate}
-                  onChange={(e) => setCompletedDate(e.target.value)}
-                  className="input-field"
-                />
-              </div>
-            )}
+            <div>
+              <label className="label">완료일</label>
+              <input
+                type="date"
+                value={completedDate}
+                onChange={(e) => setCompletedDate(e.target.value)}
+                className="input-field"
+              />
+            </div>
             <div>
               <label className="label">담당자</label>
               <input
