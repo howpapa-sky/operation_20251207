@@ -399,6 +399,57 @@ export interface Database {
         };
         Relationships: [];
       };
+      project_field_settings: {
+        Row: {
+          id: string;
+          user_id: string;
+          project_type: string;
+          field_key: string;
+          field_label: string;
+          field_type: string;
+          field_options: Json | null;
+          is_required: boolean;
+          is_visible: boolean;
+          display_order: number;
+          placeholder: string | null;
+          default_value: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          project_type: string;
+          field_key: string;
+          field_label: string;
+          field_type?: string;
+          field_options?: Json | null;
+          is_required?: boolean;
+          is_visible?: boolean;
+          display_order?: number;
+          placeholder?: string | null;
+          default_value?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          project_type?: string;
+          field_key?: string;
+          field_label?: string;
+          field_type?: string;
+          field_options?: Json | null;
+          is_required?: boolean;
+          is_visible?: boolean;
+          display_order?: number;
+          placeholder?: string | null;
+          default_value?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;

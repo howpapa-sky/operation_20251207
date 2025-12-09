@@ -415,3 +415,23 @@ export interface NotificationSettings {
   createdAt: string;
   updatedAt: string;
 }
+
+// 필드 타입
+export type FieldType = 'text' | 'number' | 'select' | 'checkbox' | 'date' | 'textarea';
+
+// 프로젝트 필드 설정
+export interface ProjectFieldSetting {
+  id: string;
+  projectType: ProjectType;
+  fieldKey: string;
+  fieldLabel: string;
+  fieldType: FieldType;
+  fieldOptions?: string[]; // select 타입일 경우 옵션 목록
+  isRequired: boolean;
+  isVisible: boolean;
+  displayOrder: number;
+  placeholder?: string;
+  defaultValue?: string;
+  createdAt: string;
+  updatedAt: string;
+}

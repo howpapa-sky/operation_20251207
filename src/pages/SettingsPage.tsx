@@ -19,6 +19,7 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  List,
 } from 'lucide-react';
 import Card, { CardHeader } from '../components/common/Card';
 import Badge from '../components/common/Badge';
@@ -26,7 +27,8 @@ import Modal from '../components/common/Modal';
 import { useStore } from '../store/useStore';
 import { useApiCredentialsStore } from '../store/useApiCredentialsStore';
 import { useProjectSettingsStore, defaultProjectTypeLabels } from '../store/useProjectSettingsStore';
-import { EvaluationCriteria, ProductCategory, SalesChannel, SyncStatus, ProjectType } from '../types';
+import { useProjectFieldsStore, fieldTypeLabels, defaultFieldSettings } from '../store/useProjectFieldsStore';
+import { EvaluationCriteria, ProductCategory, SalesChannel, SyncStatus, ProjectType, ProjectFieldSetting, FieldType } from '../types';
 import { channelInfo } from '../services/salesApiService';
 import {
   Beaker,
@@ -53,7 +55,7 @@ export default function SettingsPage() {
     deleteEvaluationCriteria,
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'criteria' | 'project_types' | 'api' | 'notifications'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'criteria' | 'project_types' | 'project_fields' | 'api' | 'notifications'>('profile');
 
   // Project settings state
   const {
@@ -66,10 +68,35 @@ export default function SettingsPage() {
     updateNotificationSettings,
   } = useProjectSettingsStore();
 
+  // Project fields state
+  const {
+    fieldSettings,
+    fetchFieldSettings,
+    getFieldsForType,
+    addField,
+    updateField,
+    deleteField,
+  } = useProjectFieldsStore();
+
+  const [selectedFieldType, setSelectedFieldType] = useState<ProjectType>('sampling');
+  const [showFieldModal, setShowFieldModal] = useState(false);
+  const [editingField, setEditingField] = useState<ProjectFieldSetting | null>(null);
+  const [fieldFormData, setFieldFormData] = useState({
+    fieldKey: '',
+    fieldLabel: '',
+    fieldType: 'text' as FieldType,
+    fieldOptions: [] as string[],
+    isRequired: false,
+    placeholder: '',
+  });
+  const [newOptionText, setNewOptionText] = useState('');
+  const [deleteFieldId, setDeleteFieldId] = useState<string | null>(null);
+
   useEffect(() => {
     fetchProjectTypeSettings();
     fetchNotificationSettings();
-  }, [fetchProjectTypeSettings, fetchNotificationSettings]);
+    fetchFieldSettings();
+  }, [fetchProjectTypeSettings, fetchNotificationSettings, fetchFieldSettings]);
 
   // 프로젝트 유형 아이콘 매핑
   const projectTypeIcons: Record<ProjectType, React.ReactNode> = {
@@ -273,10 +300,96 @@ export default function SettingsPage() {
     setShowSecrets((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  // 필드 모달 열기
+  const openFieldModal = (field?: ProjectFieldSetting) => {
+    if (field) {
+      setEditingField(field);
+      setFieldFormData({
+        fieldKey: field.fieldKey,
+        fieldLabel: field.fieldLabel,
+        fieldType: field.fieldType,
+        fieldOptions: field.fieldOptions || [],
+        isRequired: field.isRequired,
+        placeholder: field.placeholder || '',
+      });
+    } else {
+      setEditingField(null);
+      setFieldFormData({
+        fieldKey: '',
+        fieldLabel: '',
+        fieldType: 'text',
+        fieldOptions: [],
+        isRequired: false,
+        placeholder: '',
+      });
+    }
+    setShowFieldModal(true);
+  };
+
+  // 필드 저장
+  const handleSaveField = async () => {
+    if (!fieldFormData.fieldKey.trim() || !fieldFormData.fieldLabel.trim()) return;
+
+    const fieldData = {
+      projectType: selectedFieldType,
+      fieldKey: fieldFormData.fieldKey.trim().replace(/\s+/g, '_'),
+      fieldLabel: fieldFormData.fieldLabel.trim(),
+      fieldType: fieldFormData.fieldType,
+      fieldOptions: fieldFormData.fieldType === 'select' ? fieldFormData.fieldOptions : undefined,
+      isRequired: fieldFormData.isRequired,
+      isVisible: true,
+      displayOrder: editingField?.displayOrder || (getFieldsForType(selectedFieldType).length + 1),
+      placeholder: fieldFormData.placeholder || undefined,
+    };
+
+    let success = false;
+    if (editingField) {
+      success = await updateField(editingField.id, fieldData);
+    } else {
+      success = await addField(fieldData);
+    }
+
+    if (success) {
+      setShowFieldModal(false);
+      setEditingField(null);
+    }
+  };
+
+  // 옵션 추가
+  const handleAddOption = () => {
+    if (newOptionText.trim()) {
+      setFieldFormData((prev) => ({
+        ...prev,
+        fieldOptions: [...prev.fieldOptions, newOptionText.trim()],
+      }));
+      setNewOptionText('');
+    }
+  };
+
+  // 옵션 삭제
+  const handleRemoveOption = (index: number) => {
+    setFieldFormData((prev) => ({
+      ...prev,
+      fieldOptions: prev.fieldOptions.filter((_, i) => i !== index),
+    }));
+  };
+
+  // 필드 삭제
+  const handleDeleteField = async (id: string) => {
+    const success = await deleteField(id);
+    if (success) {
+      setDeleteFieldId(null);
+    }
+  };
+
+  // 현재 선택된 프로젝트 유형의 필드 목록
+  const currentFields = getFieldsForType(selectedFieldType);
+
   const tabs = [
     { id: 'profile', label: '프로필', icon: User },
     { id: 'criteria', label: '평가 항목 관리', icon: Star },
     { id: 'project_types', label: '프로젝트 유형 관리', icon: FolderOpen },
+    { id: 'project_fields', label: '프로젝트 필드 관리', icon: List },
     { id: 'api', label: 'API 연동', icon: Link2 },
     { id: 'notifications', label: '알림 설정', icon: Bell },
   ];
@@ -535,6 +648,97 @@ export default function SettingsPage() {
               <div className="mt-4 p-3 bg-gray-50 rounded-lg text-sm text-gray-500">
                 체크를 해제하면 해당 프로젝트 유형이 사이드바 메뉴에서 숨겨집니다.
                 이름을 클릭하여 직접 수정할 수 있습니다.
+              </div>
+            </Card>
+          )}
+
+          {activeTab === 'project_fields' && (
+            <Card>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">프로젝트 필드 관리</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    각 프로젝트 유형별 입력 필드를 추가, 수정, 삭제할 수 있습니다
+                  </p>
+                </div>
+                <button
+                  onClick={() => openFieldModal()}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  새 필드 추가
+                </button>
+              </div>
+
+              {/* 프로젝트 유형 선택 */}
+              <div className="mb-6">
+                <label className="label">프로젝트 유형 선택</label>
+                <select
+                  value={selectedFieldType}
+                  onChange={(e) => setSelectedFieldType(e.target.value as ProjectType)}
+                  className="select-field w-64"
+                >
+                  {(['sampling', 'detail_page', 'influencer', 'product_order', 'group_purchase', 'other'] as ProjectType[]).map((type) => (
+                    <option key={type} value={type}>
+                      {defaultProjectTypeLabels[type]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 필드 목록 */}
+              <div className="space-y-2">
+                {currentFields.map((field) => (
+                  <div
+                    key={field.id}
+                    className="flex items-center justify-between p-4 rounded-xl border border-gray-200 bg-white"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="text-gray-400">
+                        <GripVertical className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-900">{field.fieldLabel}</p>
+                          {field.isRequired && (
+                            <Badge variant="danger" className="text-xs">필수</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          키: {field.fieldKey} | 타입: {fieldTypeLabels[field.fieldType]}
+                          {field.fieldOptions && field.fieldOptions.length > 0 && (
+                            <span className="ml-2">| 옵션: {field.fieldOptions.length}개</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => openFieldModal(field)}
+                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteFieldId(field.id)}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {currentFields.length === 0 && (
+                  <div className="text-center py-12 text-gray-500">
+                    이 프로젝트 유형에 등록된 필드가 없습니다.
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 p-3 bg-gray-50 rounded-lg text-sm text-gray-500">
+                필드를 추가하면 해당 프로젝트 유형 등록/수정 화면에 입력란이 추가됩니다.
+                드래그하여 순서를 변경할 수 있습니다.
               </div>
             </Card>
           )}
@@ -1145,6 +1349,167 @@ export default function SettingsPage() {
           </button>
           <button onClick={handleSaveApiCredential} className="btn-primary">
             저장
+          </button>
+        </div>
+      </Modal>
+
+      {/* Field Modal */}
+      <Modal
+        isOpen={showFieldModal}
+        onClose={() => {
+          setShowFieldModal(false);
+          setEditingField(null);
+        }}
+        title={editingField ? '필드 수정' : '새 필드 추가'}
+        size="md"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="label">필드명 (표시용) *</label>
+            <input
+              type="text"
+              value={fieldFormData.fieldLabel}
+              onChange={(e) => setFieldFormData((prev) => ({ ...prev, fieldLabel: e.target.value }))}
+              className="input-field"
+              placeholder="예: 브랜드, 카테고리, 예산"
+            />
+          </div>
+          <div>
+            <label className="label">필드 키 (시스템용) *</label>
+            <input
+              type="text"
+              value={fieldFormData.fieldKey}
+              onChange={(e) => setFieldFormData((prev) => ({ ...prev, fieldKey: e.target.value }))}
+              className="input-field"
+              placeholder="예: brand, category, budget"
+              disabled={!!editingField}
+            />
+            <p className="text-xs text-gray-400 mt-1">영문, 숫자, 언더스코어만 사용 가능합니다</p>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">필드 타입 *</label>
+              <select
+                value={fieldFormData.fieldType}
+                onChange={(e) => setFieldFormData((prev) => ({ ...prev, fieldType: e.target.value as FieldType }))}
+                className="select-field"
+              >
+                {(Object.keys(fieldTypeLabels) as FieldType[]).map((type) => (
+                  <option key={type} value={type}>{fieldTypeLabels[type]}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">필수 여부</label>
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setFieldFormData((prev) => ({ ...prev, isRequired: !prev.isRequired }))}
+                  className={`w-10 h-6 rounded-full transition-all ${
+                    fieldFormData.isRequired ? 'bg-primary-500' : 'bg-gray-300'
+                  }`}
+                >
+                  <div
+                    className={`w-4 h-4 bg-white rounded-full transition-all ${
+                      fieldFormData.isRequired ? 'ml-5' : 'ml-1'
+                    }`}
+                  />
+                </button>
+                <span className="text-sm text-gray-600">{fieldFormData.isRequired ? '필수' : '선택'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 선택 타입일 경우 옵션 관리 */}
+          {fieldFormData.fieldType === 'select' && (
+            <div>
+              <label className="label">선택 옵션</label>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={newOptionText}
+                  onChange={(e) => setNewOptionText(e.target.value)}
+                  className="input-field flex-1"
+                  placeholder="새 옵션 입력"
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddOption())}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddOption}
+                  className="btn-secondary"
+                >
+                  추가
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {fieldFormData.fieldOptions.map((option, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-1 bg-gray-100 px-3 py-1 rounded-full"
+                  >
+                    <span className="text-sm text-gray-700">{option}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveOption(index)}
+                      className="text-gray-400 hover:text-red-500"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {fieldFormData.fieldOptions.length === 0 && (
+                <p className="text-xs text-gray-400 mt-1">옵션을 추가해주세요</p>
+              )}
+            </div>
+          )}
+
+          <div>
+            <label className="label">플레이스홀더</label>
+            <input
+              type="text"
+              value={fieldFormData.placeholder}
+              onChange={(e) => setFieldFormData((prev) => ({ ...prev, placeholder: e.target.value }))}
+              className="input-field"
+              placeholder="예: 값을 입력하세요..."
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            onClick={() => {
+              setShowFieldModal(false);
+              setEditingField(null);
+            }}
+            className="btn-secondary"
+          >
+            취소
+          </button>
+          <button onClick={handleSaveField} className="btn-primary">
+            {editingField ? '수정' : '추가'}
+          </button>
+        </div>
+      </Modal>
+
+      {/* Delete Field Confirmation Modal */}
+      <Modal
+        isOpen={!!deleteFieldId}
+        onClose={() => setDeleteFieldId(null)}
+        title="필드 삭제"
+        size="sm"
+      >
+        <p className="text-gray-600 mb-6">
+          정말로 이 필드를 삭제하시겠습니까? 삭제하면 해당 필드가 프로젝트 등록 화면에서 사라집니다.
+        </p>
+        <div className="flex justify-end gap-3">
+          <button onClick={() => setDeleteFieldId(null)} className="btn-secondary">
+            취소
+          </button>
+          <button
+            onClick={() => handleDeleteField(deleteFieldId!)}
+            className="btn-danger"
+          >
+            삭제
           </button>
         </div>
       </Modal>
