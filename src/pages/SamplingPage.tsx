@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Beaker } from 'lucide-react';
 import ProjectList from '../components/projects/ProjectList';
 import ProjectForm from '../components/projects/ProjectForm';
@@ -9,7 +9,9 @@ import { Project } from '../types';
 export default function SamplingPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { projects, addProject, updateProject, deleteProject } = useStore();
+  const isEditMode = location.pathname.endsWith('/edit');
 
   // New project
   if (id === 'new') {
@@ -27,9 +29,8 @@ export default function SamplingPage() {
   }
 
   // Edit project
-  if (id?.endsWith('/edit')) {
-    const projectId = id.replace('/edit', '');
-    const project = projects.find((p) => p.id === projectId);
+  if (id && isEditMode) {
+    const project = projects.find((p) => p.id === id);
 
     if (!project) {
       return (
@@ -40,12 +41,12 @@ export default function SamplingPage() {
     }
 
     const handleSave = (data: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => {
-      updateProject(projectId, data);
-      navigate(`/sampling/${projectId}`);
+      updateProject(id, data);
+      navigate(`/sampling/${id}`);
     };
 
     const handleDelete = () => {
-      deleteProject(projectId);
+      deleteProject(id);
       navigate('/sampling');
     };
 

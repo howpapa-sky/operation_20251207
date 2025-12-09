@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { FolderOpen } from 'lucide-react';
 import ProjectList from '../components/projects/ProjectList';
 import ProjectForm from '../components/projects/ProjectForm';
@@ -9,7 +9,9 @@ import { Project } from '../types';
 export default function OtherPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { projects, addProject, updateProject, deleteProject } = useStore();
+  const isEditMode = location.pathname.endsWith('/edit');
 
   if (id === 'new') {
     const handleSave = (data: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -25,21 +27,20 @@ export default function OtherPage() {
     );
   }
 
-  if (id?.endsWith('/edit')) {
-    const projectId = id.replace('/edit', '');
-    const project = projects.find((p) => p.id === projectId);
+  if (id && isEditMode) {
+    const project = projects.find((p) => p.id === id);
 
     if (!project) {
       return <div className="text-center py-12"><p className="text-gray-500">프로젝트를 찾을 수 없습니다.</p></div>;
     }
 
     const handleSave = (data: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => {
-      updateProject(projectId, data);
-      navigate(`/other/${projectId}`);
+      updateProject(id, data);
+      navigate(`/other/${id}`);
     };
 
     const handleDelete = () => {
-      deleteProject(projectId);
+      deleteProject(id);
       navigate('/other');
     };
 

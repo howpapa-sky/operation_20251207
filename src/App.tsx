@@ -98,16 +98,22 @@ function App() {
           <Route index element={<DashboardPage />} />
           <Route path="sampling" element={<SamplingPage />} />
           <Route path="sampling/:id" element={<SamplingPage />} />
+          <Route path="sampling/:id/edit" element={<SamplingPage />} />
           <Route path="detail-page" element={<DetailPagePage />} />
           <Route path="detail-page/:id" element={<DetailPagePage />} />
+          <Route path="detail-page/:id/edit" element={<DetailPagePage />} />
           <Route path="influencer" element={<InfluencerPage />} />
           <Route path="influencer/:id" element={<InfluencerPage />} />
+          <Route path="influencer/:id/edit" element={<InfluencerPage />} />
           <Route path="product-order" element={<ProductOrderPage />} />
           <Route path="product-order/:id" element={<ProductOrderPage />} />
+          <Route path="product-order/:id/edit" element={<ProductOrderPage />} />
           <Route path="group-purchase" element={<GroupPurchasePage />} />
           <Route path="group-purchase/:id" element={<GroupPurchasePage />} />
+          <Route path="group-purchase/:id/edit" element={<GroupPurchasePage />} />
           <Route path="other" element={<OtherPage />} />
           <Route path="other/:id" element={<OtherPage />} />
+          <Route path="other/:id/edit" element={<OtherPage />} />
           <Route path="sales" element={<SalesPage />} />
           <Route path="statistics" element={<StatisticsPage />} />
           <Route path="settings" element={<SettingsPage />} />
