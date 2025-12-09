@@ -186,8 +186,9 @@ CREATE TABLE IF NOT EXISTS public.project_field_settings (
 -- =============================================
 -- 5. RLS (Row Level Security) 설정
 -- =============================================
+-- 모든 인증된 사용자가 데이터를 공유하도록 설정
 
--- RLS 활성화 (사용자별 데이터 분리가 필요한 테이블)
+-- RLS 활성화
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.evaluation_criteria ENABLE ROW LEVEL SECURITY;
@@ -201,7 +202,7 @@ ALTER TABLE public.project_type_settings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notification_settings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_field_settings DISABLE ROW LEVEL SECURITY;
 
--- profiles 정책
+-- profiles 정책 (프로필은 개인별 유지)
 DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
 DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
@@ -209,45 +210,61 @@ CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING
 DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
 CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
--- projects 정책
+-- projects 정책 (모든 인증된 사용자가 공유)
 DROP POLICY IF EXISTS "Users can view own projects" ON public.projects;
-CREATE POLICY "Users can view own projects" ON public.projects FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Authenticated users can view all projects" ON public.projects;
+CREATE POLICY "Authenticated users can view all projects" ON public.projects FOR SELECT USING (auth.uid() IS NOT NULL);
 DROP POLICY IF EXISTS "Users can create own projects" ON public.projects;
-CREATE POLICY "Users can create own projects" ON public.projects FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Authenticated users can create projects" ON public.projects;
+CREATE POLICY "Authenticated users can create projects" ON public.projects FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 DROP POLICY IF EXISTS "Users can update own projects" ON public.projects;
-CREATE POLICY "Users can update own projects" ON public.projects FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Authenticated users can update all projects" ON public.projects;
+CREATE POLICY "Authenticated users can update all projects" ON public.projects FOR UPDATE USING (auth.uid() IS NOT NULL);
 DROP POLICY IF EXISTS "Users can delete own projects" ON public.projects;
-CREATE POLICY "Users can delete own projects" ON public.projects FOR DELETE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Authenticated users can delete all projects" ON public.projects;
+CREATE POLICY "Authenticated users can delete all projects" ON public.projects FOR DELETE USING (auth.uid() IS NOT NULL);
 
--- evaluation_criteria 정책
+-- evaluation_criteria 정책 (모든 인증된 사용자가 공유)
 DROP POLICY IF EXISTS "Users can view own criteria" ON public.evaluation_criteria;
-CREATE POLICY "Users can view own criteria" ON public.evaluation_criteria FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Authenticated users can view all criteria" ON public.evaluation_criteria;
+CREATE POLICY "Authenticated users can view all criteria" ON public.evaluation_criteria FOR SELECT USING (auth.uid() IS NOT NULL);
 DROP POLICY IF EXISTS "Users can create own criteria" ON public.evaluation_criteria;
-CREATE POLICY "Users can create own criteria" ON public.evaluation_criteria FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Authenticated users can create criteria" ON public.evaluation_criteria;
+CREATE POLICY "Authenticated users can create criteria" ON public.evaluation_criteria FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 DROP POLICY IF EXISTS "Users can update own criteria" ON public.evaluation_criteria;
-CREATE POLICY "Users can update own criteria" ON public.evaluation_criteria FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Authenticated users can update all criteria" ON public.evaluation_criteria;
+CREATE POLICY "Authenticated users can update all criteria" ON public.evaluation_criteria FOR UPDATE USING (auth.uid() IS NOT NULL);
 DROP POLICY IF EXISTS "Users can delete own criteria" ON public.evaluation_criteria;
-CREATE POLICY "Users can delete own criteria" ON public.evaluation_criteria FOR DELETE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Authenticated users can delete all criteria" ON public.evaluation_criteria;
+CREATE POLICY "Authenticated users can delete all criteria" ON public.evaluation_criteria FOR DELETE USING (auth.uid() IS NOT NULL);
 
--- products 정책
+-- products 정책 (모든 인증된 사용자가 공유)
 DROP POLICY IF EXISTS "Users can view own products" ON public.products;
-CREATE POLICY "Users can view own products" ON public.products FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Authenticated users can view all products" ON public.products;
+CREATE POLICY "Authenticated users can view all products" ON public.products FOR SELECT USING (auth.uid() IS NOT NULL);
 DROP POLICY IF EXISTS "Users can create own products" ON public.products;
-CREATE POLICY "Users can create own products" ON public.products FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Authenticated users can create products" ON public.products;
+CREATE POLICY "Authenticated users can create products" ON public.products FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 DROP POLICY IF EXISTS "Users can update own products" ON public.products;
-CREATE POLICY "Users can update own products" ON public.products FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Authenticated users can update all products" ON public.products;
+CREATE POLICY "Authenticated users can update all products" ON public.products FOR UPDATE USING (auth.uid() IS NOT NULL);
 DROP POLICY IF EXISTS "Users can delete own products" ON public.products;
-CREATE POLICY "Users can delete own products" ON public.products FOR DELETE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Authenticated users can delete all products" ON public.products;
+CREATE POLICY "Authenticated users can delete all products" ON public.products FOR DELETE USING (auth.uid() IS NOT NULL);
 
--- sales_records 정책
+-- sales_records 정책 (모든 인증된 사용자가 공유)
 DROP POLICY IF EXISTS "Users can view own sales" ON public.sales_records;
-CREATE POLICY "Users can view own sales" ON public.sales_records FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Authenticated users can view all sales" ON public.sales_records;
+CREATE POLICY "Authenticated users can view all sales" ON public.sales_records FOR SELECT USING (auth.uid() IS NOT NULL);
 DROP POLICY IF EXISTS "Users can create own sales" ON public.sales_records;
-CREATE POLICY "Users can create own sales" ON public.sales_records FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Authenticated users can create sales" ON public.sales_records;
+CREATE POLICY "Authenticated users can create sales" ON public.sales_records FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 DROP POLICY IF EXISTS "Users can update own sales" ON public.sales_records;
-CREATE POLICY "Users can update own sales" ON public.sales_records FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Authenticated users can update all sales" ON public.sales_records;
+CREATE POLICY "Authenticated users can update all sales" ON public.sales_records FOR UPDATE USING (auth.uid() IS NOT NULL);
 DROP POLICY IF EXISTS "Users can delete own sales" ON public.sales_records;
-CREATE POLICY "Users can delete own sales" ON public.sales_records FOR DELETE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Authenticated users can delete all sales" ON public.sales_records;
+CREATE POLICY "Authenticated users can delete all sales" ON public.sales_records FOR DELETE USING (auth.uid() IS NOT NULL);
 
 -- =============================================
 -- 6. 인덱스
