@@ -718,12 +718,14 @@ export default function SettingsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <button
+                        type="button"
                         onClick={() => openFieldModal(field)}
                         className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => setDeleteFieldId(field.id)}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                       >
