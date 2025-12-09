@@ -61,7 +61,7 @@ interface ProjectFieldsState {
 
   // Actions
   fetchFieldSettings: (projectType?: ProjectType) => Promise<void>;
-  getFieldsForType: (projectType: ProjectType) => ProjectFieldSetting[];
+  getFieldsForType: (projectType: ProjectType, selectedBrand?: string) => ProjectFieldSetting[];
   addField: (field: Omit<ProjectFieldSetting, 'id' | 'createdAt' | 'updatedAt'>) => Promise<boolean>;
   updateField: (id: string, updates: Partial<ProjectFieldSetting>) => Promise<boolean>;
   deleteField: (id: string) => Promise<boolean>;
@@ -123,6 +123,7 @@ export const useProjectFieldsStore = create<ProjectFieldsState>((set, get) => ({
           displayOrder: row.display_order,
           placeholder: row.placeholder || undefined,
           defaultValue: row.default_value || undefined,
+          visibleForBrands: row.visible_for_brands ? (typeof row.visible_for_brands === 'string' ? JSON.parse(row.visible_for_brands) : row.visible_for_brands) : undefined,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
         }));
@@ -148,18 +149,30 @@ export const useProjectFieldsStore = create<ProjectFieldsState>((set, get) => ({
     }
   },
 
-  getFieldsForType: (projectType: ProjectType) => {
+  getFieldsForType: (projectType: ProjectType, selectedBrand?: string) => {
     const { fieldSettings } = get();
-    const fieldsForType = fieldSettings.filter((f) => f.projectType === projectType && f.isVisible);
+    let fieldsForType = fieldSettings.filter((f) => f.projectType === projectType && f.isVisible);
 
     if (fieldsForType.length === 0) {
       // 해당 유형의 필드가 없으면 기본값 반환
-      return (defaultFieldSettings[projectType] || []).map((field) => ({
+      fieldsForType = (defaultFieldSettings[projectType] || []).map((field) => ({
         ...field,
         id: `default-${projectType}-${field.fieldKey}`,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       } as ProjectFieldSetting));
+    }
+
+    // 브랜드 필터링 적용
+    if (selectedBrand) {
+      fieldsForType = fieldsForType.filter((field) => {
+        // 브랜드 필드는 항상 표시
+        if (field.fieldKey === 'brand') return true;
+        // visibleForBrands가 없거나 빈 배열이면 모든 브랜드에서 표시
+        if (!field.visibleForBrands || field.visibleForBrands.length === 0) return true;
+        // 선택된 브랜드가 visibleForBrands에 포함되면 표시
+        return field.visibleForBrands.includes(selectedBrand);
+      });
     }
 
     return fieldsForType.sort((a, b) => a.displayOrder - b.displayOrder);
@@ -184,6 +197,7 @@ export const useProjectFieldsStore = create<ProjectFieldsState>((set, get) => ({
           display_order: field.displayOrder,
           placeholder: field.placeholder || null,
           default_value: field.defaultValue || null,
+          visible_for_brands: field.visibleForBrands && field.visibleForBrands.length > 0 ? JSON.stringify(field.visibleForBrands) : null,
         })
         .select()
         .single();
@@ -202,6 +216,7 @@ export const useProjectFieldsStore = create<ProjectFieldsState>((set, get) => ({
         displayOrder: data.display_order,
         placeholder: data.placeholder || undefined,
         defaultValue: data.default_value || undefined,
+        visibleForBrands: data.visible_for_brands ? (typeof data.visible_for_brands === 'string' ? JSON.parse(data.visible_for_brands) : data.visible_for_brands) : undefined,
         createdAt: data.created_at,
         updatedAt: data.updated_at,
       };
@@ -279,6 +294,7 @@ export const useProjectFieldsStore = create<ProjectFieldsState>((set, get) => ({
       if (updates.displayOrder !== undefined) updateData.display_order = updates.displayOrder;
       if (updates.placeholder !== undefined) updateData.placeholder = updates.placeholder;
       if (updates.defaultValue !== undefined) updateData.default_value = updates.defaultValue;
+      if (updates.visibleForBrands !== undefined) updateData.visible_for_brands = updates.visibleForBrands && updates.visibleForBrands.length > 0 ? JSON.stringify(updates.visibleForBrands) : null;
 
       const { error } = await supabase
         .from('project_field_settings')

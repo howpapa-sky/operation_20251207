@@ -177,6 +177,7 @@ CREATE TABLE IF NOT EXISTS public.project_field_settings (
   display_order INTEGER DEFAULT 0,
   placeholder TEXT,
   default_value TEXT,
+  visible_for_brands JSONB, -- 특정 브랜드에서만 표시 (null = 모든 브랜드)
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(user_id, project_type, field_key)

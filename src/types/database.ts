@@ -413,6 +413,7 @@ export interface Database {
           display_order: number;
           placeholder: string | null;
           default_value: string | null;
+          visible_for_brands: Json | null;
           created_at: string;
           updated_at: string;
         };
@@ -429,6 +430,7 @@ export interface Database {
           display_order?: number;
           placeholder?: string | null;
           default_value?: string | null;
+          visible_for_brands?: Json | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -445,6 +447,7 @@ export interface Database {
           display_order?: number;
           placeholder?: string | null;
           default_value?: string | null;
+          visible_for_brands?: Json | null;
           created_at?: string;
           updated_at?: string;
         };

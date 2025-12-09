@@ -288,7 +288,9 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
 
   // 동적 필드 목록 렌더링
   const renderTypeSpecificFields = () => {
-    const fields = getFieldsForType(type);
+    // 선택된 브랜드에 따라 필드 필터링
+    const selectedBrand = dynamicFieldValues['brand'] as string | undefined;
+    const fields = getFieldsForType(type, selectedBrand);
 
     // 체크박스 필드와 나머지 필드 분리
     const checkboxFields = fields.filter((f) => f.fieldType === 'checkbox');

@@ -432,6 +432,7 @@ export interface ProjectFieldSetting {
   displayOrder: number;
   placeholder?: string;
   defaultValue?: string;
+  visibleForBrands?: string[]; // 특정 브랜드에서만 표시 (null/빈배열 = 모든 브랜드)
   createdAt: string;
   updatedAt: string;
 }
