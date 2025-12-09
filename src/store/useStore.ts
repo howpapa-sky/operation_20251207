@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '../lib/supabase';
+import { notifySampling } from '../lib/sendNaverWorks';
 import {
   User,
   UserRole,
@@ -339,6 +340,18 @@ export const useStore = create<AppState>()(
               read: false,
               projectId: project.id,
             });
+
+            // 샘플링 프로젝트인 경우 네이버 웍스 메신저 알림 전송
+            if (project.type === 'sampling') {
+              notifySampling({
+                type: 'new',
+                projectName: project.title,
+                brandName: 'brand' in project ? (project as any).brand : undefined,
+                manufacturerName: 'manufacturer' in project ? (project as any).manufacturer : undefined,
+                sampleCode: 'sampleCode' in project ? (project as any).sampleCode : undefined,
+                round: 'round' in project ? (project as any).round : undefined,
+              }).catch(console.error);
+            }
           }
         } catch (error) {
           console.error('Add project error:', error);
@@ -398,6 +411,21 @@ export const useStore = create<AppState>()(
                   : p
               ) as Project[],
             }));
+
+            // 샘플링 프로젝트 평가 등록 시 네이버 웍스 메신저 알림 전송
+            if (currentProject && currentProject.type === 'sampling' && 'averageRating' in updates) {
+              const updatedProject = { ...currentProject, ...updates };
+              notifySampling({
+                type: 'rating',
+                projectName: updatedProject.title,
+                brandName: 'brand' in updatedProject ? (updatedProject as any).brand : undefined,
+                manufacturerName: 'manufacturer' in updatedProject ? (updatedProject as any).manufacturer : undefined,
+                sampleCode: 'sampleCode' in updatedProject ? (updatedProject as any).sampleCode : undefined,
+                round: 'round' in updatedProject ? (updatedProject as any).round : undefined,
+                rating: (updates as any).averageRating,
+                evaluator: user.name,
+              }).catch(console.error);
+            }
           }
         } catch (error) {
           console.error('Update project error:', error);
