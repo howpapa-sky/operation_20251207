@@ -32,6 +32,40 @@ export default function SamplingEmailGenerator({ project }: SamplingEmailGenerat
     return { status: 'poor', average: avg };
   }, [project.ratings, project.averageRating]);
 
+  // 평가 분석 결과
+  const ratingAnalysis = useMemo(() => {
+    const ratings = project.ratings || [];
+    if (ratings.length === 0) return null;
+
+    const highScores = ratings.filter(r => r.score >= 4);
+    const mediumScores = ratings.filter(r => r.score >= 3 && r.score < 4);
+    const lowScores = ratings.filter(r => r.score < 3);
+
+    // 항목별로 그룹화하여 평균 계산
+    const criteriaMap = new Map<string, { scores: number[]; comments: string[] }>();
+    ratings.forEach(r => {
+      const existing = criteriaMap.get(r.criteriaName) || { scores: [], comments: [] };
+      existing.scores.push(r.score);
+      if (r.comment) existing.comments.push(r.comment);
+      criteriaMap.set(r.criteriaName, existing);
+    });
+
+    const criteriaAverages = Array.from(criteriaMap.entries()).map(([name, data]) => ({
+      name,
+      avgScore: data.scores.reduce((a, b) => a + b, 0) / data.scores.length,
+      evaluatorCount: data.scores.length,
+      comments: data.comments,
+    }));
+
+    return {
+      highScores,
+      mediumScores,
+      lowScores,
+      criteriaAverages,
+      totalEvaluations: ratings.length,
+    };
+  }, [project.ratings]);
+
   const generateEmail = () => {
     setIsGenerating(true);
 
@@ -39,17 +73,64 @@ export default function SamplingEmailGenerator({ project }: SamplingEmailGenerat
     setTimeout(() => {
       const brandName = brandLabels[project.brand];
       const ratings = project.ratings || [];
-      const avgRating = project.averageRating?.toFixed(1) || 'N/A';
+      const avgRating = project.averageRating?.toFixed(2) || 'N/A';
       const currentDate = new Date().toLocaleDateString('ko-KR', {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
       });
 
-      // Build rating details
-      const ratingDetails = ratings
-        .map((r) => `  - ${r.criteriaName}: ${r.score}/5점${r.comment ? ` (${r.comment})` : ''}`)
-        .join('\n');
+      // Build comprehensive rating details
+      let ratingDetails = '';
+      if (ratingAnalysis) {
+        ratingDetails = ratingAnalysis.criteriaAverages
+          .sort((a, b) => b.avgScore - a.avgScore)
+          .map((r) => {
+            const scoreBar = '★'.repeat(Math.round(r.avgScore)) + '☆'.repeat(5 - Math.round(r.avgScore));
+            const commentsText = r.comments.length > 0
+              ? `\n      └ 의견: ${r.comments.join(' / ')}`
+              : '';
+            return `  • ${r.name}: ${r.avgScore.toFixed(1)}점 ${scoreBar} (${r.evaluatorCount}명 평가)${commentsText}`;
+          })
+          .join('\n');
+      }
+
+      // 종합 의견 생성
+      const generateSummary = () => {
+        if (!ratingAnalysis) return '';
+
+        const { highScores, mediumScores, lowScores, criteriaAverages } = ratingAnalysis;
+        const strongPoints = criteriaAverages.filter(c => c.avgScore >= 4).map(c => c.name);
+        const weakPoints = criteriaAverages.filter(c => c.avgScore < 3).map(c => c.name);
+        const avgScore = project.averageRating || 0;
+
+        let summary = '';
+
+        if (avgScore >= 4) {
+          summary = `전체적으로 우수한 품질의 샘플입니다.`;
+          if (strongPoints.length > 0) {
+            summary += ` 특히 ${strongPoints.slice(0, 3).join(', ')} 항목에서 높은 평가를 받았습니다.`;
+          }
+          if (weakPoints.length > 0) {
+            summary += ` 다만, ${weakPoints.join(', ')} 항목은 추가 검토가 필요합니다.`;
+          }
+        } else if (avgScore >= 3) {
+          summary = `전반적으로 양호한 수준이나 일부 개선이 필요합니다.`;
+          if (strongPoints.length > 0) {
+            summary += ` ${strongPoints.join(', ')} 항목은 만족스럽습니다.`;
+          }
+          if (weakPoints.length > 0) {
+            summary += ` ${weakPoints.join(', ')} 항목의 개선을 요청드립니다.`;
+          }
+        } else {
+          summary = `품질 개선이 필요한 상태입니다.`;
+          if (weakPoints.length > 0) {
+            summary += ` 특히 ${weakPoints.join(', ')} 항목에서 낮은 점수를 받았으며, 전면적인 검토가 필요합니다.`;
+          }
+        }
+
+        return summary;
+      };
 
       // Generate different email types
       let subject = '';
@@ -59,28 +140,32 @@ export default function SamplingEmailGenerator({ project }: SamplingEmailGenerat
         subject = `[${brandName}] ${project.title} 샘플 평가 피드백 (${project.round}차)`;
         body = `안녕하세요, ${project.manufacturer} 담당자님.
 
-${brandName}의 ${project.title} 관련 ${project.round}차 샘플에 대한 평가 결과를 공유드립니다.
+${brandName}의 ${project.title} 관련 ${project.round}차 샘플에 대한 종합 평가 결과를 공유드립니다.
 
-■ 샘플 정보
-- 제품명: ${project.title}
-- 카테고리: ${project.category}
-- 샘플 코드: ${project.sampleCode || 'N/A'}
-- 평가 회차: ${project.round}차
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-■ 종합 평가
-- 평균 점수: ${avgRating}점 / 5점
-- 평가 항목별 상세:
-${ratingDetails || '  - 평가 항목 없음'}
+■ 샘플 기본 정보
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  • 브랜드: ${brandName}
+  • 제품명: ${project.title}
+  • 카테고리: ${project.category}
+  • 샘플 코드: ${project.sampleCode || 'N/A'}
+  • 평가 회차: ${project.round}차
 
-■ 추가 의견
-${project.notes || '별도 의견 없음'}
+■ 종합 평가 결과
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  • 평균 점수: ${avgRating}점 / 5점
+  • 총 평가 항목: ${ratingAnalysis?.totalEvaluations || 0}개
 
-${
-  ratingStatus.status === 'excellent' || ratingStatus.status === 'good'
-    ? '전반적으로 만족스러운 품질입니다. 몇 가지 세부 사항만 조정해주시면 감사하겠습니다.'
-    : '몇 가지 개선이 필요한 부분이 있어 상세 피드백을 공유드립니다. 검토 후 수정된 샘플을 요청드립니다.'
-}
+■ 항목별 세부 평가
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${ratingDetails || '  • 평가 항목 없음'}
 
+■ 종합 의견
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${generateSummary()}
+
+${project.notes ? `■ 추가 코멘트\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${project.notes}\n` : ''}
 확인 부탁드리며, 문의사항이 있으시면 연락주세요.
 
 감사합니다.
@@ -88,22 +173,32 @@ ${
 ${currentDate}
 ${brandName} 담당자 드림`;
       } else if (emailType === 'approval') {
-        subject = `[${brandName}] ${project.title} 샘플 승인 요청`;
+        subject = `[${brandName}] ${project.title} 샘플 승인 안내 (${project.round}차)`;
         body = `안녕하세요, ${project.manufacturer} 담당자님.
 
-${brandName}의 ${project.title} 관련 ${project.round}차 샘플 평가가 완료되었습니다.
+${brandName}의 ${project.title} 관련 ${project.round}차 샘플 평가가 완료되어 승인 결과를 안내드립니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ■ 샘플 정보
-- 제품명: ${project.title}
-- 카테고리: ${project.category}
-- 샘플 코드: ${project.sampleCode || 'N/A'}
-- 평가 회차: ${project.round}차
-- 평균 점수: ${avgRating}점 / 5점
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  • 브랜드: ${brandName}
+  • 제품명: ${project.title}
+  • 카테고리: ${project.category}
+  • 샘플 코드: ${project.sampleCode || 'N/A'}
+  • 평가 회차: ${project.round}차
+  • 최종 평균 점수: ${avgRating}점 / 5점
 
 ■ 승인 결과
-본 샘플을 승인합니다. 양산 단계로 진행해주시기 바랍니다.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✓ 본 샘플을 승인합니다.
+  ✓ 양산 단계로 진행 가능합니다.
 
-${project.notes ? `■ 참고 사항\n${project.notes}\n` : ''}
+■ 최종 평가 요약
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${ratingDetails || '  • 평가 항목 없음'}
+
+${project.notes ? `■ 참고 사항\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${project.notes}\n` : ''}
 양산 일정 협의를 위해 연락 부탁드립니다.
 
 감사합니다.
@@ -114,28 +209,44 @@ ${brandName} 담당자 드림`;
         subject = `[${brandName}] ${project.title} 샘플 수정 요청 (${project.round}차)`;
 
         // Find low-rated items for revision request
-        const lowRatedItems = ratings.filter((r) => r.score <= 3);
-        const revisionPoints = lowRatedItems
-          .map((r) => `  - ${r.criteriaName}: ${r.comment || '개선 필요'}`)
+        const lowRatedCriteria = ratingAnalysis?.criteriaAverages.filter(c => c.avgScore < 3) || [];
+        const revisionPoints = lowRatedCriteria
+          .map((r) => {
+            const commentsText = r.comments.length > 0
+              ? `\n      └ 평가 의견: ${r.comments.join(' / ')}`
+              : '';
+            return `  • ${r.name}: 현재 ${r.avgScore.toFixed(1)}점 → 개선 필요${commentsText}`;
+          })
           .join('\n');
 
         body = `안녕하세요, ${project.manufacturer} 담당자님.
 
-${brandName}의 ${project.title} 관련 ${project.round}차 샘플 평가 결과, 일부 수정이 필요하여 연락드립니다.
+${brandName}의 ${project.title} 관련 ${project.round}차 샘플 평가 결과, 수정이 필요하여 연락드립니다.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ■ 샘플 정보
-- 제품명: ${project.title}
-- 카테고리: ${project.category}
-- 샘플 코드: ${project.sampleCode || 'N/A'}
-- 현재 회차: ${project.round}차
-- 평균 점수: ${avgRating}점 / 5점
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  • 브랜드: ${brandName}
+  • 제품명: ${project.title}
+  • 카테고리: ${project.category}
+  • 샘플 코드: ${project.sampleCode || 'N/A'}
+  • 현재 회차: ${project.round}차
+  • 평균 점수: ${avgRating}점 / 5점
 
-■ 수정 요청 사항
-${revisionPoints || '  - 전반적인 품질 개선 필요'}
+■ 수정 요청 사항 (3점 미만 항목)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${revisionPoints || '  • 전반적인 품질 개선 필요'}
 
-■ 상세 피드백
-${project.notes || '상세 피드백은 추후 전달드리겠습니다.'}
+■ 전체 평가 항목
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${ratingDetails || '  • 평가 항목 없음'}
 
+■ 종합 의견
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${generateSummary()}
+
+${project.notes ? `■ 추가 피드백\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${project.notes}\n` : ''}
 수정된 ${project.round + 1}차 샘플 전달 일정을 알려주시면 감사하겠습니다.
 
 궁금한 점이 있으시면 연락주세요.

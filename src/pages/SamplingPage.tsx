@@ -1,6 +1,5 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Beaker } from 'lucide-react';
-import ProjectList from '../components/projects/ProjectList';
+import SamplingList from '../components/projects/SamplingList';
 import ProjectForm from '../components/projects/ProjectForm';
 import ProjectDetail from '../components/projects/ProjectDetail';
 import { useStore } from '../store/useStore';
@@ -78,16 +77,6 @@ export default function SamplingPage() {
     return <ProjectDetail project={project} />;
   }
 
-  // List view
-  return (
-    <ProjectList
-      type="sampling"
-      title="샘플링"
-      icon={
-        <div className="w-12 h-12 rounded-2xl bg-pink-100 flex items-center justify-center">
-          <Beaker className="w-6 h-6 text-pink-600" />
-        </div>
-      }
-    />
-  );
+  // List view with dedicated Sampling component
+  return <SamplingList />;
 }
