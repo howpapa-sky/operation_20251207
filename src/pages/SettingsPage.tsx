@@ -1482,40 +1482,51 @@ export default function SettingsPage() {
           </div>
 
           {/* 브랜드별 표시 설정 */}
-          <div>
-            <label className="label">브랜드별 표시</label>
-            <p className="text-xs text-gray-400 mb-2">선택하지 않으면 모든 브랜드에서 표시됩니다</p>
-            <div className="flex flex-wrap gap-3">
-              {['howpapa', 'nuccio'].map((brand) => (
-                <label key={brand} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={fieldFormData.visibleForBrands.includes(brand)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setFieldFormData((prev) => ({
-                          ...prev,
-                          visibleForBrands: [...prev.visibleForBrands, brand],
-                        }));
-                      } else {
-                        setFieldFormData((prev) => ({
-                          ...prev,
-                          visibleForBrands: prev.visibleForBrands.filter((b) => b !== brand),
-                        }));
-                      }
-                    }}
-                    className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  />
-                  <span className="text-sm text-gray-700">{brand === 'howpapa' ? 'Howpapa' : 'Nuccio'}</span>
-                </label>
-              ))}
-            </div>
-            {fieldFormData.visibleForBrands.length > 0 && (
-              <p className="text-xs text-primary-600 mt-2">
-                선택한 브랜드: {fieldFormData.visibleForBrands.map(b => b === 'howpapa' ? 'Howpapa' : 'Nuccio').join(', ')}
-              </p>
-            )}
-          </div>
+          {(() => {
+            // 현재 프로젝트 유형에서 brand 필드의 옵션 가져오기
+            const brandField = currentFields.find((f) => f.fieldKey === 'brand');
+            const brandOptions = brandField?.fieldOptions || [];
+
+            // 브랜드 필드가 없거나 옵션이 없으면 표시하지 않음
+            if (brandOptions.length === 0) return null;
+
+            return (
+              <div>
+                <label className="label">브랜드별 표시</label>
+                <p className="text-xs text-gray-400 mb-2">선택하지 않으면 모든 브랜드에서 표시됩니다</p>
+                <div className="flex flex-wrap gap-3">
+                  {brandOptions.map((brand) => (
+                    <label key={brand} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={fieldFormData.visibleForBrands.includes(brand)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFieldFormData((prev) => ({
+                              ...prev,
+                              visibleForBrands: [...prev.visibleForBrands, brand],
+                            }));
+                          } else {
+                            setFieldFormData((prev) => ({
+                              ...prev,
+                              visibleForBrands: prev.visibleForBrands.filter((b) => b !== brand),
+                            }));
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-gray-700">{brand}</span>
+                    </label>
+                  ))}
+                </div>
+                {fieldFormData.visibleForBrands.length > 0 && (
+                  <p className="text-xs text-primary-600 mt-2">
+                    선택한 브랜드: {fieldFormData.visibleForBrands.join(', ')}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
         </div>
         <div className="flex justify-end gap-3 mt-6">
           <button
