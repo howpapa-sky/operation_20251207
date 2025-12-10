@@ -344,7 +344,17 @@ export default function SamplingList() {
                     setActionMenuId(null);
                   }}
                 />
-                <div className="absolute right-0 mt-1 w-40 bg-white rounded-xl shadow-elegant-lg border border-gray-100 z-20 overflow-hidden">
+                <div className="absolute right-0 bottom-full mb-1 w-40 bg-white rounded-xl shadow-elegant-lg border border-gray-100 z-20 overflow-hidden">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/sampling/${project.id}`);
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <Eye className="w-4 h-4" />
+                    보기
+                  </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
