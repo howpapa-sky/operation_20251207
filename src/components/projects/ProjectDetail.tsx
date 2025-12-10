@@ -93,23 +93,30 @@ export default function ProjectDetail({ project }: ProjectDetailProps) {
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">평가 항목</h3>
                 <div className="space-y-4">
                   {sampling.ratings.map((rating) => (
-                    <div key={rating.criteriaId} className="flex items-center justify-between">
-                      <span className="text-gray-700">{rating.criteriaName}</span>
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-1">
-                          {[1, 2, 3, 4, 5].map((score) => (
-                            <Star
-                              key={score}
-                              className={`w-5 h-5 ${
-                                score <= rating.score
-                                  ? 'text-yellow-400 fill-yellow-400'
-                                  : 'text-gray-200'
-                              }`}
-                            />
-                          ))}
+                    <div key={rating.criteriaId} className="p-4 rounded-xl border border-gray-100 bg-gray-50/50">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-700 font-medium">{rating.criteriaName}</span>
+                        <div className="flex items-center gap-2">
+                          <div className="flex gap-1">
+                            {[1, 2, 3, 4, 5].map((score) => (
+                              <Star
+                                key={score}
+                                className={`w-5 h-5 ${
+                                  score <= rating.score
+                                    ? 'text-yellow-400 fill-yellow-400'
+                                    : 'text-gray-200'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-sm text-gray-500 w-10">{rating.score}/5</span>
                         </div>
-                        <span className="text-sm text-gray-500 w-10">{rating.score}/5</span>
                       </div>
+                      {rating.comment && (
+                        <p className="text-sm text-gray-500 mt-2 pl-1 border-l-2 border-gray-200">
+                          {rating.comment}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>

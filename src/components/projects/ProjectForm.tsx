@@ -168,6 +168,12 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
     );
   };
 
+  const updateRatingComment = (criteriaId: string, comment: string) => {
+    setRatings((prev) =>
+      prev.map((r) => (r.criteriaId === criteriaId ? { ...r, comment } : r))
+    );
+  };
+
   // 동적 필드 렌더링
   const renderDynamicField = (field: ProjectFieldSetting) => {
     const value = dynamicFieldValues[field.fieldKey];
@@ -317,28 +323,39 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
               {ratings.map((rating) => {
                 const criteria = evaluationCriteria.find(c => c.id === rating.criteriaId);
                 return (
-                  <div key={rating.criteriaId} className="flex items-start gap-4">
-                    <div className="w-32 flex-shrink-0">
-                      <span className="text-sm font-medium text-gray-700">{rating.criteriaName}</span>
-                      {criteria?.description && (
-                        <p className="text-xs text-gray-400 mt-0.5">{criteria.description}</p>
-                      )}
+                  <div key={rating.criteriaId} className="p-4 rounded-xl border border-gray-100 bg-gray-50/50">
+                    <div className="flex items-start gap-4">
+                      <div className="w-32 flex-shrink-0">
+                        <span className="text-sm font-medium text-gray-700">{rating.criteriaName}</span>
+                        {criteria?.description && (
+                          <p className="text-xs text-gray-400 mt-0.5">{criteria.description}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map((score) => (
+                          <button
+                            key={score}
+                            type="button"
+                            onClick={() => updateRating(rating.criteriaId, score)}
+                            className={`p-1 transition-all ${
+                              score <= rating.score ? 'text-yellow-400' : 'text-gray-300'
+                            }`}
+                          >
+                            <Star className="w-6 h-6 fill-current" />
+                          </button>
+                        ))}
+                      </div>
+                      <span className="text-sm text-gray-500">{rating.score}/5</span>
                     </div>
-                    <div className="flex gap-1">
-                      {[1, 2, 3, 4, 5].map((score) => (
-                        <button
-                          key={score}
-                          type="button"
-                          onClick={() => updateRating(rating.criteriaId, score)}
-                          className={`p-1 transition-all ${
-                            score <= rating.score ? 'text-yellow-400' : 'text-gray-300'
-                          }`}
-                        >
-                          <Star className="w-6 h-6 fill-current" />
-                        </button>
-                      ))}
+                    <div className="mt-3">
+                      <input
+                        type="text"
+                        value={rating.comment || ''}
+                        onChange={(e) => updateRatingComment(rating.criteriaId, e.target.value)}
+                        className="input-field text-sm"
+                        placeholder={`${rating.criteriaName}에 대한 메모 (선택사항)`}
+                      />
                     </div>
-                    <span className="text-sm text-gray-500">{rating.score}/5</span>
                   </div>
                 );
               })}
