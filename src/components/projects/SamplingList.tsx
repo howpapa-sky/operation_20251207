@@ -263,8 +263,9 @@ export default function SamplingList() {
     );
   };
 
-  const renderProjectRow = (project: SamplingProject) => {
+  const renderProjectRow = (project: SamplingProject, index: number) => {
     const isMenuOpen = actionMenuId === project.id;
+    const isLastRows = index >= filteredProjects.length - 2; // 마지막 2개 행
 
     return (
       <tr
@@ -323,8 +324,8 @@ export default function SamplingList() {
             {project.status === 'completed' ? '완료' : getDdayText(project.targetDate)}
           </Badge>
         </td>
-        <td className="table-cell">
-          <div className="relative">
+        <td className="table-cell overflow-visible">
+          <div className="relative" style={{ overflow: 'visible' }}>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -344,7 +345,7 @@ export default function SamplingList() {
                     setActionMenuId(null);
                   }}
                 />
-                <div className="absolute right-0 bottom-full mb-1 w-40 bg-white rounded-xl shadow-elegant-lg border border-gray-100 z-20 overflow-hidden">
+                <div className={`absolute right-0 w-40 bg-white rounded-xl shadow-elegant-lg border border-gray-100 z-50 overflow-hidden ${isLastRows ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -419,8 +420,8 @@ export default function SamplingList() {
     }
 
     return (
-      <Card padding="none">
-        <div className="overflow-x-auto">
+      <Card padding="none" className="overflow-visible">
+        <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100">
@@ -437,7 +438,7 @@ export default function SamplingList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filteredProjects.map(renderProjectRow)}
+              {filteredProjects.map((project, index) => renderProjectRow(project, index))}
             </tbody>
           </table>
         </div>
