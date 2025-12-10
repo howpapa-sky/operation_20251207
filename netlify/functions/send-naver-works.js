@@ -135,9 +135,23 @@ exports.handler = async (event, context) => {
     const clientId = process.env.NAVER_WORKS_CLIENT_ID;
     const clientSecret = process.env.NAVER_WORKS_CLIENT_SECRET;
     const serviceAccountId = process.env.NAVER_WORKS_SERVICE_ACCOUNT;
-    const privateKey = process.env.NAVER_WORKS_PRIVATE_KEY?.replace(/\\n/g, '\n');
     const botId = process.env.NAVER_WORKS_BOT_ID;
     const defaultChannelId = process.env.NAVER_WORKS_CHANNEL_ID;
+
+    // Private Key 처리 (Base64 또는 일반 형식 지원)
+    let privateKey = process.env.NAVER_WORKS_PRIVATE_KEY;
+    if (privateKey) {
+      // Base64로 인코딩된 경우 디코딩
+      if (!privateKey.includes('-----BEGIN')) {
+        try {
+          privateKey = Buffer.from(privateKey, 'base64').toString('utf-8');
+        } catch (e) {
+          // Base64 디코딩 실패 시 그대로 사용
+        }
+      }
+      // \n 문자열을 실제 줄바꿈으로 변환
+      privateKey = privateKey.replace(/\\n/g, '\n');
+    }
 
     const channelId = customChannelId || defaultChannelId;
 
