@@ -36,6 +36,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { useStore } from '../store/useStore';
 import Card, { CardHeader } from '../components/common/Card';
 import Badge from '../components/common/Badge';
+import UpcomingSchedules from '../components/common/UpcomingSchedules';
 import {
   formatCurrency,
   formatDate,
@@ -487,6 +488,9 @@ export default function DashboardPage() {
           </div>
         </Card>
       </div>
+
+      {/* 다가오는 세부 일정 */}
+      <UpcomingSchedules days={7} maxItems={5} />
 
       {/* Recent Projects */}
       <Card padding="none">

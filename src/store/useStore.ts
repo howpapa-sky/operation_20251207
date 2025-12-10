@@ -12,6 +12,8 @@ import {
   SortOptions,
   ProjectStatus,
   ProjectType,
+  ProjectSchedule,
+  ScheduleType,
 } from '../types';
 import type { Json } from '../types/database';
 import { v4 as uuidv4 } from 'uuid';
@@ -53,6 +55,13 @@ interface AppState {
   updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   selectProject: (project: Project | null) => void;
+
+  // 액션 - 세부 일정
+  addSchedule: (projectId: string, schedule: Omit<ProjectSchedule, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateSchedule: (projectId: string, scheduleId: string, updates: Partial<ProjectSchedule>) => Promise<void>;
+  deleteSchedule: (projectId: string, scheduleId: string) => Promise<void>;
+  toggleScheduleComplete: (projectId: string, scheduleId: string) => Promise<void>;
+  getUpcomingSchedules: (days?: number) => { schedule: ProjectSchedule; project: Project }[];
 
   // 액션 - 평가 항목
   fetchEvaluationCriteria: () => Promise<void>;
@@ -469,6 +478,116 @@ export const useStore = create<AppState>()(
 
       selectProject: (project) => {
         set({ selectedProject: project });
+      },
+
+      // 세부 일정 추가
+      addSchedule: async (projectId, scheduleData) => {
+        const project = get().projects.find((p) => p.id === projectId);
+        if (!project) return;
+
+        const now = new Date().toISOString();
+        const newSchedule: ProjectSchedule = {
+          ...scheduleData,
+          id: uuidv4(),
+          projectId,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        const updatedSchedules = [...(project.schedules || []), newSchedule];
+        await get().updateProject(projectId, { schedules: updatedSchedules } as any);
+
+        get().addNotification({
+          title: '일정 추가',
+          message: `"${project.title}"에 "${newSchedule.title}" 일정이 추가되었습니다.`,
+          type: 'success',
+          read: false,
+          projectId,
+        });
+      },
+
+      // 세부 일정 업데이트
+      updateSchedule: async (projectId, scheduleId, updates) => {
+        const project = get().projects.find((p) => p.id === projectId);
+        if (!project || !project.schedules) return;
+
+        const updatedSchedules = project.schedules.map((s) =>
+          s.id === scheduleId
+            ? { ...s, ...updates, updatedAt: new Date().toISOString() }
+            : s
+        );
+
+        await get().updateProject(projectId, { schedules: updatedSchedules } as any);
+      },
+
+      // 세부 일정 삭제
+      deleteSchedule: async (projectId, scheduleId) => {
+        const project = get().projects.find((p) => p.id === projectId);
+        if (!project || !project.schedules) return;
+
+        const schedule = project.schedules.find((s) => s.id === scheduleId);
+        const updatedSchedules = project.schedules.filter((s) => s.id !== scheduleId);
+
+        await get().updateProject(projectId, { schedules: updatedSchedules } as any);
+
+        if (schedule) {
+          get().addNotification({
+            title: '일정 삭제',
+            message: `"${schedule.title}" 일정이 삭제되었습니다.`,
+            type: 'info',
+            read: false,
+            projectId,
+          });
+        }
+      },
+
+      // 세부 일정 완료 토글
+      toggleScheduleComplete: async (projectId, scheduleId) => {
+        const project = get().projects.find((p) => p.id === projectId);
+        if (!project || !project.schedules) return;
+
+        const updatedSchedules = project.schedules.map((s) =>
+          s.id === scheduleId
+            ? {
+                ...s,
+                isCompleted: !s.isCompleted,
+                completedDate: !s.isCompleted ? new Date().toISOString() : undefined,
+                updatedAt: new Date().toISOString(),
+              }
+            : s
+        );
+
+        await get().updateProject(projectId, { schedules: updatedSchedules } as any);
+      },
+
+      // 다가오는 일정 조회 (기본 7일)
+      getUpcomingSchedules: (days = 7) => {
+        const projects = get().projects;
+        const now = new Date();
+        const futureDate = new Date();
+        futureDate.setDate(futureDate.getDate() + days);
+
+        const upcomingSchedules: { schedule: ProjectSchedule; project: Project }[] = [];
+
+        projects.forEach((project) => {
+          if (project.schedules) {
+            project.schedules.forEach((schedule) => {
+              if (!schedule.isCompleted) {
+                const dueDate = new Date(schedule.dueDate);
+                if (dueDate >= now && dueDate <= futureDate) {
+                  upcomingSchedules.push({ schedule, project });
+                }
+              }
+            });
+          }
+        });
+
+        // 날짜순 정렬
+        upcomingSchedules.sort((a, b) =>
+          new Date(a.schedule.dueDate).getTime() - new Date(b.schedule.dueDate).getTime()
+        );
+
+        return upcomingSchedules;
       },
 
       // 평가 항목 목록 가져오기

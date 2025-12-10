@@ -14,6 +14,7 @@ import Card from '../common/Card';
 import Badge from '../common/Badge';
 import Modal from '../common/Modal';
 import SamplingEmailGenerator from './SamplingEmailGenerator';
+import ProjectScheduleManager from './ProjectScheduleManager';
 import { Project, SamplingProject } from '../../types';
 import { useStore } from '../../store/useStore';
 import {
@@ -393,6 +394,12 @@ export default function ProjectDetail({ project }: ProjectDetailProps) {
 
       {/* Type-specific Info */}
       {renderTypeSpecificInfo()}
+
+      {/* 세부 일정 */}
+      <ProjectScheduleManager
+        projectId={project.id}
+        schedules={project.schedules}
+      />
 
       {/* Notes */}
       {project.notes && (

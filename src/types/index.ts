@@ -69,6 +69,7 @@ export interface BaseProject {
   updatedAt: string;
   attachments?: Attachment[];
   history?: ProjectHistory[];
+  schedules?: ProjectSchedule[];  // 세부 일정
 }
 
 // 프로젝트 타입
@@ -98,6 +99,61 @@ export interface ProjectHistory {
   userId: string;
   userName: string;
   timestamp: string;
+}
+
+// 세부 일정 타입
+export type ScheduleType =
+  | 'sample_delivery'    // 샘플 전달
+  | 'sample_receipt'     // 샘플 수령
+  | 'evaluation'         // 평가
+  | 'feedback'           // 피드백 제출
+  | 'revision'           // 수정/보완
+  | 'approval'           // 승인
+  | 'production'         // 양산
+  | 'delivery'           // 납품
+  | 'meeting'            // 미팅
+  | 'other';             // 기타
+
+export const scheduleTypeLabels: Record<ScheduleType, string> = {
+  sample_delivery: '샘플 전달',
+  sample_receipt: '샘플 수령',
+  evaluation: '평가',
+  feedback: '피드백 제출',
+  revision: '수정/보완',
+  approval: '승인',
+  production: '양산',
+  delivery: '납품',
+  meeting: '미팅',
+  other: '기타',
+};
+
+export const scheduleTypeColors: Record<ScheduleType, string> = {
+  sample_delivery: '#6366f1',
+  sample_receipt: '#8b5cf6',
+  evaluation: '#f59e0b',
+  feedback: '#10b981',
+  revision: '#f97316',
+  approval: '#22c55e',
+  production: '#3b82f6',
+  delivery: '#14b8a6',
+  meeting: '#ec4899',
+  other: '#64748b',
+};
+
+// 프로젝트 세부 일정
+export interface ProjectSchedule {
+  id: string;
+  projectId: string;
+  type: ScheduleType;
+  title: string;
+  description?: string;
+  dueDate: string;           // 예정일
+  completedDate?: string;    // 완료일
+  isCompleted: boolean;
+  reminderDays?: number[];   // 며칠 전에 알림 (예: [1, 3, 7])
+  assignee?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // 1. 샘플링 프로젝트
