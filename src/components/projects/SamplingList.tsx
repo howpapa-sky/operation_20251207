@@ -293,9 +293,6 @@ export default function SamplingList() {
         <td className="table-cell text-gray-600">
           {project.round}차
         </td>
-        <td className="table-cell text-gray-500 font-mono text-sm">
-          {project.sampleCode || '-'}
-        </td>
         <td className="table-cell">
           {project.averageRating ? (
             <div className="flex items-center gap-1">
@@ -332,8 +329,8 @@ export default function SamplingList() {
         </td>
         <td className="table-cell">
           {project.notes ? (
-            <span className="text-gray-600 text-sm truncate max-w-32 block" title={project.notes}>
-              {project.notes.length > 20 ? `${project.notes.substring(0, 20)}...` : project.notes}
+            <span className="text-gray-600 text-sm whitespace-pre-wrap">
+              {project.notes}
             </span>
           ) : (
             <span className="text-gray-400">-</span>
@@ -445,7 +442,6 @@ export default function SamplingList() {
                 <th className="table-header">카테고리</th>
                 <th className="table-header">제조사</th>
                 <th className="table-header">회차</th>
-                <th className="table-header">샘플코드</th>
                 <th className="table-header">평점</th>
                 <th className="table-header">시작일</th>
                 <th className="table-header">목표일</th>
