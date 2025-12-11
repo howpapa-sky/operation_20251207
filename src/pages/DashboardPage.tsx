@@ -230,52 +230,52 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">대시보드</h1>
-          <p className="text-gray-500 mt-1">
-            안녕하세요, {user?.name}님! 오늘의 프로젝트 현황입니다.
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">대시보드</h1>
+          <p className="text-gray-500 mt-1 text-sm md:text-base truncate">
+            안녕하세요, {user?.name}님!
           </p>
         </div>
         <button
           onClick={() => navigate('/sampling/new')}
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary flex items-center gap-2 flex-shrink-0"
         >
           <Plus className="w-5 h-5" />
-          새 프로젝트
+          <span className="hidden sm:inline">새 프로젝트</span>
         </button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="p-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+        <Card className="p-3 md:p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">전체 프로젝트</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{stats.total}</p>
+              <p className="text-xs md:text-sm text-gray-500">전체 프로젝트</p>
+              <p className="text-2xl md:text-3xl font-bold text-gray-900 mt-1">{stats.total}</p>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-primary-100 flex items-center justify-center">
-              <FolderOpen className="w-6 h-6 text-primary-600" />
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-primary-100 flex items-center justify-center">
+              <FolderOpen className="w-5 h-5 md:w-6 md:h-6 text-primary-600" />
             </div>
           </div>
-          <div className="mt-4 flex items-center gap-1 text-sm">
-            <TrendingUp className="w-4 h-4 text-green-500" />
+          <div className="mt-3 md:mt-4 flex items-center gap-1 text-xs md:text-sm">
+            <TrendingUp className="w-3 h-3 md:w-4 md:h-4 text-green-500" />
             <span className="text-green-600 font-medium">12%</span>
-            <span className="text-gray-500">지난달 대비</span>
+            <span className="text-gray-500 hidden sm:inline">지난달 대비</span>
           </div>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-3 md:p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">완료</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{stats.completed}</p>
+              <p className="text-xs md:text-sm text-gray-500">완료</p>
+              <p className="text-2xl md:text-3xl font-bold text-gray-900 mt-1">{stats.completed}</p>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-green-100 flex items-center justify-center">
-              <CheckCircle2 className="w-6 h-6 text-green-600" />
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-green-100 flex items-center justify-center">
+              <CheckCircle2 className="w-5 h-5 md:w-6 md:h-6 text-green-600" />
             </div>
           </div>
-          <div className="mt-4">
+          <div className="mt-3 md:mt-4">
             <div className="progress-bar">
               <div
                 className="progress-fill bg-green-500"
@@ -284,26 +284,26 @@ export default function DashboardPage() {
                 }}
               />
             </div>
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-xs md:text-sm text-gray-500 mt-2">
               완료율 {stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%
             </p>
           </div>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-3 md:p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">진행중</p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{stats.inProgress}</p>
+              <p className="text-xs md:text-sm text-gray-500">진행중</p>
+              <p className="text-2xl md:text-3xl font-bold text-gray-900 mt-1">{stats.inProgress}</p>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-yellow-100 flex items-center justify-center">
-              <Clock className="w-6 h-6 text-yellow-600" />
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-yellow-100 flex items-center justify-center">
+              <Clock className="w-5 h-5 md:w-6 md:h-6 text-yellow-600" />
             </div>
           </div>
-          <div className="mt-4 flex items-center gap-1 text-sm">
+          <div className="mt-3 md:mt-4 flex items-center gap-1 text-xs md:text-sm">
             {stats.onHold > 0 && (
               <>
-                <AlertCircle className="w-4 h-4 text-orange-500" />
+                <AlertCircle className="w-3 h-3 md:w-4 md:h-4 text-orange-500" />
                 <span className="text-orange-600 font-medium">{stats.onHold}</span>
                 <span className="text-gray-500">보류</span>
               </>
@@ -311,21 +311,21 @@ export default function DashboardPage() {
           </div>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-3 md:p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">예산 사용</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
+              <p className="text-xs md:text-sm text-gray-500">예산 사용</p>
+              <p className="text-lg md:text-2xl font-bold text-gray-900 mt-1">
                 {formatCurrency(stats.usedBudget)}
               </p>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-purple-100 flex items-center justify-center">
-              <TrendingDown className="w-6 h-6 text-purple-600" />
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-purple-100 flex items-center justify-center">
+              <TrendingDown className="w-5 h-5 md:w-6 md:h-6 text-purple-600" />
             </div>
           </div>
-          <div className="mt-4">
-            <p className="text-sm text-gray-500">
-              총 예산: {formatCurrency(stats.totalBudget)}
+          <div className="mt-3 md:mt-4">
+            <p className="text-xs md:text-sm text-gray-500 truncate">
+              총: {formatCurrency(stats.totalBudget)}
             </p>
           </div>
         </Card>
@@ -391,9 +391,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Calendar & Deadlines Row - 컴팩트하게 변경 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendar */}
-        <Card className="lg:col-span-2" padding="none">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+        {/* Calendar - hidden on small mobile */}
+        <Card className="lg:col-span-2 hidden sm:block" padding="none">
           <div className="p-4 border-b border-gray-100">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-primary-600" />
@@ -511,11 +511,11 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* Project by Type Pie Chart */}
         <Card>
           <CardHeader title="프로젝트 유형별 현황" />
-          <div className="h-72">
+          <div className="h-56 md:h-72">
             {projectsByType.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -541,15 +541,15 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-          <div className="flex flex-wrap gap-3 mt-4 px-6 pb-6">
+          <div className="flex flex-wrap gap-2 md:gap-3 mt-4 px-4 md:px-6 pb-4 md:pb-6">
             {projectsByType.map((item, index) => (
-              <div key={item.type} className="flex items-center gap-2">
+              <div key={item.type} className="flex items-center gap-1 md:gap-2">
                 <div
-                  className="w-3 h-3 rounded-full"
+                  className="w-2 h-2 md:w-3 md:h-3 rounded-full"
                   style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
                 />
-                <span className="text-sm text-gray-600">{item.name}</span>
-                <span className="text-sm font-medium text-gray-900">{item.value}</span>
+                <span className="text-xs md:text-sm text-gray-600">{item.name}</span>
+                <span className="text-xs md:text-sm font-medium text-gray-900">{item.value}</span>
               </div>
             ))}
           </div>
@@ -558,7 +558,7 @@ export default function DashboardPage() {
         {/* Monthly Trend Chart */}
         <Card>
           <CardHeader title="월별 프로젝트 추이" />
-          <div className="h-72">
+          <div className="h-56 md:h-72">
             {monthlyStats.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={monthlyStats}>
@@ -593,18 +593,59 @@ export default function DashboardPage() {
 
       {/* Recent Projects */}
       <Card padding="none">
-        <div className="p-6 border-b border-gray-100">
+        <div className="p-4 md:p-6 border-b border-gray-100">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">최근 프로젝트</h3>
+            <h3 className="text-base md:text-lg font-semibold text-gray-900">최근 프로젝트</h3>
             <button
               onClick={() => navigate('/sampling')}
-              className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
+              className="text-xs md:text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
             >
-              전체 보기 <ArrowRight className="w-4 h-4" />
+              전체 보기 <ArrowRight className="w-3 h-3 md:w-4 md:h-4" />
             </button>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        {/* Mobile view - card style */}
+        <div className="md:hidden divide-y divide-gray-50">
+          {recentProjects.length === 0 ? (
+            <div className="px-4 py-8 text-center text-gray-500 text-sm">
+              프로젝트가 없습니다. 새 프로젝트를 만들어보세요!
+            </div>
+          ) : (
+            recentProjects.map((project) => {
+              const Icon = typeIcons[project.type];
+              return (
+                <div
+                  key={project.id}
+                  onClick={() => navigate(`/${project.type.replace('_', '-')}/${project.id}`)}
+                  className="p-4 hover:bg-gray-50 cursor-pointer transition-all"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                        projectTypeColors[project.type].replace('text-', 'bg-').split(' ')[0]
+                      }`}
+                    >
+                      <Icon
+                        className={`w-5 h-5 ${projectTypeColors[project.type].split(' ')[1]}`}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 truncate">{project.title}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge className={`${statusColors[project.status]} text-xs`}>
+                          {statusLabels[project.status]}
+                        </Badge>
+                        <span className="text-xs text-gray-500">{formatDate(project.targetDate)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+        {/* Desktop view - table style */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100">
@@ -673,7 +714,7 @@ export default function DashboardPage() {
       </Card>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-3 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-4">
         {Object.entries(projectTypeLabels).map(([type, label]) => {
           const Icon = typeIcons[type as ProjectType];
           return (
@@ -681,19 +722,19 @@ export default function DashboardPage() {
               key={type}
               hover
               onClick={() => navigate(`/${type.replace('_', '-')}/new`)}
-              className="p-4 text-center"
+              className="p-2 md:p-4 text-center"
             >
               <div
-                className={`w-12 h-12 mx-auto rounded-xl flex items-center justify-center ${
+                className={`w-10 h-10 md:w-12 md:h-12 mx-auto rounded-lg md:rounded-xl flex items-center justify-center ${
                   projectTypeColors[type as ProjectType].replace('text-', 'bg-').split(' ')[0]
                 }`}
               >
                 <Icon
-                  className={`w-6 h-6 ${projectTypeColors[type as ProjectType].split(' ')[1]}`}
+                  className={`w-5 h-5 md:w-6 md:h-6 ${projectTypeColors[type as ProjectType].split(' ')[1]}`}
                 />
               </div>
-              <p className="mt-3 text-sm font-medium text-gray-900">{label}</p>
-              <p className="text-xs text-gray-500 mt-1">새로 만들기</p>
+              <p className="mt-2 md:mt-3 text-xs md:text-sm font-medium text-gray-900 truncate">{label}</p>
+              <p className="text-xs text-gray-500 mt-0.5 md:mt-1 hidden sm:block">새로 만들기</p>
             </Card>
           );
         })}

@@ -55,7 +55,7 @@ const personalMenuItems: MenuItem[] = [
 ];
 
 export default function Sidebar() {
-  const { sidebarCollapsed, toggleSidebar } = useStore();
+  const { sidebarCollapsed, toggleSidebar, mobileMenuOpen, closeMobileMenu } = useStore();
   const location = useLocation();
   const navigate = useNavigate();
   const { projectTypeSettings, fetchProjectTypeSettings, isProjectTypeVisible } = useProjectSettingsStore();
@@ -81,19 +81,25 @@ export default function Sidebar() {
     return item.label;
   };
 
+  const handleNavigation = (path: string) => {
+    navigate(path);
+    closeMobileMenu();
+  };
+
   const renderMenuItem = (item: MenuItem, isActive: boolean) => (
     <li key={item.path}>
       <NavLink
         to={item.path}
+        onClick={() => closeMobileMenu()}
         className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 ${
           isActive
             ? 'bg-primary-50 text-primary-700 font-medium'
             : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
         }`}
-        title={sidebarCollapsed ? getMenuLabel(item) : undefined}
+        title={sidebarCollapsed && !mobileMenuOpen ? getMenuLabel(item) : undefined}
       >
         <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-primary-600' : ''}`} />
-        {!sidebarCollapsed && <span>{getMenuLabel(item)}</span>}
+        {(!sidebarCollapsed || mobileMenuOpen) && <span>{getMenuLabel(item)}</span>}
       </NavLink>
     </li>
   );
@@ -101,14 +107,16 @@ export default function Sidebar() {
   return (
     <aside
       className={`fixed left-0 top-0 h-screen bg-white border-r border-gray-200 transition-all duration-300 z-40 flex flex-col ${
-        sidebarCollapsed ? 'w-20' : 'w-64'
-      }`}
+        sidebarCollapsed ? 'lg:w-20' : 'lg:w-64'
+      } w-64 ${
+        mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+      } lg:translate-x-0`}
     >
       {/* Logo */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-gray-100">
-        {!sidebarCollapsed && (
+        {(!sidebarCollapsed || mobileMenuOpen) && (
           <button
-            onClick={() => navigate('/')}
+            onClick={() => handleNavigation('/')}
             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
           >
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-howpapa-500 to-howpapa-600 flex items-center justify-center">
@@ -120,9 +128,9 @@ export default function Sidebar() {
             </div>
           </button>
         )}
-        {sidebarCollapsed && (
+        {sidebarCollapsed && !mobileMenuOpen && (
           <button
-            onClick={() => navigate('/')}
+            onClick={() => handleNavigation('/')}
             className="w-10 h-10 mx-auto rounded-xl bg-gradient-to-br from-howpapa-500 to-howpapa-600 flex items-center justify-center hover:opacity-80 transition-opacity"
           >
             <Sparkles className="w-6 h-6 text-white" />
@@ -145,13 +153,13 @@ export default function Sidebar() {
         <div className="my-4 border-t border-gray-200" />
 
         {/* Personal Section Header */}
-        {!sidebarCollapsed && (
+        {(!sidebarCollapsed || mobileMenuOpen) && (
           <div className="px-3 mb-2 flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
             <User className="w-4 h-4" />
             개인 업무
           </div>
         )}
-        {sidebarCollapsed && (
+        {sidebarCollapsed && !mobileMenuOpen && (
           <div className="flex justify-center mb-2">
             <User className="w-4 h-4 text-gray-400" />
           </div>
@@ -166,8 +174,8 @@ export default function Sidebar() {
         </ul>
       </nav>
 
-      {/* Collapse Button */}
-      <div className="p-3 border-t border-gray-100">
+      {/* Collapse Button - Only visible on desktop */}
+      <div className="p-3 border-t border-gray-100 hidden lg:block">
         <button
           onClick={toggleSidebar}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-all duration-200"

@@ -4,18 +4,27 @@ import Header from './Header';
 import { useStore } from '../../store/useStore';
 
 export default function Layout() {
-  const { sidebarCollapsed } = useStore();
+  const { sidebarCollapsed, mobileMenuOpen, closeMobileMenu } = useStore();
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Mobile overlay */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+          onClick={closeMobileMenu}
+        />
+      )}
+
       <Sidebar />
+
       <div
         className={`transition-all duration-300 ${
-          sidebarCollapsed ? 'ml-20' : 'ml-64'
-        }`}
+          sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'
+        } ml-0`}
       >
         <Header />
-        <main className="p-6">
+        <main className="p-4 md:p-6">
           <Outlet />
         </main>
       </div>

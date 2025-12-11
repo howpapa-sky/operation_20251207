@@ -40,6 +40,7 @@ interface AppState {
 
   // UI 상태
   sidebarCollapsed: boolean;
+  mobileMenuOpen: boolean;
   currentView: 'list' | 'calendar' | 'board';
 
   // 액션 - 인증
@@ -81,6 +82,8 @@ interface AppState {
 
   // 액션 - UI
   toggleSidebar: () => void;
+  toggleMobileMenu: () => void;
+  closeMobileMenu: () => void;
   setCurrentView: (view: 'list' | 'calendar' | 'board') => void;
 
   // 통계 헬퍼
@@ -146,6 +149,7 @@ export const useStore = create<AppState>()(
       filters: {},
       sortOptions: { field: 'createdAt', direction: 'desc' },
       sidebarCollapsed: false,
+      mobileMenuOpen: false,
       currentView: 'list',
 
       // 인증 체크
@@ -748,6 +752,14 @@ export const useStore = create<AppState>()(
       // UI 액션
       toggleSidebar: () => {
         set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed }));
+      },
+
+      toggleMobileMenu: () => {
+        set((state) => ({ mobileMenuOpen: !state.mobileMenuOpen }));
+      },
+
+      closeMobileMenu: () => {
+        set({ mobileMenuOpen: false });
       },
 
       setCurrentView: (view) => {

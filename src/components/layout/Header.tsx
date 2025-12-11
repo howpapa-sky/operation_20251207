@@ -8,13 +8,14 @@ import {
   Settings,
   ChevronDown,
   X,
+  Menu,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { formatRelativeTime } from '../../utils/helpers';
 
 export default function Header() {
   const navigate = useNavigate();
-  const { user, notifications, logout, markNotificationAsRead, setFilters, filters } = useStore();
+  const { user, notifications, logout, markNotificationAsRead, setFilters, filters, toggleMobileMenu } = useStore();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState(filters.searchQuery || '');
@@ -32,7 +33,15 @@ export default function Header() {
   };
 
   return (
-    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
+    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-6">
+      {/* Mobile Menu Button */}
+      <button
+        onClick={toggleMobileMenu}
+        className="lg:hidden p-2 mr-2 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-all"
+      >
+        <Menu className="w-6 h-6" />
+      </button>
+
       {/* Search */}
       <form onSubmit={handleSearch} className="flex-1 max-w-xl">
         <div className="relative">
