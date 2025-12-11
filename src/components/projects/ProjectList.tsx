@@ -248,8 +248,9 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
     );
   };
 
-  const renderProjectRow = (project: Project) => {
+  const renderProjectRow = (project: Project, index: number) => {
     const isMenuOpen = actionMenuId === project.id;
+    const isLastRows = index >= filteredProjects.length - 2; // 마지막 2개 행
 
     return (
       <tr
@@ -303,8 +304,8 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
             <span className="text-gray-400">-</span>
           )}
         </td>
-        <td className="table-cell">
-          <div className="relative">
+        <td className="table-cell overflow-visible">
+          <div className="relative" style={{ overflow: 'visible' }}>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -324,7 +325,17 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
                     setActionMenuId(null);
                   }}
                 />
-                <div className="absolute right-0 mt-1 w-40 bg-white rounded-xl shadow-elegant-lg border border-gray-100 z-20 overflow-hidden">
+                <div className={`absolute right-0 w-40 bg-white rounded-xl shadow-elegant-lg border border-gray-100 z-50 overflow-hidden ${isLastRows ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/${type.replace('_', '-')}/${project.id}`);
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <Eye className="w-4 h-4" />
+                    보기
+                  </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -400,8 +411,8 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
       case 'list':
       default:
         return (
-          <Card padding="none">
-            <div className="overflow-x-auto">
+          <Card padding="none" className="overflow-visible">
+            <div className="overflow-x-auto overflow-y-visible">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-100">
@@ -416,7 +427,7 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {filteredProjects.map(renderProjectRow)}
+                  {filteredProjects.map((project, index) => renderProjectRow(project, index))}
                 </tbody>
               </table>
             </div>
