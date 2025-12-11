@@ -511,3 +511,270 @@ export interface ProjectFieldSetting {
   createdAt: string;
   updatedAt: string;
 }
+
+// ========== 제품 마스터 관련 타입 ==========
+
+// 판매 채널 (확장)
+export type SalesChannelType =
+  | 'cafe24'
+  | 'naver_smartstore'
+  | 'coupang'
+  | 'coupang_rocket'
+  | '29cm'
+  | 'ably'
+  | 'amazon_jp'
+  | 'amazon_us'
+  | 'allways'
+  | 'other';
+
+export const salesChannelLabels: Record<SalesChannelType, string> = {
+  cafe24: 'CAFE24',
+  naver_smartstore: '네이버 스마트스토어',
+  coupang: '쿠팡',
+  coupang_rocket: '쿠팡 로켓배송',
+  '29cm': '29CM',
+  ably: 'ABLY',
+  amazon_jp: '아마존 JP',
+  amazon_us: '아마존 US',
+  allways: '올웨이즈',
+  other: '기타',
+};
+
+// 인증 정보 타입
+export interface CertificationInfo {
+  vegan: boolean;           // 비건
+  ewgGrade?: string;        // EWG 등급
+  dermaTest?: boolean;      // 더마테스트
+  safetyChemical?: boolean; // 안전화학
+}
+
+// 임상 정보
+export interface ClinicalInfo {
+  id: string;
+  title: string;
+  description: string;
+  testDate?: string;
+  institution?: string;     // 시험 기관
+  results?: string;         // 시험 결과
+  attachmentUrl?: string;   // 첨부 파일 URL
+  attachmentName?: string;  // 첨부 파일명
+}
+
+// 제품 옵션
+export interface ProductOption {
+  id: string;
+  name: string;             // 옵션명 (예: 용량)
+  value: string;            // 옵션값 (예: 50ml)
+  additionalPrice?: number; // 추가 가격
+  sku?: string;             // 옵션별 SKU
+  barcode?: string;         // 옵션별 바코드
+}
+
+// 제품 마스터
+export interface ProductMaster {
+  id: string;
+
+  // 기본 정보
+  name: string;                    // 제품명
+  brand: Brand;                    // 브랜드
+  category: ProductCategory;       // 카테고리
+  description?: string;            // 제품 설명
+
+  // 코드 정보
+  skuId?: string;                  // SKU ID
+  materialCode?: string;           // 자재번호
+  abbreviation?: string;           // 약호
+  ampNumber?: string;              // 앰넘버
+  mockupCode?: string;             // 모크리코드
+  barcode?: string;                // 바코드
+
+  // 제조 정보
+  manufacturer: Manufacturer;      // 제조사
+  factoryLocation?: string;        // 공장 위치
+
+  // 가격 정보
+  costPrice: number;               // 원가 (매입가)
+  sellingPrice: number;            // 정상 판매가
+  supplyPrice?: number;            // 공급가
+
+  // 인증 정보
+  certifications: CertificationInfo;
+
+  // 임상 정보
+  clinicalTests: ClinicalInfo[];
+
+  // 판매 정보
+  productUrl?: string;             // 제품 URL
+  detailPageUrl?: string;          // 상세페이지 URL
+  thumbnailUrl?: string;           // 썸네일 이미지 URL
+
+  // 옵션 정보
+  options: ProductOption[];
+
+  // 메모
+  notes?: string;
+
+  // 상태
+  isActive: boolean;
+
+  // 타임스탬프
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ========== 프로모션 구성 관련 타입 ==========
+
+// 프로모션 구성 제품
+export interface PromotionProduct {
+  id: string;
+  productId: string;               // ProductMaster ID
+  productName: string;             // 제품명 (캐시)
+  quantity: number;                // 수량
+  unitPrice: number;               // 개별 가격
+  optionId?: string;               // 선택된 옵션 ID
+  optionName?: string;             // 선택된 옵션명
+}
+
+// 프로모션 구성
+export interface PromotionBundle {
+  id: string;
+
+  // 기본 정보
+  name: string;                    // 구성명
+  code?: string;                   // 구성 코드
+  description?: string;            // 설명
+
+  // 구성 제품
+  products: PromotionProduct[];
+
+  // 가격 정보
+  originalPrice: number;           // 정상가 (합계)
+  promotionPrice: number;          // 프로모션가
+  discountRate?: number;           // 할인율 (%)
+
+  // 기간
+  startDate?: string;
+  endDate?: string;
+
+  // 연동
+  groupPurchaseProjectId?: string; // 공동구매 프로젝트 연동
+
+  // 상태
+  isActive: boolean;
+
+  // 타임스탬프
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ========== 주문/매출 데이터 타입 ==========
+
+// 주문 상태
+export type OrderStatus = 'normal' | 'cancel' | 'return' | 'exchange' | 'pending';
+
+export const orderStatusLabels: Record<OrderStatus, string> = {
+  normal: '정상',
+  cancel: '취소',
+  return: '반품',
+  exchange: '교환',
+  pending: '보류',
+};
+
+// 주문 데이터 (채널별 주문서)
+export interface SalesOrder {
+  id: string;
+
+  // 주문 기본 정보
+  orderDate: string;               // 주문 날짜
+  orderId: string;                 // 주문서 ID (채널별)
+  orderStatus: OrderStatus;        // 주문 상태
+
+  // 채널 정보
+  channel: SalesChannelType;       // 판매 채널
+
+  // 제품 정보
+  brand: Brand;                    // 브랜드
+  productId?: string;              // ProductMaster ID (연동 시)
+  productName: string;             // 제품명
+  optionName?: string;             // 옵션명
+
+  // 금액 정보
+  salesAmount: number;             // 매출 금액
+  paymentAmount: number;           // 결제 금액
+  costAmount?: number;             // 원가 (ProductMaster 연동 시)
+  profitAmount?: number;           // 이익
+
+  // 수량
+  quantity: number;
+
+  // 기타
+  notes?: string;
+
+  // 타임스탬프
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 채널별 매출 요약
+export interface ChannelSalesSummary {
+  channel: SalesChannelType;
+  channelLabel: string;
+  totalSales: number;
+  totalPayment: number;
+  totalCost: number;
+  totalProfit: number;
+  orderCount: number;
+  productCount: number;
+}
+
+// 제품별 매출 요약
+export interface ProductSalesSummary {
+  productId?: string;
+  productName: string;
+  brand: Brand;
+  totalSales: number;
+  totalQuantity: number;
+  totalProfit: number;
+  avgPrice: number;
+  channels: SalesChannelType[];
+}
+
+// 기간별 매출 요약
+export interface PeriodSalesSummary {
+  period: string;                  // YYYY-MM-DD 또는 YYYY-MM
+  periodType: 'daily' | 'weekly' | 'monthly';
+  totalSales: number;
+  totalPayment: number;
+  totalCost: number;
+  totalProfit: number;
+  profitRate: number;              // 이익률 (%)
+  orderCount: number;
+  byChannel: ChannelSalesSummary[];
+  byProduct: ProductSalesSummary[];
+}
+
+// 매출 대시보드 데이터
+export interface SalesDashboardData {
+  // 요약 카드
+  todaySales: number;
+  todayOrders: number;
+  monthSales: number;
+  monthProfit: number;
+  monthProfitRate: number;
+
+  // 전월 대비
+  salesChangeRate: number;
+  profitChangeRate: number;
+
+  // 채널별 요약
+  channelSummary: ChannelSalesSummary[];
+
+  // 제품별 TOP 10
+  topProducts: ProductSalesSummary[];
+
+  // 일별 추이 (최근 30일)
+  dailyTrend: { date: string; sales: number; profit: number }[];
+
+  // 월별 추이 (최근 12개월)
+  monthlyTrend: { month: string; sales: number; profit: number }[];
+}

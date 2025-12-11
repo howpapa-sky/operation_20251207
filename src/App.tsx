@@ -15,6 +15,7 @@ import OtherPage from './pages/OtherPage';
 import StatisticsPage from './pages/StatisticsPage';
 import SettingsPage from './pages/SettingsPage';
 import SalesPage from './pages/SalesPage';
+import ProductMasterPage from './pages/ProductMasterPage';
 import PersonalNotesPage from './pages/PersonalNotesPage';
 import MyTasksPage from './pages/MyTasksPage';
 import StatusUpdatesPage from './pages/StatusUpdatesPage';
@@ -118,6 +119,9 @@ function App() {
           <Route path="other/:id" element={<OtherPage />} />
           <Route path="other/:id/edit" element={<OtherPage />} />
           <Route path="sales" element={<SalesPage />} />
+          <Route path="product-master" element={<ProductMasterPage />} />
+          <Route path="product-master/:id" element={<ProductMasterPage />} />
+          <Route path="product-master/:id/edit" element={<ProductMasterPage />} />
           <Route path="statistics" element={<StatisticsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="personal/notes" element={<PersonalNotesPage />} />

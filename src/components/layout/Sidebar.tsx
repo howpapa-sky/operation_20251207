@@ -19,6 +19,7 @@ import {
   CheckSquare,
   MessageSquare,
   User,
+  Box,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useProjectSettingsStore } from '../../store/useProjectSettingsStore';
@@ -39,6 +40,7 @@ const allMenuItems: MenuItem[] = [
   { icon: Package, label: '제품 발주', path: '/product-order', projectType: 'product_order' },
   { icon: ShoppingCart, label: '공동구매', path: '/group-purchase', projectType: 'group_purchase' },
   { icon: FolderOpen, label: '기타 프로젝트', path: '/other', projectType: 'other' },
+  { icon: Box, label: '제품 마스터', path: '/product-master' },
   { icon: DollarSign, label: '매출 관리', path: '/sales' },
   { icon: BarChart3, label: '통계', path: '/statistics' },
   { icon: Settings, label: '설정', path: '/settings' },
