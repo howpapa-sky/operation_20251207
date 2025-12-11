@@ -795,7 +795,10 @@ export interface PromotionPackProduct {
   id: string;
   productId: string;               // ProductMaster ID
   productName: string;             // 제품명 (캐시)
+  optionId?: string;               // 선택된 옵션 ID
+  optionName?: string;             // 선택된 옵션명 (예: 쿨링밤, 고보습밤)
   quantity: number;                // 수량
+  unitPrice: number;               // 개별 단가
 }
 
 // 프로모션 구성 (패키지)

@@ -743,6 +743,13 @@ function PackModal({ isOpen, onClose, pack, products, onSave }: PackModalProps) 
   const [regularPrice, setRegularPrice] = useState(0);
   const [discountPrice, setDiscountPrice] = useState(0);
   const [promotionPrice, setPromotionPrice] = useState(0);
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [selectedOptionId, setSelectedOptionId] = useState('');
+  const [autoDescription, setAutoDescription] = useState(true);
+
+  // 선택된 제품의 옵션 목록
+  const selectedProduct = products.find(p => p.id === selectedProductId);
+  const hasOptions = selectedProduct && selectedProduct.options.length > 0;
 
   useEffect(() => {
     if (pack) {
@@ -751,45 +758,129 @@ function PackModal({ isOpen, onClose, pack, products, onSave }: PackModalProps) 
       setRegularPrice(pack.regularPrice);
       setDiscountPrice(pack.discountPrice);
       setPromotionPrice(pack.promotionPrice);
+      setAutoDescription(false);
     } else {
       setDescription('');
       setSelectedProducts([]);
       setRegularPrice(0);
       setDiscountPrice(0);
       setPromotionPrice(0);
+      setAutoDescription(true);
     }
   }, [pack, isOpen]);
 
-  const handleAddProduct = (productId: string) => {
-    const product = products.find(p => p.id === productId);
+  // 구성 설명 자동 생성
+  useEffect(() => {
+    if (!autoDescription || selectedProducts.length === 0) return;
+
+    const grouped: Record<string, { name: string; optionNames: string[]; quantity: number }> = {};
+
+    selectedProducts.forEach(p => {
+      // 옵션이 있는 경우 옵션명 기준으로 그룹핑
+      if (p.optionName) {
+        const key = `${p.productId}-opt`;
+        if (!grouped[key]) {
+          grouped[key] = { name: p.productName, optionNames: [], quantity: 0 };
+        }
+        grouped[key].optionNames.push(p.optionName);
+        grouped[key].quantity += p.quantity;
+      } else {
+        // 옵션이 없는 경우 제품명 기준
+        const key = p.productId;
+        if (!grouped[key]) {
+          grouped[key] = { name: p.productName, optionNames: [], quantity: 0 };
+        }
+        grouped[key].quantity += p.quantity;
+      }
+    });
+
+    const parts = Object.values(grouped).map(g => {
+      if (g.optionNames.length > 0) {
+        return `${g.name} ${g.optionNames.length}종 (${g.optionNames.join('+')})`;
+      }
+      return g.quantity > 1 ? `${g.name} ${g.quantity}개` : g.name;
+    });
+
+    setDescription(parts.join(' + '));
+  }, [selectedProducts, autoDescription]);
+
+  // 정상가 자동 계산
+  useEffect(() => {
+    const totalPrice = selectedProducts.reduce((sum, p) => sum + (p.unitPrice * p.quantity), 0);
+    setRegularPrice(totalPrice);
+  }, [selectedProducts]);
+
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('ko-KR').format(price);
+  };
+
+  // 제품 + 옵션 추가
+  const handleAddProduct = () => {
+    if (!selectedProductId) return;
+
+    const product = products.find(p => p.id === selectedProductId);
     if (!product) return;
 
-    const existing = selectedProducts.find(p => p.productId === productId);
+    let productName = product.name;
+    let optionName: string | undefined;
+    let unitPrice = product.sellingPrice;
+
+    // 옵션이 선택된 경우
+    if (selectedOptionId) {
+      const option = product.options.find(o => o.id === selectedOptionId);
+      if (option) {
+        optionName = option.value;
+        unitPrice = product.sellingPrice + (option.additionalPrice || 0);
+      }
+    }
+
+    // 동일 제품+옵션이 이미 있는지 확인
+    const existingKey = selectedOptionId
+      ? `${selectedProductId}-${selectedOptionId}`
+      : selectedProductId;
+
+    const existing = selectedProducts.find(p => {
+      const key = p.optionId
+        ? `${p.productId}-${p.optionId}`
+        : p.productId;
+      return key === existingKey;
+    });
+
     if (existing) {
-      setSelectedProducts(selectedProducts.map(p =>
-        p.productId === productId ? { ...p, quantity: p.quantity + 1 } : p
-      ));
+      setSelectedProducts(selectedProducts.map(p => {
+        const key = p.optionId
+          ? `${p.productId}-${p.optionId}`
+          : p.productId;
+        return key === existingKey ? { ...p, quantity: p.quantity + 1 } : p;
+      }));
     } else {
       setSelectedProducts([
         ...selectedProducts,
         {
           id: `pp-${Date.now()}`,
           productId: product.id,
-          productName: product.name,
+          productName,
+          optionId: selectedOptionId || undefined,
+          optionName,
           quantity: 1,
+          unitPrice,
         },
       ]);
     }
+
+    // 선택 초기화
+    setSelectedProductId('');
+    setSelectedOptionId('');
   };
 
-  const handleRemoveProduct = (productId: string) => {
-    setSelectedProducts(selectedProducts.filter(p => p.productId !== productId));
+  const handleRemoveProduct = (itemId: string) => {
+    setSelectedProducts(selectedProducts.filter(p => p.id !== itemId));
   };
 
-  const handleQuantityChange = (productId: string, quantity: number) => {
+  const handleQuantityChange = (itemId: string, quantity: number) => {
     if (quantity < 1) return;
     setSelectedProducts(selectedProducts.map(p =>
-      p.productId === productId ? { ...p, quantity } : p
+      p.id === itemId ? { ...p, quantity } : p
     ));
   };
 
@@ -814,10 +905,6 @@ function PackModal({ isOpen, onClose, pack, products, onSave }: PackModalProps) 
     });
   };
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('ko-KR').format(price);
-  };
-
   return (
     <Modal
       isOpen={isOpen}
@@ -826,70 +913,108 @@ function PackModal({ isOpen, onClose, pack, products, onSave }: PackModalProps) 
       size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="label">구성 설명 *</label>
-          <input
-            type="text"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="input-field"
-            placeholder="예: 크림 2개 + 선크림 1개"
-            required
-          />
-        </div>
-
-        <div>
+        {/* 제품 선택 영역 */}
+        <div className="p-4 bg-gray-50 rounded-xl space-y-3">
           <label className="label">제품 선택</label>
-          <select
-            onChange={(e) => {
-              if (e.target.value) {
-                handleAddProduct(e.target.value);
-                e.target.value = '';
-              }
-            }}
-            className="select-field"
-          >
-            <option value="">제품을 선택하세요</option>
-            {products.filter(p => p.isActive).map((p) => (
-              <option key={p.id} value={p.id}>
-                [{brandLabels[p.brand]}] {p.name} (₩{formatPrice(p.sellingPrice)})
-              </option>
-            ))}
-          </select>
+          <div className="grid grid-cols-1 gap-3">
+            {/* 제품 선택 */}
+            <select
+              value={selectedProductId}
+              onChange={(e) => {
+                setSelectedProductId(e.target.value);
+                setSelectedOptionId('');
+              }}
+              className="select-field"
+            >
+              <option value="">제품을 선택하세요</option>
+              {products.filter(p => p.isActive).map((p) => (
+                <option key={p.id} value={p.id}>
+                  [{brandLabels[p.brand]}] {p.name} (₩{formatPrice(p.sellingPrice)})
+                  {p.options.length > 0 && ` - ${p.options.length}개 옵션`}
+                </option>
+              ))}
+            </select>
+
+            {/* 옵션 선택 (제품에 옵션이 있는 경우) */}
+            {hasOptions && (
+              <div className="flex gap-2">
+                <select
+                  value={selectedOptionId}
+                  onChange={(e) => setSelectedOptionId(e.target.value)}
+                  className="select-field flex-1"
+                >
+                  <option value="">옵션 선택 (선택사항)</option>
+                  {selectedProduct.options.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.name}: {opt.value}
+                      {opt.additionalPrice ? ` (+₩${formatPrice(opt.additionalPrice)})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* 추가 버튼 */}
+            <button
+              type="button"
+              onClick={handleAddProduct}
+              disabled={!selectedProductId}
+              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              제품 추가
+            </button>
+          </div>
         </div>
 
+        {/* 선택된 제품 목록 */}
         {selectedProducts.length > 0 && (
           <div className="space-y-2">
-            <label className="label">선택된 제품 (구성 개수: {packSize}개)</label>
-            <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="label">선택된 제품 (총 {packSize}개)</label>
+              <span className="text-sm text-gray-500">
+                정상가 합계: ₩{formatPrice(selectedProducts.reduce((sum, p) => sum + (p.unitPrice * p.quantity), 0))}
+              </span>
+            </div>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
               {selectedProducts.map((product) => (
                 <div
-                  key={product.productId}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  key={product.id}
+                  className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg"
                 >
-                  <span className="font-medium text-gray-900">{product.productName}</span>
-                  <div className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-900 truncate">
+                      {product.productName}
+                      {product.optionName && (
+                        <span className="ml-2 text-sm text-primary-600">({product.optionName})</span>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      ₩{formatPrice(product.unitPrice)} × {product.quantity}개 = ₩{formatPrice(product.unitPrice * product.quantity)}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 ml-4">
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => handleQuantityChange(product.productId, product.quantity - 1)}
-                        className="w-8 h-8 rounded-lg bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
+                        onClick={() => handleQuantityChange(product.id, product.quantity - 1)}
+                        className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600"
                       >
                         -
                       </button>
-                      <span className="w-8 text-center">{product.quantity}</span>
+                      <span className="w-8 text-center font-medium">{product.quantity}</span>
                       <button
                         type="button"
-                        onClick={() => handleQuantityChange(product.productId, product.quantity + 1)}
-                        className="w-8 h-8 rounded-lg bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
+                        onClick={() => handleQuantityChange(product.id, product.quantity + 1)}
+                        className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600"
                       >
                         +
                       </button>
                     </div>
                     <button
                       type="button"
-                      onClick={() => handleRemoveProduct(product.productId)}
-                      className="p-2 text-red-500 hover:text-red-700"
+                      onClick={() => handleRemoveProduct(product.id)}
+                      className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -900,6 +1025,37 @@ function PackModal({ isOpen, onClose, pack, products, onSave }: PackModalProps) 
           </div>
         )}
 
+        {/* 구성 설명 */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="label mb-0">구성명 *</label>
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                checked={autoDescription}
+                onChange={(e) => setAutoDescription(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              자동 생성
+            </label>
+          </div>
+          <input
+            type="text"
+            value={description}
+            onChange={(e) => {
+              setDescription(e.target.value);
+              setAutoDescription(false);
+            }}
+            className="input-field"
+            placeholder="예: 아토로션 아기스틱밤 2종 (쿨링+고보습)"
+            required
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            제품 선택 시 자동으로 구성명이 생성됩니다. 직접 수정도 가능합니다.
+          </p>
+        </div>
+
+        {/* 가격 설정 */}
         <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="label">정상가 *</label>
@@ -911,6 +1067,7 @@ function PackModal({ isOpen, onClose, pack, products, onSave }: PackModalProps) 
               min={0}
               required
             />
+            <p className="mt-1 text-xs text-gray-500">자동 계산됨</p>
           </div>
           <div>
             <label className="label">상시 할인가 *</label>
@@ -936,13 +1093,20 @@ function PackModal({ isOpen, onClose, pack, products, onSave }: PackModalProps) 
           </div>
         </div>
 
+        {/* 할인율 표시 */}
         {regularPrice > 0 && promotionPrice > 0 && (
-          <div className="p-4 bg-purple-50 rounded-xl">
+          <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">할인율</span>
-              <span className="font-bold text-purple-600">
-                {Math.round((1 - promotionPrice / regularPrice) * 100)}% 할인
-              </span>
+              <div>
+                <span className="text-sm text-gray-600">최종 할인율</span>
+                <div className="text-2xl font-bold text-purple-600">
+                  {Math.round((1 - promotionPrice / regularPrice) * 100)}% 할인
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-gray-500 line-through">₩{formatPrice(regularPrice)}</div>
+                <div className="text-lg font-bold text-gray-900">₩{formatPrice(promotionPrice)}</div>
+              </div>
             </div>
           </div>
         )}
@@ -951,7 +1115,11 @@ function PackModal({ isOpen, onClose, pack, products, onSave }: PackModalProps) 
           <button type="button" onClick={onClose} className="btn-secondary">
             취소
           </button>
-          <button type="submit" className="btn-primary">
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={selectedProducts.length === 0}
+          >
             저장
           </button>
         </div>
@@ -1075,11 +1243,22 @@ function PromotionDetail({ promotion }: PromotionDetailProps) {
                       )}
                     </div>
 
-                    <div className="flex flex-wrap gap-2 mb-4">
+                    <div className="space-y-2 mb-4">
                       {pack.products.map((product) => (
-                        <Badge key={product.id} variant="gray">
-                          {product.productName} x{product.quantity}
-                        </Badge>
+                        <div key={product.id} className="flex items-center justify-between p-2 bg-white rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900">
+                              {product.productName}
+                              {product.optionName && (
+                                <span className="ml-1 text-primary-600">({product.optionName})</span>
+                              )}
+                            </span>
+                            <Badge variant="gray">x{product.quantity}</Badge>
+                          </div>
+                          <span className="text-sm text-gray-500">
+                            ₩{formatPrice(product.unitPrice)} × {product.quantity} = ₩{formatPrice(product.unitPrice * product.quantity)}
+                          </span>
+                        </div>
                       ))}
                     </div>
 
