@@ -203,21 +203,14 @@ export default function SamplingList() {
         >
           <div className="flex items-start gap-3 mb-3">
             <div className="flex-1 min-w-0 pr-8">
-              <h3 className="font-semibold text-gray-900 truncate">{project.title}</h3>
-              <p className="text-sm text-gray-500 mt-1">{brandLabels[project.brand]}</p>
+              <h3 className="font-semibold text-gray-900 truncate">
+                {brandLabels[project.brand]} {project.category}
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">{project.title}</p>
             </div>
           </div>
 
           <div className="space-y-2 mb-4">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-gray-500">카테고리:</span>
-              <span
-                className="inline-flex items-center rounded-full font-medium px-3 py-1 text-xs"
-                style={{ backgroundColor: `${categoryColors[project.category]}20`, color: categoryColors[project.category] }}
-              >
-                {project.category}
-              </span>
-            </div>
             <div className="flex items-center gap-2 text-sm">
               <span className="text-gray-500">제조사:</span>
               <span className="text-gray-700">{project.manufacturer}</span>
@@ -274,18 +267,8 @@ export default function SamplingList() {
         onClick={() => navigate(`/sampling/${project.id}`)}
       >
         <td className="table-cell">
-          <p className="font-medium text-gray-900">{project.title}</p>
-        </td>
-        <td className="table-cell text-gray-600">
-          {brandLabels[project.brand]}
-        </td>
-        <td className="table-cell">
-          <span
-            className="inline-flex items-center rounded-full font-medium px-3 py-1 text-xs"
-            style={{ backgroundColor: `${categoryColors[project.category]}20`, color: categoryColors[project.category] }}
-          >
-            {project.category}
-          </span>
+          <p className="font-medium text-gray-900">{brandLabels[project.brand]} {project.category}</p>
+          <p className="text-sm text-gray-500">{project.title}</p>
         </td>
         <td className="table-cell text-gray-600">
           {project.manufacturer}
@@ -437,9 +420,7 @@ export default function SamplingList() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="table-header">제품명</th>
-                <th className="table-header">브랜드</th>
-                <th className="table-header">카테고리</th>
+                <th className="table-header">브랜드/카테고리</th>
                 <th className="table-header">제조사</th>
                 <th className="table-header">회차</th>
                 <th className="table-header">평점</th>
