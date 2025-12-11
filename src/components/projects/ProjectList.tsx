@@ -295,6 +295,15 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
           </Badge>
         </td>
         <td className="table-cell">
+          {project.notes ? (
+            <span className="text-gray-600 text-sm whitespace-pre-wrap">
+              {project.notes}
+            </span>
+          ) : (
+            <span className="text-gray-400">-</span>
+          )}
+        </td>
+        <td className="table-cell">
           <div className="relative">
             <button
               onClick={(e) => {
@@ -402,6 +411,7 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
                     <th className="table-header">시작일</th>
                     <th className="table-header">목표일</th>
                     <th className="table-header">D-day</th>
+                    <th className="table-header">비고</th>
                     <th className="table-header w-20"></th>
                   </tr>
                 </thead>
