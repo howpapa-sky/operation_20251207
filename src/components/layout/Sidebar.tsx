@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import {
   LayoutDashboard,
@@ -57,6 +57,7 @@ const personalMenuItems: MenuItem[] = [
 export default function Sidebar() {
   const { sidebarCollapsed, toggleSidebar } = useStore();
   const location = useLocation();
+  const navigate = useNavigate();
   const { projectTypeSettings, fetchProjectTypeSettings, isProjectTypeVisible } = useProjectSettingsStore();
 
   useEffect(() => {
@@ -106,20 +107,26 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-gray-100">
         {!sidebarCollapsed && (
-          <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          >
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-howpapa-500 to-howpapa-600 flex items-center justify-center">
               <Sparkles className="w-6 h-6 text-white" />
             </div>
-            <div>
+            <div className="text-left">
               <h1 className="font-bold text-gray-900">HOWPAPA</h1>
               <p className="text-xs text-gray-500">Project Manager</p>
             </div>
-          </div>
+          </button>
         )}
         {sidebarCollapsed && (
-          <div className="w-10 h-10 mx-auto rounded-xl bg-gradient-to-br from-howpapa-500 to-howpapa-600 flex items-center justify-center">
+          <button
+            onClick={() => navigate('/')}
+            className="w-10 h-10 mx-auto rounded-xl bg-gradient-to-br from-howpapa-500 to-howpapa-600 flex items-center justify-center hover:opacity-80 transition-opacity"
+          >
             <Sparkles className="w-6 h-6 text-white" />
-          </div>
+          </button>
         )}
       </div>
 
