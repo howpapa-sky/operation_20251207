@@ -71,6 +71,7 @@ export default function SamplingList() {
   const [selectedManufacturer, setSelectedManufacturer] = useState<Manufacturer | ''>('');
   const [deleteModalId, setDeleteModalId] = useState<string | null>(null);
   const [actionMenuId, setActionMenuId] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
 
   // 샘플링 프로젝트만 필터링
   const samplingProjects = useMemo(() => {
@@ -319,28 +320,46 @@ export default function SamplingList() {
             <span className="text-gray-400">-</span>
           )}
         </td>
-        <td className="table-cell overflow-visible">
-          <div className="relative" style={{ overflow: 'visible' }}>
+        <td className="table-cell">
+          <div className="relative">
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setActionMenuId(isMenuOpen ? null : project.id);
+                if (isMenuOpen) {
+                  setActionMenuId(null);
+                  setMenuPosition(null);
+                } else {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setMenuPosition({
+                    top: rect.top - 8,
+                    left: rect.right - 160,
+                  });
+                  setActionMenuId(project.id);
+                }
               }}
               className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
             >
               <MoreVertical className="w-4 h-4" />
             </button>
 
-            {isMenuOpen && (
+            {isMenuOpen && menuPosition && (
               <>
                 <div
-                  className="fixed inset-0 z-10"
+                  className="fixed inset-0 z-[9998]"
                   onClick={(e) => {
                     e.stopPropagation();
                     setActionMenuId(null);
+                    setMenuPosition(null);
                   }}
                 />
-                <div className="absolute right-0 bottom-full mb-1 w-40 bg-white rounded-xl shadow-elegant-lg border border-gray-100 z-[100] overflow-hidden">
+                <div
+                  className="fixed w-40 bg-white rounded-xl shadow-elegant-lg border border-gray-100 z-[9999] overflow-hidden"
+                  style={{
+                    top: menuPosition.top,
+                    left: menuPosition.left,
+                    transform: 'translateY(-100%)'
+                  }}
+                >
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -365,6 +384,7 @@ export default function SamplingList() {
                     onClick={(e) => {
                       e.stopPropagation();
                       setActionMenuId(null);
+                      setMenuPosition(null);
                       setDeleteModalId(project.id);
                     }}
                     className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
