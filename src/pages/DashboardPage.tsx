@@ -206,6 +206,27 @@ export default function DashboardPage() {
       .slice(0, 5);
   }, [projects]);
 
+  // 지연된 프로젝트 (마감일 지났지만 미완료)
+  const delayedProjects = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return [...projects]
+      .filter((p) => p.status !== 'completed' && p.status !== 'cancelled')
+      .filter((p) => new Date(p.targetDate) < today)
+      .sort((a, b) => new Date(a.targetDate).getTime() - new Date(b.targetDate).getTime())
+      .slice(0, 5);
+  }, [projects]);
+
+  // 지연 일수 계산
+  const getDelayDays = (targetDate: string) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(targetDate);
+    const diffTime = today.getTime() - target.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -310,7 +331,159 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Charts Row */}
+      {/* Calendar & Deadlines Row - 위로 이동 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Calendar */}
+        <Card className="lg:col-span-2" padding="none">
+          <div className="p-6 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-primary-600" />
+              <h3 className="text-lg font-semibold text-gray-900">프로젝트 캘린더</h3>
+            </div>
+          </div>
+          <div className="p-4">
+            <FullCalendar
+              plugins={[dayGridPlugin, interactionPlugin]}
+              initialView="dayGridMonth"
+              locale="ko"
+              headerToolbar={{
+                left: 'prev,next today',
+                center: 'title',
+                right: '',
+              }}
+              events={calendarEvents.map((e) => ({
+                id: e.id,
+                title: e.title,
+                start: e.start,
+                backgroundColor: e.color,
+                borderColor: e.color,
+              }))}
+              height={400}
+              eventClick={(info) => {
+                const event = calendarEvents.find((e) => e.id === info.event.id);
+                if (event) {
+                  navigate(`/${event.projectType}/${event.projectId}`);
+                }
+              }}
+            />
+          </div>
+        </Card>
+
+        {/* Upcoming Deadlines */}
+        <Card padding="none">
+          <div className="p-6 border-b border-gray-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-orange-500" />
+                <h3 className="text-lg font-semibold text-gray-900">마감 임박</h3>
+              </div>
+              <Badge variant="warning">{upcomingDeadlines.length}</Badge>
+            </div>
+          </div>
+          <div className="divide-y divide-gray-50 max-h-[360px] overflow-y-auto">
+            {upcomingDeadlines.length === 0 ? (
+              <div className="p-6 text-center text-gray-500">
+                마감 임박 프로젝트가 없습니다
+              </div>
+            ) : (
+              upcomingDeadlines.map((project) => {
+                const Icon = typeIcons[project.type];
+                return (
+                  <div
+                    key={project.id}
+                    onClick={() => navigate(`/${project.type.replace('_', '-')}/${project.id}`)}
+                    className="p-4 hover:bg-gray-50 cursor-pointer transition-all"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          projectTypeColors[project.type].replace('text-', 'bg-').split(' ')[0]
+                        }`}
+                      >
+                        <Icon className={`w-5 h-5 ${projectTypeColors[project.type].split(' ')[1]}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate">{project.title}</p>
+                        <p className="text-sm text-gray-500">{formatDate(project.targetDate)}</p>
+                      </div>
+                      <Badge
+                        variant={
+                          parseInt(getDdayText(project.targetDate).replace('D-', '')) <= 3
+                            ? 'danger'
+                            : 'warning'
+                        }
+                      >
+                        {getDdayText(project.targetDate)}
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* 다가오는 세부 일정 & 지연된 일정 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* 다가오는 세부 일정 */}
+        <UpcomingSchedules days={7} maxItems={5} />
+
+        {/* 지연된 일정 */}
+        <Card padding="none">
+          <div className="p-6 border-b border-gray-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-red-500" />
+                <h3 className="text-lg font-semibold text-gray-900">지연된 일정</h3>
+              </div>
+              {delayedProjects.length > 0 && (
+                <Badge variant="danger">{delayedProjects.length}</Badge>
+              )}
+            </div>
+          </div>
+          <div className="divide-y divide-gray-50 max-h-[300px] overflow-y-auto">
+            {delayedProjects.length === 0 ? (
+              <div className="p-6 text-center text-gray-500">
+                지연된 프로젝트가 없습니다
+              </div>
+            ) : (
+              delayedProjects.map((project) => {
+                const Icon = typeIcons[project.type];
+                const delayDays = getDelayDays(project.targetDate);
+                return (
+                  <div
+                    key={project.id}
+                    onClick={() => navigate(`/${project.type.replace('_', '-')}/${project.id}`)}
+                    className="p-4 hover:bg-red-50 cursor-pointer transition-all"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          projectTypeColors[project.type].replace('text-', 'bg-').split(' ')[0]
+                        }`}
+                      >
+                        <Icon className={`w-5 h-5 ${projectTypeColors[project.type].split(' ')[1]}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate">{project.title}</p>
+                        <p className="text-sm text-gray-500">
+                          마감: {formatDate(project.targetDate)}
+                        </p>
+                      </div>
+                      <Badge variant="danger">
+                        {delayDays}일 지연
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* Charts Row - 아래로 이동 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Project by Type Pie Chart */}
         <Card>
@@ -390,107 +563,6 @@ export default function DashboardPage() {
           </div>
         </Card>
       </div>
-
-      {/* Calendar & Lists Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendar */}
-        <Card className="lg:col-span-2" padding="none">
-          <div className="p-6 border-b border-gray-100">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-primary-600" />
-              <h3 className="text-lg font-semibold text-gray-900">프로젝트 캘린더</h3>
-            </div>
-          </div>
-          <div className="p-4">
-            <FullCalendar
-              plugins={[dayGridPlugin, interactionPlugin]}
-              initialView="dayGridMonth"
-              locale="ko"
-              headerToolbar={{
-                left: 'prev,next today',
-                center: 'title',
-                right: '',
-              }}
-              events={calendarEvents.map((e) => ({
-                id: e.id,
-                title: e.title,
-                start: e.start,
-                backgroundColor: e.color,
-                borderColor: e.color,
-              }))}
-              height={400}
-              eventClick={(info) => {
-                const event = calendarEvents.find((e) => e.id === info.event.id);
-                if (event) {
-                  navigate(`/${event.projectType}/${event.projectId}`);
-                }
-              }}
-            />
-          </div>
-        </Card>
-
-        {/* Upcoming Deadlines */}
-        <Card padding="none">
-          <div className="p-6 border-b border-gray-100">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-red-500" />
-                <h3 className="text-lg font-semibold text-gray-900">마감 임박</h3>
-              </div>
-              <button
-                onClick={() => navigate('/sampling')}
-                className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
-              >
-                전체 보기 <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {upcomingDeadlines.length === 0 ? (
-              <div className="p-6 text-center text-gray-500">
-                마감 임박 프로젝트가 없습니다
-              </div>
-            ) : (
-              upcomingDeadlines.map((project) => {
-                const Icon = typeIcons[project.type];
-                return (
-                  <div
-                    key={project.id}
-                    onClick={() => navigate(`/${project.type.replace('_', '-')}/${project.id}`)}
-                    className="p-4 hover:bg-gray-50 cursor-pointer transition-all"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                          projectTypeColors[project.type].replace('text-', 'bg-').split(' ')[0]
-                        }`}
-                      >
-                        <Icon className={`w-5 h-5 ${projectTypeColors[project.type].split(' ')[1]}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 truncate">{project.title}</p>
-                        <p className="text-sm text-gray-500">{formatDate(project.targetDate)}</p>
-                      </div>
-                      <Badge
-                        variant={
-                          parseInt(getDdayText(project.targetDate).replace('D-', '')) <= 3
-                            ? 'danger'
-                            : 'warning'
-                        }
-                      >
-                        {getDdayText(project.targetDate)}
-                      </Badge>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </Card>
-      </div>
-
-      {/* 다가오는 세부 일정 */}
-      <UpcomingSchedules days={7} maxItems={5} />
 
       {/* Recent Projects */}
       <Card padding="none">
