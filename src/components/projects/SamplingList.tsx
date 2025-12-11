@@ -306,6 +306,12 @@ export default function SamplingList() {
             <span className="text-gray-400">-</span>
           )}
         </td>
+        <td className="table-cell text-gray-600 text-sm">
+          {formatDate(project.startDate)}
+        </td>
+        <td className="table-cell text-gray-600 text-sm">
+          {formatDate(project.targetDate)}
+        </td>
         <td className="table-cell">
           <Badge className={statusColors[project.status]}>
             {statusLabels[project.status]}
@@ -323,6 +329,15 @@ export default function SamplingList() {
           >
             {project.status === 'completed' ? '완료' : getDdayText(project.targetDate)}
           </Badge>
+        </td>
+        <td className="table-cell">
+          {project.notes ? (
+            <span className="text-gray-600 text-sm truncate max-w-32 block" title={project.notes}>
+              {project.notes.length > 20 ? `${project.notes.substring(0, 20)}...` : project.notes}
+            </span>
+          ) : (
+            <span className="text-gray-400">-</span>
+          )}
         </td>
         <td className="table-cell overflow-visible">
           <div className="relative" style={{ overflow: 'visible' }}>
@@ -432,8 +447,11 @@ export default function SamplingList() {
                 <th className="table-header">회차</th>
                 <th className="table-header">샘플코드</th>
                 <th className="table-header">평점</th>
+                <th className="table-header">시작일</th>
+                <th className="table-header">목표일</th>
                 <th className="table-header">상태</th>
                 <th className="table-header">D-day</th>
+                <th className="table-header">비고</th>
                 <th className="table-header w-20"></th>
               </tr>
             </thead>
