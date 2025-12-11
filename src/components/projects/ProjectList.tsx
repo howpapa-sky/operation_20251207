@@ -411,7 +411,7 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
       case 'list':
       default:
         return (
-          <Card padding="none" className="overflow-visible">
+          <Card padding="none" overflow="visible">
             <div className="overflow-x-auto overflow-y-visible">
               <table className="w-full">
                 <thead>

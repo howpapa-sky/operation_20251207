@@ -5,6 +5,7 @@ interface CardProps {
   className?: string;
   hover?: boolean;
   padding?: 'none' | 'sm' | 'md' | 'lg';
+  overflow?: 'hidden' | 'visible' | 'auto';
   onClick?: () => void;
 }
 
@@ -15,22 +16,29 @@ const paddingClasses = {
   lg: 'p-8',
 };
 
+const overflowClasses = {
+  hidden: 'overflow-hidden',
+  visible: 'overflow-visible',
+  auto: 'overflow-auto',
+};
+
 export default function Card({
   children,
   className = '',
   hover = false,
   padding = 'md',
+  overflow = 'hidden',
   onClick,
 }: CardProps) {
   const baseClasses =
-    'bg-white rounded-2xl shadow-elegant border border-gray-100/50 overflow-hidden';
+    'bg-white rounded-2xl shadow-elegant border border-gray-100/50';
   const hoverClasses = hover
     ? 'hover:shadow-elegant-lg hover:border-gray-200 transition-all duration-300 cursor-pointer'
     : '';
 
   return (
     <div
-      className={`${baseClasses} ${hoverClasses} ${paddingClasses[padding]} ${className}`}
+      className={`${baseClasses} ${hoverClasses} ${paddingClasses[padding]} ${overflowClasses[overflow]} ${className}`}
       onClick={onClick}
     >
       {children}

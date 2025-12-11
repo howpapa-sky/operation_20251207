@@ -415,7 +415,7 @@ export default function SamplingList() {
     }
 
     return (
-      <Card padding="none" className="overflow-visible">
+      <Card padding="none" overflow="visible">
         <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full">
             <thead>
