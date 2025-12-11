@@ -194,6 +194,10 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
               className="input-field"
               placeholder={field.placeholder || `${field.fieldLabel} 입력`}
               required={isRequired}
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              style={{ textTransform: 'none' }}
             />
           </div>
         );
