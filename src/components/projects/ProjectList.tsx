@@ -325,7 +325,7 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
                     setActionMenuId(null);
                   }}
                 />
-                <div className={`absolute right-0 w-40 bg-white rounded-xl shadow-elegant-lg border border-gray-100 z-50 overflow-hidden ${isLastRows ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                <div className="absolute right-0 bottom-full mb-1 w-40 bg-white rounded-xl shadow-elegant-lg border border-gray-100 z-[100] overflow-hidden">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
