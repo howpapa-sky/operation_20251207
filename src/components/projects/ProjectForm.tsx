@@ -48,8 +48,8 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
 
   // 공통 필드
   const [title, setTitle] = useState(project?.title || '');
-  const [status, setStatus] = useState<ProjectStatus>(project?.status || 'planning');
-  const [priority, setPriority] = useState<Priority>(project?.priority || 'medium');
+  const [status, setStatus] = useState<ProjectStatus | ''>(project?.status || '');
+  const [priority, setPriority] = useState<Priority | ''>(project?.priority || '');
   const [startDate, setStartDate] = useState(project?.startDate || formatDate(new Date(), 'yyyy-MM-dd'));
   const [targetDate, setTargetDate] = useState(project?.targetDate || '');
   const [completedDate, setCompletedDate] = useState(project?.completedDate || '');
@@ -224,11 +224,12 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
               {isRequired && ' *'}
             </label>
             <select
-              value={(value as string) || (field.fieldOptions?.[0] || '')}
+              value={(value as string) || ''}
               onChange={(e) => handleFieldChange(field.fieldKey, e.target.value)}
               className="select-field"
               required={isRequired}
             >
+              <option value="">---</option>
               {field.fieldOptions?.map((option) => (
                 <option key={option} value={option}>
                   {option}
@@ -418,6 +419,7 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
                 onChange={(e) => setStatus(e.target.value as ProjectStatus)}
                 className="select-field"
               >
+                <option value="">---</option>
                 {statusOptions.map((s) => (
                   <option key={s} value={s}>{statusLabels[s]}</option>
                 ))}
@@ -430,6 +432,7 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
                 onChange={(e) => setPriority(e.target.value as Priority)}
                 className="select-field"
               >
+                <option value="">---</option>
                 {priorityOptions.map((p) => (
                   <option key={p} value={p}>{priorityLabels[p]}</option>
                 ))}
