@@ -778,3 +778,49 @@ export interface SalesDashboardData {
   // 월별 추이 (최근 12개월)
   monthlyTrend: { month: string; sales: number; profit: number }[];
 }
+
+// ========== 프로모션 관리 관련 타입 ==========
+
+// 프로모션 상태
+export type PromotionStatus = 'scheduled' | 'active' | 'ended';
+
+export const promotionStatusLabels: Record<PromotionStatus, string> = {
+  scheduled: '예정',
+  active: '진행중',
+  ended: '종료',
+};
+
+// 프로모션 구성 제품
+export interface PromotionPackProduct {
+  id: string;
+  productId: string;               // ProductMaster ID
+  productName: string;             // 제품명 (캐시)
+  quantity: number;                // 수량
+}
+
+// 프로모션 구성 (패키지)
+export interface PromotionPack {
+  id: string;
+  description: string;             // 구성 설명 (예: 크림 2개 + 선크림 1개)
+  packSize: number;                // 구성 개수
+  products: PromotionPackProduct[]; // 구성 제품 목록
+  regularPrice: number;            // 정상가
+  discountPrice: number;           // 상시 할인가
+  promotionPrice: number;          // 최종 행사가
+  discountRate?: number;           // 할인율 (%)
+}
+
+// 프로모션
+export interface Promotion {
+  id: string;
+  name: string;                    // 프로모션명
+  description?: string;            // 프로모션 설명
+  startDate: string;               // 시작일
+  endDate: string;                 // 종료일
+  status: PromotionStatus;         // 상태
+  packs: PromotionPack[];          // 구성 목록
+  notes?: string;                  // 메모
+  isActive: boolean;               // 활성화 여부
+  createdAt: string;
+  updatedAt: string;
+}
