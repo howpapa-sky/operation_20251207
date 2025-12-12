@@ -46,9 +46,13 @@ export async function sendNaverWorksMessage(params: NaverWorksMessageParams): Pr
   }
 }
 
+// 사이트 URL (환경에 따라 변경)
+const SITE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://howpapa.netlify.app';
+
 // 샘플링 프로젝트 알림 메시지 생성
 export function createSamplingNotification(params: {
   type: 'new' | 'updated' | 'completed' | 'rating';
+  projectId?: string;
   projectName: string;
   brandName?: string;
   manufacturerName?: string;
@@ -58,7 +62,7 @@ export function createSamplingNotification(params: {
   evaluator?: string;
   comment?: string;
 }): string {
-  const { type, projectName, brandName, manufacturerName, sampleCode, round, rating, evaluator, comment } = params;
+  const { type, projectId, projectName, brandName, manufacturerName, sampleCode, round, rating, evaluator, comment } = params;
 
   let emoji = '';
   let title = '';
@@ -92,6 +96,11 @@ export function createSamplingNotification(params: {
   if (rating) details.push(`⭐ 평점: ${rating}점`);
   if (evaluator) details.push(`👤 평가자: ${evaluator}`);
   if (comment) details.push(`💬 의견: ${comment}`);
+
+  // 프로젝트 바로가기 URL 추가
+  if (projectId) {
+    details.push(`\n🔗 바로가기: ${SITE_URL}/sampling/${projectId}`);
+  }
 
   return `${emoji} [${title}]\n\n${details.join('\n')}\n\n📅 ${new Date().toLocaleString('ko-KR')}`;
 }
@@ -130,6 +139,7 @@ ${typeEmoji[emailType]} 유형: ${typeName[emailType]}
 // 일반 알림 메시지 전송 헬퍼
 export async function notifySampling(params: {
   type: 'new' | 'updated' | 'completed' | 'rating';
+  projectId?: string;
   projectName: string;
   brandName?: string;
   manufacturerName?: string;

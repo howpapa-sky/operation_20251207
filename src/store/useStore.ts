@@ -358,6 +358,7 @@ export const useStore = create<AppState>()(
             if (project.type === 'sampling') {
               notifySampling({
                 type: 'new',
+                projectId: project.id,
                 projectName: project.title,
                 brandName: 'brand' in project ? (project as any).brand : undefined,
                 manufacturerName: 'manufacturer' in project ? (project as any).manufacturer : undefined,
@@ -429,6 +430,7 @@ export const useStore = create<AppState>()(
               const updatedProject = { ...currentProject, ...updates };
               notifySampling({
                 type: 'rating',
+                projectId: id,
                 projectName: updatedProject.title,
                 brandName: 'brand' in updatedProject ? (updatedProject as any).brand : undefined,
                 manufacturerName: 'manufacturer' in updatedProject ? (updatedProject as any).manufacturer : undefined,
