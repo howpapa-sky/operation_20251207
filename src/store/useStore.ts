@@ -413,8 +413,7 @@ export const useStore = create<AppState>()(
           const { error } = await supabase
             .from('projects')
             .update(dbUpdates)
-            .eq('id', id)
-            .eq('user_id', user.id);
+            .eq('id', id);
 
           if (!error) {
             set((state) => ({
@@ -456,24 +455,27 @@ export const useStore = create<AppState>()(
           const { error } = await supabase
             .from('projects')
             .delete()
-            .eq('id', id)
-            .eq('user_id', user.id);
+            .eq('id', id);
 
-          if (!error) {
-            set((state) => ({
-              projects: state.projects.filter((p) => p.id !== id),
-              selectedProject:
-                state.selectedProject?.id === id ? null : state.selectedProject,
-            }));
+          if (error) {
+            console.error('Delete project DB error:', error);
+            return;
+          }
 
-            if (project) {
-              get().addNotification({
-                title: '프로젝트 삭제',
-                message: `"${project.title}" 프로젝트가 삭제되었습니다.`,
-                type: 'info',
-                read: false,
-              });
-            }
+          // 삭제 성공 시에만 상태 업데이트
+          set((state) => ({
+            projects: state.projects.filter((p) => p.id !== id),
+            selectedProject:
+              state.selectedProject?.id === id ? null : state.selectedProject,
+          }));
+
+          if (project) {
+            get().addNotification({
+              title: '프로젝트 삭제',
+              message: `"${project.title}" 프로젝트가 삭제되었습니다.`,
+              type: 'info',
+              read: false,
+            });
           }
         } catch (error) {
           console.error('Delete project error:', error);
