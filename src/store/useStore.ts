@@ -564,12 +564,14 @@ export const useStore = create<AppState>()(
         await get().updateProject(projectId, { schedules: updatedSchedules } as any);
       },
 
-      // 다가오는 일정 조회 (기본 7일)
+      // 다가오는 일정 조회 (기본 7일) - 오늘 일정 포함
       getUpcomingSchedules: (days = 7) => {
         const projects = get().projects;
-        const now = new Date();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // 오늘 시작 시간으로 설정
         const futureDate = new Date();
         futureDate.setDate(futureDate.getDate() + days);
+        futureDate.setHours(23, 59, 59, 999); // 마지막 날 끝 시간으로 설정
 
         const upcomingSchedules: { schedule: ProjectSchedule; project: Project }[] = [];
 
@@ -578,7 +580,8 @@ export const useStore = create<AppState>()(
             project.schedules.forEach((schedule) => {
               if (!schedule.isCompleted) {
                 const dueDate = new Date(schedule.dueDate);
-                if (dueDate >= now && dueDate <= futureDate) {
+                dueDate.setHours(0, 0, 0, 0); // 날짜만 비교
+                if (dueDate >= today && dueDate <= futureDate) {
                   upcomingSchedules.push({ schedule, project });
                 }
               }
