@@ -129,6 +129,7 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
       프로젝트명: p.title,
       상태: statusLabels[p.status],
       우선순위: priorityLabels[p.priority],
+      담당자: p.assignee || '-',
       시작일: formatDate(p.startDate),
       목표일: formatDate(p.targetDate),
       완료일: p.completedDate ? formatDate(p.completedDate) : '-',
@@ -276,6 +277,13 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
           <Badge className={priorityColors[project.priority]}>
             {priorityLabels[project.priority]}
           </Badge>
+        </td>
+        <td className="table-cell">
+          {project.assignee ? (
+            <span className="text-gray-700">{project.assignee}</span>
+          ) : (
+            <span className="text-gray-400">-</span>
+          )}
         </td>
         <td className="table-cell text-gray-500">
           {formatDate(project.startDate)}
@@ -439,6 +447,7 @@ export default function ProjectList({ type, title, icon }: ProjectListProps) {
                     <th className="table-header">프로젝트명</th>
                     <th className="table-header">상태</th>
                     <th className="table-header">우선순위</th>
+                    <th className="table-header">담당자</th>
                     <th className="table-header">시작일</th>
                     <th className="table-header">목표일</th>
                     <th className="table-header">D-day</th>
