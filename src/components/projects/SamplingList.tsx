@@ -115,6 +115,7 @@ export default function SamplingList() {
       회차: `${p.round}차`,
       샘플코드: p.sampleCode || '-',
       평균평점: p.averageRating?.toFixed(2) || '-',
+      담당자: p.assignee || '-',
       상태: statusLabels[p.status],
       우선순위: priorityLabels[p.priority],
       시작일: formatDate(p.startDate),
@@ -287,6 +288,13 @@ export default function SamplingList() {
             <span className="text-gray-400">-</span>
           )}
         </td>
+        <td className="table-cell">
+          {project.assignee ? (
+            <span className="text-gray-700">{project.assignee}</span>
+          ) : (
+            <span className="text-gray-400">-</span>
+          )}
+        </td>
         <td className="table-cell text-gray-600 text-sm">
           {formatDate(project.startDate)}
         </td>
@@ -444,6 +452,7 @@ export default function SamplingList() {
                 <th className="table-header">제조사</th>
                 <th className="table-header">회차</th>
                 <th className="table-header">평점</th>
+                <th className="table-header">담당자</th>
                 <th className="table-header">시작일</th>
                 <th className="table-header">목표일</th>
                 <th className="table-header">상태</th>

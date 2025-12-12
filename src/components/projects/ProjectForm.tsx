@@ -35,7 +35,7 @@ const priorityOptions: Priority[] = ['low', 'medium', 'high', 'urgent'];
 
 export default function ProjectForm({ type, project, onSave, onDelete }: ProjectFormProps) {
   const navigate = useNavigate();
-  const { evaluationCriteria } = useStore();
+  const { evaluationCriteria, user } = useStore();
   const { getFieldsForType, fetchFieldSettings, fieldSettings } = useProjectFieldsStore();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -54,7 +54,7 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
   const [targetDate, setTargetDate] = useState(project?.targetDate || '');
   const [completedDate, setCompletedDate] = useState(project?.completedDate || '');
   const [notes, setNotes] = useState(project?.notes || '');
-  const [assignee, setAssignee] = useState(project?.assignee || '');
+  const [assignee, setAssignee] = useState(project?.assignee || user?.name || '');
 
   // 동적 필드 값 관리
   const [dynamicFieldValues, setDynamicFieldValues] = useState<Record<string, string | number | boolean>>({});
