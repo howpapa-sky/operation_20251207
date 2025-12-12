@@ -11,9 +11,9 @@ interface CardProps {
 
 const paddingClasses = {
   none: '',
-  sm: 'p-4',
-  md: 'p-6',
-  lg: 'p-8',
+  sm: 'p-3 md:p-4',
+  md: 'p-4 md:p-6',
+  lg: 'p-5 md:p-8',
 };
 
 const overflowClasses = {
@@ -56,10 +56,10 @@ interface CardHeaderProps {
 
 export function CardHeader({ title, subtitle, action, className = '' }: CardHeaderProps) {
   return (
-    <div className={`flex items-center justify-between mb-6 ${className}`}>
+    <div className={`flex items-center justify-between mb-4 md:mb-6 ${className}`}>
       <div>
-        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-        {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
+        <h3 className="text-base md:text-lg font-semibold text-gray-900">{title}</h3>
+        {subtitle && <p className="text-xs md:text-sm text-gray-500 mt-1">{subtitle}</p>}
       </div>
       {action && <div>{action}</div>}
     </div>

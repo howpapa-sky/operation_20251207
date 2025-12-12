@@ -20,23 +20,26 @@
 
 @layer components {
   .btn-primary {
-    @apply bg-gradient-to-r from-primary-600 to-primary-700 text-white px-6 py-2.5 rounded-xl font-medium
+    @apply bg-gradient-to-r from-primary-600 to-primary-700 text-white px-4 py-2 md:px-6 md:py-2.5 rounded-xl font-medium text-sm md:text-base
            shadow-lg shadow-primary-500/25 hover:shadow-xl hover:shadow-primary-500/30
            hover:from-primary-700 hover:to-primary-800 transition-all duration-200
-           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2
+           min-h-[44px] touch-manipulation;
   }
 
   .btn-secondary {
-    @apply bg-white text-gray-700 px-6 py-2.5 rounded-xl font-medium border border-gray-200
+    @apply bg-white text-gray-700 px-4 py-2 md:px-6 md:py-2.5 rounded-xl font-medium text-sm md:text-base border border-gray-200
            shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all duration-200
-           focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+           focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2
+           min-h-[44px] touch-manipulation;
   }
 
   .btn-danger {
-    @apply bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-2.5 rounded-xl font-medium
+    @apply bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 md:px-6 md:py-2.5 rounded-xl font-medium text-sm md:text-base
            shadow-lg shadow-red-500/25 hover:shadow-xl hover:shadow-red-500/30
            hover:from-red-600 hover:to-red-700 transition-all duration-200
-           focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2;
+           focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2
+           min-h-[44px] touch-manipulation;
   }
 
   .card {
@@ -48,15 +51,17 @@
   }
 
   .input-field {
-    @apply w-full px-4 py-3 border border-gray-200 rounded-xl bg-white
+    @apply w-full px-3 py-2.5 md:px-4 md:py-3 border border-gray-200 rounded-xl bg-white text-base
            focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500
-           transition-all duration-200 placeholder:text-gray-400;
+           transition-all duration-200 placeholder:text-gray-400
+           min-h-[44px] touch-manipulation;
   }
 
   .select-field {
-    @apply w-full px-4 py-3 border border-gray-200 rounded-xl bg-white
+    @apply w-full px-3 py-2.5 md:px-4 md:py-3 border border-gray-200 rounded-xl bg-white text-base
            focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500
-           transition-all duration-200 appearance-none cursor-pointer;
+           transition-all duration-200 appearance-none cursor-pointer
+           min-h-[44px] touch-manipulation;
   }
 
   .label {
@@ -102,11 +107,21 @@
   }
 
   .table-header {
-    @apply px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/50;
+    @apply px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50/50;
   }
 
   .table-cell {
-    @apply px-6 py-4 whitespace-nowrap text-sm text-gray-900;
+    @apply px-3 py-3 whitespace-nowrap text-sm text-gray-900;
+  }
+
+  /* Mobile responsive table */
+  @media (min-width: 768px) {
+    .table-header {
+      @apply px-6 py-4;
+    }
+    .table-cell {
+      @apply px-6 py-4;
+    }
   }
 
   .progress-bar {
@@ -183,4 +198,49 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
+}
+
+/* Mobile optimizations */
+@media (max-width: 767px) {
+  /* Improve touch targets */
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Better text readability on mobile */
+  body {
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Prevent zoom on input focus */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
+  /* Better spacing for mobile lists */
+  .divide-y > * + * {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+
+  /* Larger badges for mobile */
+  .badge {
+    @apply px-2.5 py-1 text-xs;
+  }
+
+  /* Sidebar overlay improvements */
+  .sidebar-overlay {
+    backdrop-filter: blur(4px);
+  }
+}
+
+/* Safe area for mobile devices with notch */
+@supports (padding: max(0px)) {
+  .safe-area-inset {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
 }
