@@ -912,6 +912,137 @@ export default function SettingsPage() {
 
           {activeTab === 'notifications' && (
             <>
+              {/* 네이버웍스 메신저 알림 */}
+              <Card>
+                <CardHeader
+                  title="네이버웍스 메신저 알림"
+                  subtitle="네이버웍스 봇을 통해 실시간 알림을 받습니다"
+                />
+                <div className="space-y-4">
+                  {/* 마스터 토글 */}
+                  <div className="flex items-center justify-between p-4 rounded-xl border-2 border-green-200 bg-gradient-to-r from-green-50 to-emerald-50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-green-500 flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900">네이버웍스 알림 활성화</p>
+                        <p className="text-sm text-gray-500">봇을 통해 팀 채널로 알림을 전송합니다</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => updateNotificationSettings({
+                        naverWorksEnabled: !notificationSettings?.naverWorksEnabled
+                      })}
+                      className={`w-12 h-7 rounded-full transition-all ${
+                        notificationSettings?.naverWorksEnabled ? 'bg-green-500' : 'bg-gray-300'
+                      }`}
+                    >
+                      <div
+                        className={`w-5 h-5 bg-white rounded-full shadow transition-all ${
+                          notificationSettings?.naverWorksEnabled ? 'ml-6' : 'ml-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {notificationSettings?.naverWorksEnabled && (
+                    <>
+                      {/* D-DAY 알림 */}
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200">
+                        <div className="flex items-center gap-3">
+                          <Bell className="w-5 h-5 text-green-500" />
+                          <div>
+                            <p className="font-medium text-gray-900">마감일 알림</p>
+                            <p className="text-sm text-gray-500">D-DAY 당일 오전 10시에 알림 전송</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => updateNotificationSettings({
+                            naverWorksDdayEnabled: !notificationSettings?.naverWorksDdayEnabled
+                          })}
+                          className={`w-10 h-6 rounded-full transition-all ${
+                            notificationSettings?.naverWorksDdayEnabled ? 'bg-green-500' : 'bg-gray-300'
+                          }`}
+                        >
+                          <div
+                            className={`w-4 h-4 bg-white rounded-full transition-all ${
+                              notificationSettings?.naverWorksDdayEnabled ? 'ml-5' : 'ml-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* 지연 프로젝트 알림 */}
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200">
+                        <div className="flex items-center gap-3">
+                          <AlertCircle className="w-5 h-5 text-red-500" />
+                          <div>
+                            <p className="font-medium text-gray-900">지연 프로젝트 알림</p>
+                            <p className="text-sm text-gray-500">마감일이 지난 프로젝트를 매일 알림</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => updateNotificationSettings({
+                            naverWorksOverdueEnabled: !notificationSettings?.naverWorksOverdueEnabled
+                          })}
+                          className={`w-10 h-6 rounded-full transition-all ${
+                            notificationSettings?.naverWorksOverdueEnabled ? 'bg-green-500' : 'bg-gray-300'
+                          }`}
+                        >
+                          <div
+                            className={`w-4 h-4 bg-white rounded-full transition-all ${
+                              notificationSettings?.naverWorksOverdueEnabled ? 'ml-5' : 'ml-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* 상태 변경 알림 */}
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200">
+                        <div className="flex items-center gap-3">
+                          <RefreshCw className="w-5 h-5 text-blue-500" />
+                          <div>
+                            <p className="font-medium text-gray-900">상태 변경 알림</p>
+                            <p className="text-sm text-gray-500">프로젝트 상태가 변경되면 즉시 알림</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => updateNotificationSettings({
+                            naverWorksStatusChangeEnabled: !notificationSettings?.naverWorksStatusChangeEnabled
+                          })}
+                          className={`w-10 h-6 rounded-full transition-all ${
+                            notificationSettings?.naverWorksStatusChangeEnabled ? 'bg-green-500' : 'bg-gray-300'
+                          }`}
+                        >
+                          <div
+                            className={`w-4 h-4 bg-white rounded-full transition-all ${
+                              notificationSettings?.naverWorksStatusChangeEnabled ? 'ml-5' : 'ml-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* 네이버웍스 연동 안내 */}
+                  <div className="p-4 bg-green-50 rounded-xl border border-green-200">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="font-medium text-green-800 mb-1">네이버웍스 연동 완료</p>
+                        <p className="text-green-700">
+                          매일 오전 10시에 D-DAY 및 지연 프로젝트 알림이 자동 전송됩니다.
+                          봇이 등록된 채널로 알림이 발송됩니다.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
               {/* D-DAY 이메일 알림 */}
               <Card>
                 <CardHeader

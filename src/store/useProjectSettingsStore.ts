@@ -177,6 +177,10 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
           status_change_enabled: true,
           weekly_summary_enabled: false,
           notification_email: null,
+          naver_works_enabled: true,
+          naver_works_dday_enabled: true,
+          naver_works_overdue_enabled: true,
+          naver_works_status_change_enabled: false,
         };
 
         const { data: newData, error: insertError } = await supabase
@@ -196,6 +200,10 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
             statusChangeEnabled: newData.status_change_enabled,
             weeklySummaryEnabled: newData.weekly_summary_enabled,
             notificationEmail: newData.notification_email || undefined,
+            naverWorksEnabled: newData.naver_works_enabled ?? true,
+            naverWorksDdayEnabled: newData.naver_works_dday_enabled ?? true,
+            naverWorksOverdueEnabled: newData.naver_works_overdue_enabled ?? true,
+            naverWorksStatusChangeEnabled: newData.naver_works_status_change_enabled ?? false,
             createdAt: newData.created_at,
             updatedAt: newData.updated_at,
           },
@@ -210,6 +218,10 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
             statusChangeEnabled: data.status_change_enabled,
             weeklySummaryEnabled: data.weekly_summary_enabled,
             notificationEmail: data.notification_email || undefined,
+            naverWorksEnabled: data.naver_works_enabled ?? true,
+            naverWorksDdayEnabled: data.naver_works_dday_enabled ?? true,
+            naverWorksOverdueEnabled: data.naver_works_overdue_enabled ?? true,
+            naverWorksStatusChangeEnabled: data.naver_works_status_change_enabled ?? false,
             createdAt: data.created_at,
             updatedAt: data.updated_at,
           },
@@ -226,6 +238,10 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
           ddayOverdueEnabled: false,
           statusChangeEnabled: true,
           weeklySummaryEnabled: false,
+          naverWorksEnabled: true,
+          naverWorksDdayEnabled: true,
+          naverWorksOverdueEnabled: true,
+          naverWorksStatusChangeEnabled: false,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
@@ -245,6 +261,10 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
       if (updates.statusChangeEnabled !== undefined) dbUpdates.status_change_enabled = updates.statusChangeEnabled;
       if (updates.weeklySummaryEnabled !== undefined) dbUpdates.weekly_summary_enabled = updates.weeklySummaryEnabled;
       if (updates.notificationEmail !== undefined) dbUpdates.notification_email = updates.notificationEmail || null;
+      if (updates.naverWorksEnabled !== undefined) dbUpdates.naver_works_enabled = updates.naverWorksEnabled;
+      if (updates.naverWorksDdayEnabled !== undefined) dbUpdates.naver_works_dday_enabled = updates.naverWorksDdayEnabled;
+      if (updates.naverWorksOverdueEnabled !== undefined) dbUpdates.naver_works_overdue_enabled = updates.naverWorksOverdueEnabled;
+      if (updates.naverWorksStatusChangeEnabled !== undefined) dbUpdates.naver_works_status_change_enabled = updates.naverWorksStatusChangeEnabled;
 
       const { error } = await supabase
         .from('notification_settings')
