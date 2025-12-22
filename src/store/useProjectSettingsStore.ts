@@ -167,7 +167,10 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
 
       if (error && error.code !== 'PGRST116') throw error;
 
-      if (!data) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbData = data as any;
+
+      if (!dbData) {
         // 기본 설정 생성
         const defaultSettings = {
           user_id: user.id,
@@ -183,13 +186,16 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
           naver_works_status_change_enabled: false,
         };
 
-        const { data: newData, error: insertError } = await supabase
+        const { data: insertedData, error: insertError } = await supabase
           .from('notification_settings')
           .insert(defaultSettings)
           .select()
           .single();
 
         if (insertError) throw insertError;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const newData = insertedData as any;
 
         set({
           notificationSettings: {
@@ -211,19 +217,19 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
       } else {
         set({
           notificationSettings: {
-            id: data.id,
-            ddayEmailEnabled: data.dday_email_enabled,
-            ddayDaysBefore: data.dday_days_before,
-            ddayOverdueEnabled: data.dday_overdue_enabled,
-            statusChangeEnabled: data.status_change_enabled,
-            weeklySummaryEnabled: data.weekly_summary_enabled,
-            notificationEmail: data.notification_email || undefined,
-            naverWorksEnabled: data.naver_works_enabled ?? true,
-            naverWorksDdayEnabled: data.naver_works_dday_enabled ?? true,
-            naverWorksOverdueEnabled: data.naver_works_overdue_enabled ?? true,
-            naverWorksStatusChangeEnabled: data.naver_works_status_change_enabled ?? false,
-            createdAt: data.created_at,
-            updatedAt: data.updated_at,
+            id: dbData.id,
+            ddayEmailEnabled: dbData.dday_email_enabled,
+            ddayDaysBefore: dbData.dday_days_before,
+            ddayOverdueEnabled: dbData.dday_overdue_enabled,
+            statusChangeEnabled: dbData.status_change_enabled,
+            weeklySummaryEnabled: dbData.weekly_summary_enabled,
+            notificationEmail: dbData.notification_email || undefined,
+            naverWorksEnabled: dbData.naver_works_enabled ?? true,
+            naverWorksDdayEnabled: dbData.naver_works_dday_enabled ?? true,
+            naverWorksOverdueEnabled: dbData.naver_works_overdue_enabled ?? true,
+            naverWorksStatusChangeEnabled: dbData.naver_works_status_change_enabled ?? false,
+            createdAt: dbData.created_at,
+            updatedAt: dbData.updated_at,
           },
         });
       }
