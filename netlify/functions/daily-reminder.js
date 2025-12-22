@@ -2,11 +2,11 @@ const { createClient } = require('@supabase/supabase-js');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 
-// Supabase 클라이언트 생성
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.VITE_SUPABASE_ANON_KEY
-);
+// Supabase 환경변수 (VITE_ 접두사 있는 버전과 없는 버전 모두 지원)
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ==================== 네이버웍스 메시지 전송 ====================
 function createJWT(clientId, serviceAccountId, privateKey) {
