@@ -334,7 +334,7 @@ export default function DashboardPage() {
       {/* 다가오는 세부 일정 & 지연된 일정 - 맨 위로 이동 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 다가오는 세부 일정 */}
-        <UpcomingSchedules days={7} maxItems={5} />
+        <UpcomingSchedules days={14} initialItems={5} />
 
         {/* 지연된 일정 */}
         <Card padding="none">
