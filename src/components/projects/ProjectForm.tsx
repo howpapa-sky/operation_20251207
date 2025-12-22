@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save, ArrowLeft, Trash2, Star } from 'lucide-react';
+import { Save, ArrowLeft, Trash2, Star, Copy, Sparkles } from 'lucide-react';
 import Card from '../common/Card';
 import Modal from '../common/Modal';
+import ProjectImportModal from './ProjectImportModal';
 import {
   ProjectStatus,
   Priority,
@@ -38,6 +39,9 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
   const { evaluationCriteria, user } = useStore();
   const { getFieldsForType, fetchFieldSettings, fieldSettings } = useProjectFieldsStore();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importedFrom, setImportedFrom] = useState<string | null>(null);
+  const isNewProject = !project;
 
   // 필드 설정 가져오기
   useEffect(() => {
@@ -173,6 +177,50 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
       prev.map((r) => (r.criteriaId === criteriaId ? { ...r, comment } : r))
     );
   };
+
+  // 프로젝트 가져오기 핸들러
+  const handleImportProject = useCallback((importedProject: Project) => {
+    // 기본 정보 복사 (ID, 날짜, 상태 제외)
+    setTitle(importedProject.title + ' (복사본)');
+    setNotes(importedProject.notes || '');
+    setAssignee(importedProject.assignee || user?.name || '');
+    setPriority(importedProject.priority || '');
+
+    // 상태는 planning으로 초기화
+    setStatus('planning');
+
+    // 날짜는 오늘 기준으로 설정
+    setStartDate(formatDate(new Date(), 'yyyy-MM-dd'));
+    setTargetDate('');
+    setCompletedDate('');
+
+    // 동적 필드 값 복사
+    const values: Record<string, string | number | boolean> = {};
+    const fields = getFieldsForType(type);
+
+    fields.forEach((field) => {
+      const key = field.fieldKey;
+      if (key in importedProject) {
+        values[key] = (importedProject as unknown as Record<string, unknown>)[key] as string | number | boolean;
+      }
+    });
+
+    setDynamicFieldValues(values);
+
+    // 샘플링인 경우 평가 항목 복사
+    if (type === 'sampling' && 'ratings' in importedProject) {
+      setRatings(
+        importedProject.ratings.map((r) => ({
+          ...r,
+          score: 0, // 점수는 초기화
+          comment: r.comment || '',
+        }))
+      );
+    }
+
+    // 가져온 프로젝트 표시
+    setImportedFrom(importedProject.title);
+  }, [type, user?.name, getFieldsForType]);
 
   // 동적 필드 렌더링
   const renderDynamicField = (field: ProjectFieldSetting) => {
@@ -387,6 +435,18 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
           뒤로 가기
         </button>
         <div className="flex items-center gap-3">
+          {/* 새 프로젝트 생성 시에만 가져오기 버튼 표시 */}
+          {isNewProject && (
+            <button
+              type="button"
+              onClick={() => setShowImportModal(true)}
+              className="btn-secondary flex items-center gap-2 group"
+            >
+              <Copy className="w-4 h-4 group-hover:text-primary-600 transition-colors" />
+              <span className="hidden sm:inline">이전 프로젝트 가져오기</span>
+              <span className="sm:hidden">가져오기</span>
+            </button>
+          )}
           {project && onDelete && (
             <button
               type="button"
@@ -403,6 +463,26 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
           </button>
         </div>
       </div>
+
+      {/* 가져오기 알림 배너 */}
+      {importedFrom && (
+        <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 flex items-center gap-3">
+          <div className="p-2 bg-white rounded-lg shadow-sm">
+            <Sparkles className="w-5 h-5 text-green-600" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-green-800">프로젝트 정보를 가져왔습니다</p>
+            <p className="text-xs text-green-600 mt-0.5">원본: {importedFrom}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setImportedFrom(null)}
+            className="text-green-600 hover:text-green-800 text-sm"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="space-y-6">
         {/* 기본 정보 */}
@@ -536,6 +616,14 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
           </button>
         </div>
       </Modal>
+
+      {/* Import Modal */}
+      <ProjectImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        projectType={type}
+        onImport={handleImportProject}
+      />
     </form>
   );
 }
