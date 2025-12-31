@@ -16,7 +16,7 @@ interface UserManagementState {
 }
 
 // 최고 관리자 이메일
-const SUPER_ADMIN_EMAIL = 'yong@howpapa.co.kr';
+const SUPER_ADMIN_EMAIL = 'yong@howlab.co.kr';
 
 export const useUserManagementStore = create<UserManagementState>((set, get) => ({
   users: [],
@@ -26,10 +26,13 @@ export const useUserManagementStore = create<UserManagementState>((set, get) => 
   fetchUsers: async () => {
     set({ isLoading: true, error: null });
     try {
+      console.log('[fetchUsers] Fetching profiles...');
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: true });
+
+      console.log('[fetchUsers] Result:', { data, error });
 
       if (error) throw error;
 
@@ -42,6 +45,7 @@ export const useUserManagementStore = create<UserManagementState>((set, get) => 
         avatar: profile.avatar_url || undefined,
       }));
 
+      console.log('[fetchUsers] Mapped users:', users.length);
       set({ users, isLoading: false });
     } catch (error) {
       console.error('Fetch users error:', error);
