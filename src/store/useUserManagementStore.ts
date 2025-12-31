@@ -16,7 +16,7 @@ interface UserManagementState {
 }
 
 // 최고 관리자 이메일
-const SUPER_ADMIN_EMAIL = 'yong@howlab.co.kr';
+const SUPER_ADMIN_EMAIL = 'yong@howpapa.co.kr';
 
 export const useUserManagementStore = create<UserManagementState>((set, get) => ({
   users: [],
