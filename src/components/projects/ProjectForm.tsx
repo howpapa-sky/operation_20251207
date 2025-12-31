@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save, ArrowLeft, Trash2, Star, Copy, Sparkles } from 'lucide-react';
+import { Save, ArrowLeft, Trash2, Star, Copy, Sparkles, User as UserIcon } from 'lucide-react';
 import Card from '../common/Card';
 import Modal from '../common/Modal';
 import ProjectImportModal from './ProjectImportModal';
+import UserSelect from '../common/UserSelect';
 import {
   ProjectStatus,
   Priority,
@@ -58,7 +59,14 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
   const [targetDate, setTargetDate] = useState(project?.targetDate || '');
   const [completedDate, setCompletedDate] = useState(project?.completedDate || '');
   const [notes, setNotes] = useState(project?.notes || '');
-  const [assignee, setAssignee] = useState(project?.assignee || user?.name || '');
+
+  // 요청자 (로그인 사용자로 기본 설정)
+  const [requesterId, setRequesterId] = useState(project?.requesterId || user?.id || '');
+  const [requester, setRequester] = useState(project?.requester || user?.name || '');
+
+  // 담당자 (사용자 검색으로 선택)
+  const [assigneeId, setAssigneeId] = useState(project?.assigneeId || '');
+  const [assignee, setAssignee] = useState(project?.assignee || '');
 
   // 동적 필드 값 관리
   const [dynamicFieldValues, setDynamicFieldValues] = useState<Record<string, string | number | boolean>>({});
@@ -131,7 +139,10 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
       targetDate,
       completedDate: completedDate || undefined,
       notes,
-      assignee,
+      requesterId: requesterId || undefined,
+      requester: requester || undefined,
+      assigneeId: assigneeId || undefined,
+      assignee: assignee || undefined,
     };
 
     // 동적 필드 값 추가
@@ -183,8 +194,15 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
     // 기본 정보 복사 (ID, 날짜, 상태 제외)
     setTitle(importedProject.title + ' (복사본)');
     setNotes(importedProject.notes || '');
-    setAssignee(importedProject.assignee || user?.name || '');
     setPriority(importedProject.priority || '');
+
+    // 요청자는 현재 로그인 사용자로 설정
+    setRequesterId(user?.id || '');
+    setRequester(user?.name || '');
+
+    // 담당자는 원본에서 복사
+    setAssigneeId(importedProject.assigneeId || '');
+    setAssignee(importedProject.assignee || '');
 
     // 상태는 planning으로 초기화
     setStatus('planning');
@@ -555,14 +573,28 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
                 className="input-field"
               />
             </div>
+
+            {/* 요청자 (읽기 전용 - 로그인 사용자로 자동 설정) */}
             <div>
-              <label className="label">담당자</label>
-              <input
-                type="text"
-                value={assignee}
-                onChange={(e) => setAssignee(e.target.value)}
-                className="input-field"
-                placeholder="담당자 이름"
+              <label className="label">요청자</label>
+              <div className="input-field flex items-center gap-2 bg-gray-50 cursor-not-allowed">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
+                  {requester?.charAt(0) || <UserIcon className="w-4 h-4" />}
+                </div>
+                <span className="text-gray-700">{requester || '로그인 필요'}</span>
+              </div>
+            </div>
+
+            {/* 담당자 (사용자 검색으로 선택) */}
+            <div>
+              <UserSelect
+                label="담당자"
+                value={assigneeId}
+                onChange={(userId, userName) => {
+                  setAssigneeId(userId || '');
+                  setAssignee(userName || '');
+                }}
+                placeholder="담당자 검색..."
               />
             </div>
           </div>

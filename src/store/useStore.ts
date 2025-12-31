@@ -105,6 +105,9 @@ function dbToProject(record: any): Project {
     startDate: record.start_date,
     targetDate: record.target_date,
     completedDate: record.completed_date || undefined,
+    requesterId: record.requester_id || undefined,
+    requester: record.requester || undefined,
+    assigneeId: record.assignee_id || undefined,
     assignee: record.assignee || undefined,
     notes: record.notes || '',
     createdAt: record.created_at,
@@ -118,7 +121,7 @@ function dbToProject(record: any): Project {
 
 // 프로젝트를 DB 레코드로 변환
 function projectToDb(project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>, userId: string) {
-  const { title, type, status, priority, startDate, targetDate, completedDate, assignee, notes, ...rest } = project;
+  const { title, type, status, priority, startDate, targetDate, completedDate, requesterId, requester, assigneeId, assignee, notes, ...rest } = project;
 
   return {
     user_id: userId,
@@ -129,6 +132,9 @@ function projectToDb(project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>, u
     start_date: startDate,
     target_date: targetDate,
     completed_date: completedDate || null,
+    requester_id: requesterId || null,
+    requester: requester || null,
+    assignee_id: assigneeId || null,
     assignee: assignee || null,
     notes: notes || null,
     data: JSON.parse(JSON.stringify(rest)) as Json, // 나머지 타입별 데이터를 JSON으로 저장
@@ -366,6 +372,24 @@ export const useStore = create<AppState>()(
                 round: 'round' in project ? (project as any).round : undefined,
               }).catch(console.error);
             }
+
+            // 담당자가 있으면 업무 요청 알림 전송
+            if (project.assignee && project.assigneeId) {
+              fetch('/.netlify/functions/notify-assignee', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  projectId: project.id,
+                  projectTitle: project.title,
+                  projectType: project.type,
+                  requester: project.requester,
+                  assignee: project.assignee,
+                  assigneeId: project.assigneeId,
+                  targetDate: project.targetDate,
+                  priority: project.priority,
+                }),
+              }).catch(console.error);
+            }
           }
         } catch (error) {
           console.error('Add project error:', error);
@@ -379,7 +403,7 @@ export const useStore = create<AppState>()(
 
         try {
           // 업데이트할 데이터 준비
-          const { title, status, priority, startDate, targetDate, completedDate, assignee, notes, ...rest } = updates;
+          const { title, status, priority, startDate, targetDate, completedDate, requesterId, requester, assigneeId, assignee, notes, ...rest } = updates;
 
           const dbUpdates: any = {};
           if (title !== undefined) dbUpdates.title = title;
@@ -388,6 +412,9 @@ export const useStore = create<AppState>()(
           if (startDate !== undefined) dbUpdates.start_date = startDate;
           if (targetDate !== undefined) dbUpdates.target_date = targetDate;
           if (completedDate !== undefined) dbUpdates.completed_date = completedDate || null;
+          if (requesterId !== undefined) dbUpdates.requester_id = requesterId || null;
+          if (requester !== undefined) dbUpdates.requester = requester || null;
+          if (assigneeId !== undefined) dbUpdates.assignee_id = assigneeId || null;
           if (assignee !== undefined) dbUpdates.assignee = assignee || null;
           if (notes !== undefined) dbUpdates.notes = notes || null;
 

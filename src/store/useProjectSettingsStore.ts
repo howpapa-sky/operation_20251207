@@ -167,7 +167,10 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
 
       if (error && error.code !== 'PGRST116') throw error;
 
-      if (!data) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbData = data as any;
+
+      if (!dbData) {
         // 기본 설정 생성
         const defaultSettings = {
           user_id: user.id,
@@ -177,15 +180,22 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
           status_change_enabled: true,
           weekly_summary_enabled: false,
           notification_email: null,
+          naver_works_enabled: true,
+          naver_works_dday_enabled: true,
+          naver_works_overdue_enabled: true,
+          naver_works_status_change_enabled: false,
         };
 
-        const { data: newData, error: insertError } = await supabase
+        const { data: insertedData, error: insertError } = await supabase
           .from('notification_settings')
           .insert(defaultSettings)
           .select()
           .single();
 
         if (insertError) throw insertError;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const newData = insertedData as any;
 
         set({
           notificationSettings: {
@@ -196,6 +206,10 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
             statusChangeEnabled: newData.status_change_enabled,
             weeklySummaryEnabled: newData.weekly_summary_enabled,
             notificationEmail: newData.notification_email || undefined,
+            naverWorksEnabled: newData.naver_works_enabled ?? true,
+            naverWorksDdayEnabled: newData.naver_works_dday_enabled ?? true,
+            naverWorksOverdueEnabled: newData.naver_works_overdue_enabled ?? true,
+            naverWorksStatusChangeEnabled: newData.naver_works_status_change_enabled ?? false,
             createdAt: newData.created_at,
             updatedAt: newData.updated_at,
           },
@@ -203,15 +217,19 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
       } else {
         set({
           notificationSettings: {
-            id: data.id,
-            ddayEmailEnabled: data.dday_email_enabled,
-            ddayDaysBefore: data.dday_days_before,
-            ddayOverdueEnabled: data.dday_overdue_enabled,
-            statusChangeEnabled: data.status_change_enabled,
-            weeklySummaryEnabled: data.weekly_summary_enabled,
-            notificationEmail: data.notification_email || undefined,
-            createdAt: data.created_at,
-            updatedAt: data.updated_at,
+            id: dbData.id,
+            ddayEmailEnabled: dbData.dday_email_enabled,
+            ddayDaysBefore: dbData.dday_days_before,
+            ddayOverdueEnabled: dbData.dday_overdue_enabled,
+            statusChangeEnabled: dbData.status_change_enabled,
+            weeklySummaryEnabled: dbData.weekly_summary_enabled,
+            notificationEmail: dbData.notification_email || undefined,
+            naverWorksEnabled: dbData.naver_works_enabled ?? true,
+            naverWorksDdayEnabled: dbData.naver_works_dday_enabled ?? true,
+            naverWorksOverdueEnabled: dbData.naver_works_overdue_enabled ?? true,
+            naverWorksStatusChangeEnabled: dbData.naver_works_status_change_enabled ?? false,
+            createdAt: dbData.created_at,
+            updatedAt: dbData.updated_at,
           },
         });
       }
@@ -226,6 +244,10 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
           ddayOverdueEnabled: false,
           statusChangeEnabled: true,
           weeklySummaryEnabled: false,
+          naverWorksEnabled: true,
+          naverWorksDdayEnabled: true,
+          naverWorksOverdueEnabled: true,
+          naverWorksStatusChangeEnabled: false,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         },
@@ -245,6 +267,10 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
       if (updates.statusChangeEnabled !== undefined) dbUpdates.status_change_enabled = updates.statusChangeEnabled;
       if (updates.weeklySummaryEnabled !== undefined) dbUpdates.weekly_summary_enabled = updates.weeklySummaryEnabled;
       if (updates.notificationEmail !== undefined) dbUpdates.notification_email = updates.notificationEmail || null;
+      if (updates.naverWorksEnabled !== undefined) dbUpdates.naver_works_enabled = updates.naverWorksEnabled;
+      if (updates.naverWorksDdayEnabled !== undefined) dbUpdates.naver_works_dday_enabled = updates.naverWorksDdayEnabled;
+      if (updates.naverWorksOverdueEnabled !== undefined) dbUpdates.naver_works_overdue_enabled = updates.naverWorksOverdueEnabled;
+      if (updates.naverWorksStatusChangeEnabled !== undefined) dbUpdates.naver_works_status_change_enabled = updates.naverWorksStatusChangeEnabled;
 
       const { error } = await supabase
         .from('notification_settings')

@@ -63,7 +63,12 @@ export interface BaseProject {
   startDate: string;
   targetDate: string;
   completedDate?: string;
-  assignee?: string;
+  // 요청자 정보
+  requesterId?: string;      // 요청자 ID (user.id)
+  requester?: string;        // 요청자 이름
+  // 담당자 정보
+  assigneeId?: string;       // 담당자 ID (user.id)
+  assignee?: string;         // 담당자 이름
   notes: string;
   createdAt: string;
   updatedAt: string;
@@ -487,6 +492,11 @@ export interface NotificationSettings {
   statusChangeEnabled: boolean;
   weeklySummaryEnabled: boolean;
   notificationEmail?: string;
+  // 네이버웍스 알림 설정
+  naverWorksEnabled: boolean;
+  naverWorksDdayEnabled: boolean;
+  naverWorksOverdueEnabled: boolean;
+  naverWorksStatusChangeEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
