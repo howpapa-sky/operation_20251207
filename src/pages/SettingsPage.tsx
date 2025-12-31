@@ -1230,7 +1230,7 @@ export default function SettingsPage() {
                 ) : (
                   <div className="space-y-3">
                     {users.map((targetUser) => {
-                      const isSuperAdmin = targetUser.email === 'yong@howpapa.co.kr';
+                      const isSuperAdmin = targetUser.email === 'yong@howlab.co.kr';
                       const canManage = canManageUser(user, targetUser);
 
                       return (

@@ -30,10 +30,9 @@ export default function UserSelect({
 
   // 사용자 목록 가져오기
   useEffect(() => {
-    if (users.length === 0) {
-      fetchUsers();
-    }
-  }, [users.length, fetchUsers]);
+    console.log('[UserSelect] users:', users.length, 'isLoading:', isLoading);
+    fetchUsers(); // 항상 최신 데이터 가져오기
+  }, [fetchUsers]);
 
   // 외부 클릭 시 드롭다운 닫기
   useEffect(() => {
