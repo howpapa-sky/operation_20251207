@@ -1,5 +1,11 @@
 import { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
 import { google, sheets_v4 } from 'googleapis';
+import { createClient } from '@supabase/supabase-js';
+
+// ========== Supabase 클라이언트 ==========
+const supabaseUrl = process.env.VITE_SUPABASE_URL!;
+const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY!;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // ========== 타입 정의 ==========
 
@@ -118,23 +124,38 @@ const contentTypeReverseMapping: Record<string, string> = Object.entries(content
 
 // ========== Google Sheets 인증 ==========
 
-function getGoogleAuth() {
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+async function getGoogleCredentials(): Promise<{ email: string; privateKey: string }> {
+  const { data: emailData } = await supabase
+    .from('app_secrets')
+    .select('value')
+    .eq('key', 'GOOGLE_SERVICE_ACCOUNT_EMAIL')
+    .single();
 
-  if (!email || !privateKey) {
+  const { data: keyData } = await supabase
+    .from('app_secrets')
+    .select('value')
+    .eq('key', 'GOOGLE_PRIVATE_KEY')
+    .single();
+
+  if (!emailData?.value || !keyData?.value) {
     throw new Error('Google 서비스 계정 인증 정보가 설정되지 않았습니다.');
   }
 
-  return new google.auth.JWT({
+  return {
+    email: emailData.value,
+    privateKey: keyData.value.replace(/\\n/g, '\n'),
+  };
+}
+
+async function getSheets(): Promise<sheets_v4.Sheets> {
+  const { email, privateKey } = await getGoogleCredentials();
+
+  const auth = new google.auth.JWT({
     email,
     key: privateKey,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
-}
 
-async function getSheets(): Promise<sheets_v4.Sheets> {
-  const auth = getGoogleAuth();
   return google.sheets({ version: 'v4', auth });
 }
 
