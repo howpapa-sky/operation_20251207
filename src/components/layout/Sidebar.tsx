@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   Beaker,
@@ -12,6 +12,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Sparkles,
   DollarSign,
   LucideIcon,
@@ -21,6 +22,10 @@ import {
   User,
   Box,
   Gift,
+  Send,
+  FolderKanban,
+  MessageSquareText,
+  BookOpen,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useProjectSettingsStore } from '../../store/useProjectSettingsStore';
@@ -54,11 +59,25 @@ const personalMenuItems: MenuItem[] = [
   { icon: MessageSquare, label: '상태 업데이트', path: '/personal/status-updates' },
 ];
 
+// 시딩 메뉴 아이템
+const seedingMenuItems: MenuItem[] = [
+  { icon: FolderKanban, label: '시딩 프로젝트', path: '/seeding' },
+  { icon: Users, label: '시딩 리스트', path: '/seeding/list' },
+  { icon: MessageSquareText, label: '섭외 문구', path: '/seeding/outreach' },
+  { icon: Package, label: '배송 관리', path: '/seeding/shipping' },
+  { icon: BookOpen, label: '제품 가이드', path: '/seeding/guides' },
+  { icon: BarChart3, label: '성과 리포트', path: '/seeding/reports' },
+];
+
 export default function Sidebar() {
   const { sidebarCollapsed, toggleSidebar, mobileMenuOpen, closeMobileMenu } = useStore();
   const location = useLocation();
   const navigate = useNavigate();
   const { projectTypeSettings, fetchProjectTypeSettings, isProjectTypeVisible } = useProjectSettingsStore();
+  const [seedingSectionOpen, setSeedingSectionOpen] = useState(true);
+
+  // 시딩 섹션 활성화 여부 확인
+  const isSeedingSectionActive = location.pathname.startsWith('/seeding');
 
   useEffect(() => {
     if (projectTypeSettings.length === 0) {
@@ -148,6 +167,44 @@ export default function Sidebar() {
             return renderMenuItem(item, isActive);
           })}
         </ul>
+
+        {/* Seeding Section Divider */}
+        <div className="my-4 border-t border-gray-200" />
+
+        {/* Seeding Section Header */}
+        {(!sidebarCollapsed || mobileMenuOpen) ? (
+          <button
+            onClick={() => setSeedingSectionOpen(!seedingSectionOpen)}
+            className={`w-full px-3 mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wider transition-colors ${
+              isSeedingSectionActive ? 'text-primary-600' : 'text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Send className="w-4 h-4" />
+              인플루언서 시딩
+            </div>
+            <ChevronDown
+              className={`w-4 h-4 transition-transform duration-200 ${
+                seedingSectionOpen ? 'rotate-0' : '-rotate-90'
+              }`}
+            />
+          </button>
+        ) : (
+          <div className="flex justify-center mb-2" title="인플루언서 시딩">
+            <Send className={`w-4 h-4 ${isSeedingSectionActive ? 'text-primary-600' : 'text-gray-400'}`} />
+          </div>
+        )}
+
+        {/* Seeding Menu Items */}
+        {(seedingSectionOpen || sidebarCollapsed) && (
+          <ul className="space-y-1">
+            {seedingMenuItems.map((item) => {
+              const isActive = location.pathname === item.path ||
+                (item.path !== '/seeding' && location.pathname.startsWith(item.path));
+              return renderMenuItem(item, isActive);
+            })}
+          </ul>
+        )}
 
         {/* Personal Section Divider */}
         <div className="my-4 border-t border-gray-200" />
