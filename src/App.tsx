@@ -21,6 +21,16 @@ import PersonalNotesPage from './pages/PersonalNotesPage';
 import MyTasksPage from './pages/MyTasksPage';
 import StatusUpdatesPage from './pages/StatusUpdatesPage';
 
+// Seeding Pages
+import SeedingProjectsPage from './pages/seeding/SeedingProjectsPage';
+import SeedingListPage from './pages/seeding/SeedingListPage';
+import OutreachPage from './pages/seeding/OutreachPage';
+import ShippingPage from './pages/seeding/ShippingPage';
+import ProductGuidesPage from './pages/seeding/ProductGuidesPage';
+import ProductGuideEditPage from './pages/seeding/ProductGuideEditPage';
+import ProductGuidePublicPage from './pages/seeding/ProductGuidePublicPage';
+import SeedingReportsPage from './pages/seeding/SeedingReportsPage';
+
 // Loading Screen
 function LoadingScreen() {
   return (
@@ -131,7 +141,21 @@ function App() {
           <Route path="personal/notes" element={<PersonalNotesPage />} />
           <Route path="personal/my-tasks" element={<MyTasksPage />} />
           <Route path="personal/status-updates" element={<StatusUpdatesPage />} />
+
+          {/* Seeding Routes */}
+          <Route path="seeding" element={<SeedingProjectsPage />} />
+          <Route path="seeding/list" element={<SeedingListPage />} />
+          <Route path="seeding/list/:projectId" element={<SeedingListPage />} />
+          <Route path="seeding/outreach" element={<OutreachPage />} />
+          <Route path="seeding/shipping" element={<ShippingPage />} />
+          <Route path="seeding/guides" element={<ProductGuidesPage />} />
+          <Route path="seeding/guides/new" element={<ProductGuideEditPage />} />
+          <Route path="seeding/guides/:id/edit" element={<ProductGuideEditPage />} />
+          <Route path="seeding/reports" element={<SeedingReportsPage />} />
         </Route>
+
+        {/* Public Guide Page (no auth required) */}
+        <Route path="/g/:slug" element={<ProductGuidePublicPage />} />
 
         {/* Catch all - redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -837,3 +837,256 @@ export interface Promotion {
   createdAt: string;
   updatedAt: string;
 }
+
+// ========== 인플루언서 시딩 관련 타입 ==========
+
+// 시딩 상태
+export type SeedingStatus =
+  | 'listed'          // 리스트업
+  | 'contacted'       // 연락완료
+  | 'accepted'        // 수락
+  | 'rejected'        // 거절
+  | 'shipped'         // 제품발송
+  | 'guide_sent'      // 가이드발송
+  | 'posted'          // 포스팅완료
+  | 'completed';      // 완료 (성과입력됨)
+
+export const seedingStatusLabels: Record<SeedingStatus, string> = {
+  listed: '리스트업',
+  contacted: '연락완료',
+  accepted: '수락',
+  rejected: '거절',
+  shipped: '제품발송',
+  guide_sent: '가이드발송',
+  posted: '포스팅완료',
+  completed: '완료',
+};
+
+export const seedingStatusColors: Record<SeedingStatus, string> = {
+  listed: '#64748b',      // 슬레이트
+  contacted: '#3b82f6',   // 블루
+  accepted: '#22c55e',    // 그린
+  rejected: '#ef4444',    // 레드
+  shipped: '#f59e0b',     // 앰버
+  guide_sent: '#8b5cf6',  // 퍼플
+  posted: '#14b8a6',      // 틸
+  completed: '#10b981',   // 에메랄드
+};
+
+// 시딩 유형
+export type SeedingType = 'free' | 'paid'; // 무가 / 유가
+
+export const seedingTypeLabels: Record<SeedingType, string> = {
+  free: '무가',
+  paid: '유가',
+};
+
+// 콘텐츠 유형
+export type ContentType = 'story' | 'reels' | 'feed' | 'both';
+
+export const contentTypeLabels: Record<ContentType, string> = {
+  story: '스토리',
+  reels: '릴스',
+  feed: '피드',
+  both: '스토리+릴스',
+};
+
+// 시딩 플랫폼
+export type SeedingPlatform = 'instagram' | 'youtube' | 'tiktok' | 'blog';
+
+export const seedingPlatformLabels: Record<SeedingPlatform, string> = {
+  instagram: '인스타그램',
+  youtube: '유튜브',
+  tiktok: '틱톡',
+  blog: '블로그',
+};
+
+// 시딩 프로젝트 상태
+export type SeedingProjectStatus = 'planning' | 'active' | 'completed' | 'paused';
+
+export const seedingProjectStatusLabels: Record<SeedingProjectStatus, string> = {
+  planning: '기획중',
+  active: '진행중',
+  completed: '완료',
+  paused: '일시중지',
+};
+
+// 시딩 프로젝트 (상위)
+export interface SeedingProject {
+  id: string;
+  name: string;                    // 프로젝트명 (예: "리프팅크림 1월 시딩")
+  brand: Brand;
+  product_id?: string;             // 제품 마스터 연동
+  product_name: string;
+
+  // 기간
+  start_date: string;
+  end_date: string;
+
+  // 목표
+  target_count: number;            // 목표 시딩 수
+
+  // 비용 정보 (제품 마스터에서 가져옴)
+  cost_price: number;              // 제품 원가
+  selling_price: number;           // 제품 판매가
+
+  // 상태
+  status: SeedingProjectStatus;
+
+  // 메타
+  description?: string;
+  assignee_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// 배송 정보
+export interface ShippingInfo {
+  recipient_name: string;
+  phone: string;
+  address: string;
+  postal_code?: string;
+  quantity: number;
+  carrier?: string;                // 택배사
+  tracking_number?: string;        // 송장번호
+  shipped_at?: string;
+  delivered_at?: string;
+}
+
+// 성과 정보
+export interface SeedingPerformance {
+  views?: number;                  // 조회수
+  likes?: number;                  // 좋아요
+  comments?: number;               // 댓글
+  saves?: number;                  // 저장
+  shares?: number;                 // 공유
+  story_views?: number;            // 스토리 조회수
+  link_clicks?: number;            // 링크 클릭수
+  screenshot_urls?: string[];      // 성과 스크린샷
+  measured_at?: string;            // 측정일시
+}
+
+// 시딩 인플루언서 (하위 - 개별 인플루언서)
+export interface SeedingInfluencer {
+  id: string;
+  project_id: string;              // 시딩 프로젝트 연결
+
+  // 계정 정보
+  account_id: string;              // @handle
+  account_name?: string;           // 실명 또는 닉네임
+  platform: SeedingPlatform;
+  email?: string;
+  phone?: string;
+  follower_count: number;
+  category?: string;               // 뷰티, 육아, 라이프스타일 등
+  profile_url?: string;
+
+  // 시딩 정보
+  seeding_type: SeedingType;       // 무가/유가
+  content_type: ContentType;       // 스토리/릴스/피드
+  fee?: number;                    // 원고비 (유가인 경우)
+  status: SeedingStatus;
+
+  // 배송 정보
+  shipping: ShippingInfo;
+
+  // 가이드 정보
+  guide_id?: string;               // 연결된 제품 가이드
+  guide_sent_at?: string;
+  guide_link?: string;             // 발송된 가이드 링크
+
+  // 포스팅 정보
+  posting_url?: string;
+  posted_at?: string;
+
+  // 성과 정보
+  performance?: SeedingPerformance;
+
+  // 진행 일시
+  contacted_at?: string;
+  accepted_at?: string;
+  rejected_at?: string;
+  rejection_reason?: string;
+  completed_at?: string;
+
+  // 메타
+  notes?: string;
+  assignee_id?: string;
+  sheet_row_index?: number;        // Google Sheets 동기화용
+  created_at: string;
+  updated_at: string;
+}
+
+// 섭외 문구 템플릿
+export interface OutreachTemplate {
+  id: string;
+  name: string;
+  content: string;
+  seeding_type: SeedingType | 'all';
+  content_type: ContentType | 'all';
+  brand: Brand | 'all';
+  variables: string[];             // 치환 변수 목록 (예: {{이름}}, {{제품명}})
+  usage_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// 제품 가이드
+export interface ProductGuide {
+  id: string;
+  product_id?: string;
+  product_name: string;
+  brand: Brand;
+  content_type: ContentType;       // 스토리용/릴스용 가이드 구분
+
+  // 가이드 내용
+  description: string;
+  key_points: string[];            // 핵심 포인트
+  hashtags: string[];              // 해시태그
+  mentions: string[];              // 필수 멘션 (@howpapa_official 등)
+  dos: string[];                   // 해야 할 것
+  donts: string[];                 // 하지 말아야 할 것
+  link_url?: string;               // 스토리용 링크
+
+  // 첨부파일
+  image_urls: string[];
+  reference_urls: string[];        // 참고 콘텐츠 URL
+
+  // 공개 링크
+  public_slug: string;             // 공개 페이지 slug
+  is_public: boolean;
+
+  // 메타
+  updated_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// 시딩 통계
+export interface SeedingStats {
+  total_seedings: number;
+  by_status: Record<SeedingStatus, number>;
+  by_type: Record<SeedingType, number>;
+  by_content: Record<ContentType, number>;
+  acceptance_rate: number;         // 수락률 (%)
+  posting_rate: number;            // 포스팅률 (%)
+  total_cost: number;              // 총 시딩 원가
+  total_value: number;             // 총 시딩 가치 (판매가 기준)
+  total_fee: number;               // 총 원고비
+  total_reach: number;             // 총 도달 (조회수 합)
+  total_engagement: number;        // 총 참여 (좋아요+댓글+저장+공유)
+}
+
+// 시딩 프로젝트 통계 (프로젝트 단위)
+export interface SeedingProjectStats {
+  project_id: string;
+  total_influencers: number;
+  by_status: Record<SeedingStatus, number>;
+  by_type: Record<SeedingType, number>;
+  by_content: Record<ContentType, number>;
+  progress_rate: number;           // 진행률 (완료/전체)
+  total_cost: number;              // 총 시딩 원가 (수량 * 제품원가)
+  total_fee: number;               // 총 원고비
+  total_reach: number;
+  total_engagement: number;
+}
