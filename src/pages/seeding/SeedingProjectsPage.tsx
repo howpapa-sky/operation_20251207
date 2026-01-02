@@ -11,13 +11,13 @@ export default function SeedingProjectsPage() {
     projects,
     isLoading,
     fetchProjects,
-    createProject,
+    addProject,
     updateProject,
     deleteProject,
     getProjectStats
   } = useSeedingStore();
 
-  const { fetchProducts } = useProductMasterStore();
+  const { products } = useProductMasterStore();
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<SeedingProjectStatus | 'all'>('all');
@@ -32,8 +32,7 @@ export default function SeedingProjectsPage() {
 
   useEffect(() => {
     fetchProjects();
-    fetchProducts();
-  }, [fetchProjects, fetchProducts]);
+  }, [fetchProjects]);
 
   // Filtered projects
   const filteredProjects = useMemo(() => {
@@ -88,7 +87,7 @@ export default function SeedingProjectsPage() {
       if (editingProject) {
         await updateProject(editingProject.id, data);
       } else {
-        await createProject(data);
+        await addProject(data);
       }
       setIsModalOpen(false);
       setEditingProject(null);
@@ -124,7 +123,7 @@ export default function SeedingProjectsPage() {
     };
 
     try {
-      await createProject(duplicateData);
+      await addProject(duplicateData);
     } catch (error) {
       console.error('Failed to duplicate project:', error);
     }

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '../lib/supabase';
+import { Json } from '../types/database';
 import {
   SeedingProject,
   SeedingInfluencer,
@@ -431,7 +432,7 @@ export const useSeedingStore = create<SeedingStore>()(
               content_type: influencer.content_type,
               fee: influencer.fee || 0,
               status: influencer.status,
-              shipping: influencer.shipping,
+              shipping: influencer.shipping as unknown as Json,
               guide_id: influencer.guide_id || null,
               notes: influencer.notes || null,
               assignee_id: influencer.assignee_id || null,
@@ -472,7 +473,7 @@ export const useSeedingStore = create<SeedingStore>()(
             content_type: inf.content_type,
             fee: inf.fee || 0,
             status: inf.status,
-            shipping: inf.shipping,
+            shipping: inf.shipping as unknown as Json,
             guide_id: inf.guide_id || null,
             notes: inf.notes || null,
             assignee_id: inf.assignee_id || null,

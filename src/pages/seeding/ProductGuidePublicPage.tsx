@@ -14,7 +14,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { ProductGuide, contentTypeLabels } from '../../types';
+import { ProductGuide, contentTypeLabels, Brand, ContentType } from '../../types';
 
 export default function ProductGuidePublicPage() {
   const { slug } = useParams();
@@ -39,20 +39,20 @@ export default function ProductGuidePublicPage() {
 
         setGuide({
           id: data.id,
-          product_id: data.product_id,
+          product_id: data.product_id ?? undefined,
           product_name: data.product_name,
-          brand: data.brand,
-          content_type: data.content_type,
+          brand: data.brand as Brand,
+          content_type: data.content_type as ContentType,
           description: data.description || '',
           key_points: data.key_points || [],
           hashtags: data.hashtags || [],
           mentions: data.mentions || [],
           dos: data.dos || [],
           donts: data.donts || [],
-          link_url: data.link_url,
+          link_url: data.link_url ?? undefined,
           image_urls: data.image_urls || [],
           reference_urls: data.reference_urls || [],
-          public_slug: data.public_slug,
+          public_slug: data.public_slug ?? '',
           is_public: data.is_public,
           created_at: data.created_at,
           updated_at: data.updated_at,
