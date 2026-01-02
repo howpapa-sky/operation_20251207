@@ -107,6 +107,10 @@ export default function SeedingListPage() {
   // Filtered influencers
   const filteredInfluencers = useMemo(() => {
     return influencers.filter((inf) => {
+      // Project filter - 현재 프로젝트의 인플루언서만 표시
+      if (projectId && inf.project_id !== projectId) {
+        return false;
+      }
       // Status filter
       if (statusFilter !== 'all' && inf.status !== statusFilter) {
         return false;
