@@ -1,0 +1,134 @@
+import {
+  List,
+  Send,
+  CheckCircle,
+  XCircle,
+  Package,
+  BookOpen,
+  Image,
+  Award,
+} from 'lucide-react';
+import { SeedingStatus, SeedingProjectStats, seedingStatusLabels } from '../../types';
+
+interface SeedingStatusTabsProps {
+  stats: SeedingProjectStats;
+  activeStatus: SeedingStatus | 'all';
+  onChange: (status: SeedingStatus | 'all') => void;
+}
+
+// 상태별 설정
+const statusConfig: Record<SeedingStatus, { color: string; bgColor: string; icon: React.ElementType }> = {
+  listed: { color: 'text-slate-600', bgColor: 'bg-slate-100', icon: List },
+  contacted: { color: 'text-blue-600', bgColor: 'bg-blue-100', icon: Send },
+  accepted: { color: 'text-green-600', bgColor: 'bg-green-100', icon: CheckCircle },
+  rejected: { color: 'text-red-600', bgColor: 'bg-red-100', icon: XCircle },
+  shipped: { color: 'text-amber-600', bgColor: 'bg-amber-100', icon: Package },
+  guide_sent: { color: 'text-purple-600', bgColor: 'bg-purple-100', icon: BookOpen },
+  posted: { color: 'text-pink-600', bgColor: 'bg-pink-100', icon: Image },
+  completed: { color: 'text-emerald-600', bgColor: 'bg-emerald-100', icon: Award },
+};
+
+// 표시할 상태 순서 (rejected는 별도 처리)
+const displayStatuses: SeedingStatus[] = [
+  'listed',
+  'contacted',
+  'accepted',
+  'shipped',
+  'guide_sent',
+  'posted',
+  'completed',
+];
+
+export default function SeedingStatusTabs({
+  stats,
+  activeStatus,
+  onChange,
+}: SeedingStatusTabsProps) {
+  const totalCount = stats.total_influencers;
+  const rejectedCount = stats.by_status.rejected;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100">
+      <div className="flex items-center overflow-x-auto">
+        {/* All Tab */}
+        <button
+          onClick={() => onChange('all')}
+          className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+            activeStatus === 'all'
+              ? 'border-primary-500 text-primary-600 bg-primary-50/50'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          전체
+          <span
+            className={`min-w-[24px] px-1.5 py-0.5 rounded-full text-xs font-semibold ${
+              activeStatus === 'all'
+                ? 'bg-primary-100 text-primary-700'
+                : 'bg-gray-100 text-gray-600'
+            }`}
+          >
+            {totalCount}
+          </span>
+        </button>
+
+        <div className="w-px h-6 bg-gray-200" />
+
+        {/* Status Tabs */}
+        {displayStatuses.map((status) => {
+          const config = statusConfig[status];
+          const Icon = config.icon;
+          const count = stats.by_status[status];
+          const isActive = activeStatus === status;
+
+          return (
+            <button
+              key={status}
+              onClick={() => onChange(status)}
+              className={`flex items-center gap-2 px-4 py-3.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                isActive
+                  ? `border-current ${config.color} bg-opacity-10`
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+              style={isActive ? { backgroundColor: `${config.bgColor.replace('bg-', '')}20` } : undefined}
+            >
+              <Icon className={`w-4 h-4 ${isActive ? config.color : 'text-gray-400'}`} />
+              <span>{seedingStatusLabels[status]}</span>
+              <span
+                className={`min-w-[24px] px-1.5 py-0.5 rounded-full text-xs font-semibold ${
+                  isActive ? config.bgColor + ' ' + config.color : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
+
+        {/* Rejected Tab (separate) */}
+        {rejectedCount > 0 && (
+          <>
+            <div className="w-px h-6 bg-gray-200" />
+            <button
+              onClick={() => onChange('rejected')}
+              className={`flex items-center gap-2 px-4 py-3.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                activeStatus === 'rejected'
+                  ? 'border-red-500 text-red-600 bg-red-50/50'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <XCircle className={`w-4 h-4 ${activeStatus === 'rejected' ? 'text-red-600' : 'text-gray-400'}`} />
+              <span>거절</span>
+              <span
+                className={`min-w-[24px] px-1.5 py-0.5 rounded-full text-xs font-semibold ${
+                  activeStatus === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                {rejectedCount}
+              </span>
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
