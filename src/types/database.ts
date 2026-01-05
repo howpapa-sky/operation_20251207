@@ -20,6 +20,9 @@ export interface Database {
           start_date: string;
           target_date: string;
           completed_date: string | null;
+          requester_id: string | null;
+          requester: string | null;
+          assignee_id: string | null;
           assignee: string | null;
           notes: string | null;
           data: Json | null;
@@ -36,6 +39,9 @@ export interface Database {
           start_date: string;
           target_date: string;
           completed_date?: string | null;
+          requester_id?: string | null;
+          requester?: string | null;
+          assignee_id?: string | null;
           assignee?: string | null;
           notes?: string | null;
           data?: Json | null;
@@ -52,6 +58,9 @@ export interface Database {
           start_date?: string;
           target_date?: string;
           completed_date?: string | null;
+          requester_id?: string | null;
+          requester?: string | null;
+          assignee_id?: string | null;
           assignee?: string | null;
           notes?: string | null;
           data?: Json | null;
