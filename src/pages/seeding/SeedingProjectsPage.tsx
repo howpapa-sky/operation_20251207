@@ -1,10 +1,22 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FolderKanban, Plus, Search, Filter, X, BarChart3 } from 'lucide-react';
 import { useSeedingStore } from '../../store/seedingStore';
-import { useProductMasterStore } from '../../store/useProductMasterStore';
 import { SeedingProject, SeedingProjectStatus, Brand, seedingProjectStatusLabels } from '../../types';
 import SeedingProjectCard from '../../components/seeding/SeedingProjectCard';
 import SeedingProjectModal from '../../components/seeding/SeedingProjectModal';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
 export default function SeedingProjectsPage() {
   const {
@@ -16,8 +28,6 @@ export default function SeedingProjectsPage() {
     deleteProject,
     getProjectStats
   } = useSeedingStore();
-
-  const { products } = useProductMasterStore();
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<SeedingProjectStatus | 'all'>('all');
@@ -140,7 +150,7 @@ export default function SeedingProjectsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
             <FolderKanban className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -148,207 +158,215 @@ export default function SeedingProjectsPage() {
             <p className="text-sm text-gray-500">제품별 인플루언서 시딩 캠페인 관리</p>
           </div>
         </div>
-        <button
-          onClick={handleCreateProject}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-        >
+        <Button onClick={handleCreateProject} className="gap-2">
           <Plus className="w-4 h-4" />
           새 프로젝트
-        </button>
+        </Button>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-4 border border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-              <BarChart3 className="w-5 h-5 text-gray-600" />
+        <Card className="hover:shadow-md transition-shadow">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                <BarChart3 className="w-5 h-5 text-gray-600" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-gray-900">{overallStats.total}</div>
+                <div className="text-sm text-gray-500">전체 프로젝트</div>
+              </div>
             </div>
-            <div>
-              <div className="text-2xl font-bold text-gray-900">{overallStats.total}</div>
-              <div className="text-sm text-gray-500">전체 프로젝트</div>
+          </CardContent>
+        </Card>
+        <Card className="hover:shadow-md transition-shadow border-l-4 border-l-blue-500">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                <FolderKanban className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-blue-600">{overallStats.active}</div>
+                <div className="text-sm text-gray-500">진행중</div>
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-              <FolderKanban className="w-5 h-5 text-blue-600" />
+          </CardContent>
+        </Card>
+        <Card className="hover:shadow-md transition-shadow border-l-4 border-l-gray-400">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                <FolderKanban className="w-5 h-5 text-gray-600" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-gray-600">{overallStats.planning}</div>
+                <div className="text-sm text-gray-500">기획중</div>
+              </div>
             </div>
-            <div>
-              <div className="text-2xl font-bold text-blue-600">{overallStats.active}</div>
-              <div className="text-sm text-gray-500">진행중</div>
+          </CardContent>
+        </Card>
+        <Card className="hover:shadow-md transition-shadow border-l-4 border-l-green-500">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                <FolderKanban className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-green-600">{overallStats.completed}</div>
+                <div className="text-sm text-gray-500">완료</div>
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-              <FolderKanban className="w-5 h-5 text-gray-600" />
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-gray-600">{overallStats.planning}</div>
-              <div className="text-sm text-gray-500">기획중</div>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-              <FolderKanban className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-green-600">{overallStats.completed}</div>
-              <div className="text-sm text-gray-500">완료</div>
-            </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white rounded-xl border border-gray-100 p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1 relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="프로젝트명, 제품명 검색..."
-              className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            />
-          </div>
-
-          {/* Filter Toggles */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm transition-colors ${
-                showFilters || hasActiveFilters
-                  ? 'border-primary-500 bg-primary-50 text-primary-700'
-                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <Filter className="w-4 h-4" />
-              필터
-              {hasActiveFilters && (
-                <span className="w-5 h-5 rounded-full bg-primary-600 text-white text-xs flex items-center justify-center">
-                  {(statusFilter !== 'all' ? 1 : 0) + (brandFilter !== 'all' ? 1 : 0)}
-                </span>
-              )}
-            </button>
-
-            {hasActiveFilters && (
-              <button
-                onClick={clearFilters}
-                className="flex items-center gap-1 px-3 py-2 text-sm text-gray-500 hover:text-gray-700"
-              >
-                <X className="w-4 h-4" />
-                초기화
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Expanded Filters */}
-        {showFilters && (
-          <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-gray-100">
-            {/* Status Filter */}
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">상태</label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as SeedingProjectStatus | 'all')}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="all">전체</option>
-                {Object.entries(seedingProjectStatusLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Search */}
+            <div className="flex-1 relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="프로젝트명, 제품명 검색..."
+                className="pl-9"
+              />
             </div>
 
-            {/* Brand Filter */}
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">브랜드</label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setBrandFilter('all')}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    brandFilter === 'all'
-                      ? 'bg-gray-900 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
+            {/* Filter Toggles */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant={showFilters || hasActiveFilters ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+                className="gap-2"
+              >
+                <Filter className="w-4 h-4" />
+                필터
+                {hasActiveFilters && (
+                  <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center rounded-full">
+                    {(statusFilter !== 'all' ? 1 : 0) + (brandFilter !== 'all' ? 1 : 0)}
+                  </Badge>
+                )}
+              </Button>
+
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="gap-1 text-gray-500"
                 >
-                  전체
-                </button>
-                <button
-                  onClick={() => setBrandFilter('howpapa')}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    brandFilter === 'howpapa'
-                      ? 'bg-orange-500 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
+                  <X className="w-4 h-4" />
+                  초기화
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Expanded Filters */}
+          {showFilters && (
+            <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t">
+              {/* Status Filter */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-500">상태</label>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(value) => setStatusFilter(value as SeedingProjectStatus | 'all')}
                 >
-                  하우파파
-                </button>
-                <button
-                  onClick={() => setBrandFilter('nuccio')}
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    brandFilter === 'nuccio'
-                      ? 'bg-green-500 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  누씨오
-                </button>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="상태 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    {Object.entries(seedingProjectStatusLabels).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Brand Filter */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-500">브랜드</label>
+                <div className="flex gap-2">
+                  <Button
+                    variant={brandFilter === 'all' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setBrandFilter('all')}
+                  >
+                    전체
+                  </Button>
+                  <Button
+                    variant={brandFilter === 'howpapa' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setBrandFilter('howpapa')}
+                    className={cn(
+                      brandFilter === 'howpapa' && 'bg-orange-500 hover:bg-orange-600'
+                    )}
+                  >
+                    하우파파
+                  </Button>
+                  <Button
+                    variant={brandFilter === 'nuccio' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setBrandFilter('nuccio')}
+                    className={cn(
+                      brandFilter === 'nuccio' && 'bg-green-500 hover:bg-green-600'
+                    )}
+                  >
+                    누씨오
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Content */}
       {isLoading ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-          </div>
-        </div>
+        <Card>
+          <CardContent className="p-8">
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          </CardContent>
+        </Card>
       ) : filteredProjects.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-          <div className="text-center py-12">
-            <FolderKanban className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            {hasActiveFilters ? (
-              <>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">검색 결과가 없습니다</h3>
-                <p className="text-gray-500 mb-4">다른 검색 조건을 시도해보세요.</p>
-                <button
-                  onClick={clearFilters}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-primary-600 hover:text-primary-700"
-                >
-                  <X className="w-4 h-4" />
-                  필터 초기화
-                </button>
-              </>
-            ) : (
-              <>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">아직 프로젝트가 없습니다</h3>
-                <p className="text-gray-500 mb-4">첫 번째 시딩 프로젝트를 만들어보세요.</p>
-                <button
-                  onClick={handleCreateProject}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  프로젝트 만들기
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+        <Card>
+          <CardContent className="p-8">
+            <div className="text-center py-12">
+              <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                <FolderKanban className="w-8 h-8 text-gray-400" />
+              </div>
+              {hasActiveFilters ? (
+                <>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">검색 결과가 없습니다</h3>
+                  <p className="text-gray-500 mb-4">다른 검색 조건을 시도해보세요.</p>
+                  <Button variant="outline" onClick={clearFilters} className="gap-2">
+                    <X className="w-4 h-4" />
+                    필터 초기화
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">아직 프로젝트가 없습니다</h3>
+                  <p className="text-gray-500 mb-4">첫 번째 시딩 프로젝트를 만들어보세요.</p>
+                  <Button onClick={handleCreateProject} className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    프로젝트 만들기
+                  </Button>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredProjects.map((project) => (
