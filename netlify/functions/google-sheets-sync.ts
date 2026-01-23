@@ -513,6 +513,14 @@ function parseDateToISO(value: string): string | undefined {
     return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
   }
 
+  // 한글 날짜 형식 (연도 없음): 12월4일, 1월 15일 → 현재 연도 사용
+  const koreanNoYearMatch = str.match(/^(\d{1,2})월\s*(\d{1,2})일$/);
+  if (koreanNoYearMatch) {
+    const [, month, day] = koreanNoYearMatch;
+    const year = new Date().getFullYear();
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
   // Google Sheets 시리얼 날짜 (숫자) 처리
   const numVal = parseFloat(str);
   if (!isNaN(numVal) && numVal > 40000 && numVal < 60000) {
