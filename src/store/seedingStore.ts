@@ -344,6 +344,11 @@ export const useSeedingStore = create<SeedingStore>()(
           if (updates.status !== undefined) dbUpdates.status = updates.status;
           if (updates.description !== undefined) dbUpdates.description = updates.description;
           if (updates.assignee_id !== undefined) dbUpdates.assignee_id = updates.assignee_id;
+          // Google Sheets 동기화 설정
+          if (updates.listup_sheet_url !== undefined) dbUpdates.listup_sheet_url = updates.listup_sheet_url;
+          if (updates.listup_sheet_name !== undefined) dbUpdates.listup_sheet_name = updates.listup_sheet_name;
+          if (updates.auto_sync_enabled !== undefined) dbUpdates.auto_sync_enabled = updates.auto_sync_enabled;
+          if (updates.last_synced_at !== undefined) dbUpdates.last_synced_at = updates.last_synced_at;
 
           const { error } = await supabase
             .from('seeding_projects')
@@ -474,32 +479,50 @@ export const useSeedingStore = create<SeedingStore>()(
         set({ isLoading: true, error: null });
 
         // 레코드 변환 함수 (|| 대신 ?? 사용으로 0 값 보존)
-        const toRecord = (inf: typeof influencers[0]) => ({
-          project_id: inf.project_id,
-          account_id: inf.account_id,
-          account_name: inf.account_name || null,
-          platform: inf.platform,
-          email: inf.email || null,
-          phone: inf.phone || null,
-          follower_count: inf.follower_count ?? 0,
-          following_count: inf.following_count ?? null,
-          category: inf.category || null,
-          profile_url: inf.profile_url || null,
-          listed_at: inf.listed_at ?? null,
-          seeding_type: inf.seeding_type,
-          content_type: inf.content_type,
-          fee: inf.fee ?? 0,
-          product_name: inf.product_name || null,
-          product_price: inf.product_price ?? null,
-          status: inf.status,
-          shipping: inf.shipping as unknown as Json,
-          guide_id: inf.guide_id || null,
-          notes: inf.notes || null,
-          assignee_id: inf.assignee_id || null,
-          sheet_row_index: inf.sheet_row_index || null,
-        });
+        const toRecord = (inf: typeof influencers[0], index: number) => {
+          const record = {
+            project_id: inf.project_id,
+            account_id: inf.account_id,
+            account_name: inf.account_name || null,
+            platform: inf.platform,
+            email: inf.email || null,
+            phone: inf.phone || null,
+            follower_count: inf.follower_count ?? 0,
+            following_count: inf.following_count ?? null,
+            category: inf.category || null,
+            profile_url: inf.profile_url || null,
+            listed_at: inf.listed_at ?? null,
+            seeding_type: inf.seeding_type,
+            content_type: inf.content_type,
+            fee: inf.fee ?? 0,
+            product_name: inf.product_name || null,
+            product_price: inf.product_price ?? null,
+            status: inf.status,
+            shipping: inf.shipping as unknown as Json,
+            guide_id: inf.guide_id || null,
+            notes: inf.notes || null,
+            assignee_id: inf.assignee_id || null,
+            sheet_row_index: inf.sheet_row_index || null,
+          };
 
-        const allRecords = influencers.map(toRecord);
+          // 첫 번째 레코드 디버깅 로그
+          if (index === 0) {
+            console.log('[addInfluencersBulk] First input:', JSON.stringify({
+              listed_at: inf.listed_at,
+              following_count: inf.following_count,
+              product_price: inf.product_price,
+            }));
+            console.log('[addInfluencersBulk] First record:', JSON.stringify({
+              listed_at: record.listed_at,
+              following_count: record.following_count,
+              product_price: record.product_price,
+            }));
+          }
+
+          return record;
+        };
+
+        const allRecords = influencers.map((inf, index) => toRecord(inf, index));
         const successfulInfluencers: SeedingInfluencer[] = [];
         const errors: string[] = [];
 
