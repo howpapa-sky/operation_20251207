@@ -159,7 +159,42 @@ const columnMapping: Record<string, string> = {
   'Note': 'notes',
   'notes': 'notes',
   'Notes': 'notes',
+  'NOTE': 'notes',
   '비고': 'notes',
+
+  // 비용/원고비
+  'Cost': 'fee',
+  'cost': 'fee',
+
+  // 날짜
+  'date': 'listed_at',
+  'Date': 'listed_at',
+  '날짜': 'listed_at',
+  '등록일': 'listed_at',
+
+  // 팔로잉 (참고용)
+  'Following': 'following_count',
+  'following': 'following_count',
+  '팔로잉': 'following_count',
+
+  // 진행 상태 (Yes/No → status 변환용)
+  'DM sent (Yes/No)': '_dm_sent',
+  'DM sent': '_dm_sent',
+  'DM': '_dm_sent',
+  'Response received (Yes/No)': '_response_received',
+  'Response received': '_response_received',
+  'Response': '_response_received',
+  'acceptance (Yes/No)': '_acceptance',
+  'acceptance': '_acceptance',
+  '수락': '_acceptance',
+  'Product Shipment (Yes/No)': '_product_shipped',
+  'Product Shipment': '_product_shipped',
+  '발송': '_product_shipped',
+  'upload date (MM/DD)': 'posted_at',
+  'upload date': 'posted_at',
+  '업로드일': 'posted_at',
+  'Upload completed': '_upload_completed',
+  '업로드완료': '_upload_completed',
 };
 
 // DB 필드 → 스프레드시트 헤더 (역매핑)
@@ -528,11 +563,51 @@ async function importFromSheets(params: ImportParams): Promise<SyncResult> {
         return;
       }
 
+      // Yes/No 컬럼들로 status 자동 판별
+      // 우선순위: upload_completed > product_shipped > acceptance > dm_sent > listed
+      const isYes = (val: any) => {
+        if (!val) return false;
+        const v = String(val).toLowerCase().trim();
+        return v === 'o' || v === 'yes' || v === 'y' || v === '예' || v === 'true' || v === '1';
+      };
+
+      if (!record.status) {
+        if (isYes(record._upload_completed)) {
+          record.status = 'posted';
+          // posted_at 설정 (없으면 현재 시간)
+          if (!record.posted_at) {
+            record.posted_at = new Date().toISOString();
+          }
+        } else if (isYes(record._product_shipped)) {
+          record.status = 'shipped';
+        } else if (isYes(record._acceptance)) {
+          record.status = 'accepted';
+          if (!record.accepted_at) {
+            record.accepted_at = new Date().toISOString();
+          }
+        } else if (isYes(record._response_received) || isYes(record._dm_sent)) {
+          record.status = 'contacted';
+          if (!record.contacted_at) {
+            record.contacted_at = new Date().toISOString();
+          }
+        } else {
+          record.status = 'listed';
+        }
+      }
+
+      // 임시 필드 제거 (DB에 저장하지 않음)
+      delete record._dm_sent;
+      delete record._response_received;
+      delete record._acceptance;
+      delete record._product_shipped;
+      delete record._upload_completed;
+      delete record.following_count; // DB에 없는 필드
+      delete record.listed_at; // created_at으로 대체됨
+
       // 기본값 설정
       if (!record.platform) record.platform = 'instagram';
       if (!record.seeding_type) record.seeding_type = 'free';
       if (!record.content_type) record.content_type = 'story';
-      if (!record.status) record.status = 'listed';
       if (!record.follower_count) record.follower_count = 0;
 
       // 행 인덱스 저장 (동기화용)
