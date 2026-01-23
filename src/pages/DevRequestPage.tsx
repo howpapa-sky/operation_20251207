@@ -739,23 +739,23 @@ export default function DevRequestPage() {
       </Card>
 
       {/* Table */}
-      <Card>
+      <Card className="overflow-hidden">
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[calc(100vh-420px)] overflow-y-auto">
             <table className="w-full">
-              <thead>
-                <tr className="border-b bg-gray-50/80">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-12">No.</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">요청일</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">요청자</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">브랜드</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">유형</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[250px]">제목</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">우선순위</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">희망완료일</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">상태</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">완료일</th>
-                  <th className="w-14 px-4 py-3"></th>
+              <thead className="sticky top-0 z-10">
+                <tr className="border-b bg-gray-50 shadow-sm">
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-12 bg-gray-50">No.</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">요청일</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">요청자</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">브랜드</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">유형</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-[280px] bg-gray-50">제목</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">우선순위</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">희망완료일</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">상태</th>
+                  <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-50">완료일</th>
+                  <th className="w-14 px-4 py-3.5 bg-gray-50"></th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -781,7 +781,11 @@ export default function DevRequestPage() {
                     <tr
                       key={req.id}
                       onClick={() => handleRowClick(req)}
-                      className="hover:bg-blue-50/50 cursor-pointer transition-colors group"
+                      className={cn(
+                        "cursor-pointer transition-all duration-150 group",
+                        "hover:bg-blue-50 hover:shadow-[inset_0_0_0_1px_rgba(59,130,246,0.2)]",
+                        selectedRequest?.id === req.id && isDetailOpen && "bg-blue-100 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.3)]"
+                      )}
                     >
                       <td className="px-4 py-3.5 text-sm text-gray-400 font-medium">{index + 1}</td>
                       <td className="px-4 py-3.5 text-sm">{formatDate(req.request_date)}</td>
@@ -804,12 +808,14 @@ export default function DevRequestPage() {
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-2">
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-gray-900 truncate">{req.title}</p>
+                            <p className="text-sm font-medium text-gray-900 group-hover:text-blue-600 truncate transition-colors">
+                              {req.title}
+                            </p>
                             {req.description && (
-                              <p className="text-xs text-gray-500 truncate mt-0.5">{req.description}</p>
+                              <p className="text-xs text-gray-500 truncate mt-0.5 max-w-[300px]">{req.description}</p>
                             )}
                           </div>
-                          <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 flex-shrink-0 transition-colors" />
+                          <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-blue-500 group-hover:translate-x-0.5 flex-shrink-0 transition-all" />
                         </div>
                       </td>
                       <td className="px-4 py-3.5">
@@ -825,17 +831,17 @@ export default function DevRequestPage() {
                       </td>
                       <td className="px-4 py-3.5 text-sm text-gray-600">{formatDate(req.completed_at)}</td>
                       <td className="px-4 py-3.5">
-                        <DropdownMenu>
+                        <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="h-8 w-8 p-0 hover:bg-gray-200"
                             >
                               <MoreHorizontal className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuContent align="end" sideOffset={5} className="w-48">
                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleRowClick(req); }}>
                               <FileText className="w-4 h-4 mr-2" />
                               상세보기
