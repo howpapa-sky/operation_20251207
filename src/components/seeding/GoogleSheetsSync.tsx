@@ -93,19 +93,46 @@ function parsePrice(value: any): number | undefined {
   return num > 0 ? num : undefined;
 }
 
+// 여러 필드명에서 값 찾기 (대소문자 무시)
+function findFieldValue(item: any, ...fieldNames: string[]): any {
+  for (const name of fieldNames) {
+    if (item[name] !== undefined && item[name] !== null && item[name] !== '') {
+      return item[name];
+    }
+    // 대소문자 무시 검색
+    const lowerName = name.toLowerCase();
+    for (const key of Object.keys(item)) {
+      if (key.toLowerCase() === lowerName && item[key] !== undefined && item[key] !== null && item[key] !== '') {
+        return item[key];
+      }
+    }
+  }
+  return undefined;
+}
+
 // 인플루언서 데이터 정규화 (프론트엔드에서 추가 변환)
+// 다양한 필드명을 모두 처리 (배포된 Netlify Function 버전과 상관없이 동작)
 function normalizeInfluencerData(data: any[]): any[] {
-  return data.map(item => ({
-    ...item,
-    // 날짜 필드 변환
-    listed_at: parseDateToISO(item.listed_at),
-    // 숫자 필드 변환
-    follower_count: parseNumber(item.follower_count),
-    following_count: parseNumber(item.following_count) || undefined,
-    // 가격 필드 변환
-    product_price: parsePrice(item.product_price),
-    fee: parseNumber(item.fee) || 0,
-  }));
+  return data.map(item => {
+    // 다양한 필드명에서 값 찾기
+    const listedAtRaw = findFieldValue(item, 'listed_at', 'Date', 'date', '날짜', '등록일');
+    const followingRaw = findFieldValue(item, 'following_count', 'Following', 'following', '팔로잉');
+    const followerRaw = findFieldValue(item, 'follower_count', 'Follower', 'follower', '팔로워', 'Followers');
+    const priceRaw = findFieldValue(item, 'product_price', 'Cost', 'cost', 'Price', 'price', '가격', '제품단가', '단가');
+    const feeRaw = findFieldValue(item, 'fee', 'Fee', '원고비');
+
+    return {
+      ...item,
+      // 날짜 필드 변환
+      listed_at: parseDateToISO(listedAtRaw),
+      // 숫자 필드 변환
+      follower_count: parseNumber(followerRaw),
+      following_count: parseNumber(followingRaw) || undefined,
+      // 가격 필드 변환
+      product_price: parsePrice(priceRaw),
+      fee: parseNumber(feeRaw) || 0,
+    };
+  });
 }
 
 interface GoogleSheetsSyncProps {
@@ -211,8 +238,19 @@ export default function GoogleSheetsSync({
         setSyncProgress(60);
 
         if (result.data && result.data.length > 0) {
+          // 디버깅: Netlify Function에서 반환된 원본 데이터 확인
+          console.log('[GoogleSheetsSync] Raw data from Netlify Function:', JSON.stringify(result.data[0], null, 2));
+          console.log('[GoogleSheetsSync] Raw data keys:', Object.keys(result.data[0]));
+
           // 프론트엔드에서 데이터 정규화 (Netlify Function 버전과 상관없이 동작)
           const normalizedData = normalizeInfluencerData(result.data);
+
+          // 디버깅: 정규화 후 데이터 확인
+          console.log('[GoogleSheetsSync] Normalized data:', JSON.stringify(normalizedData[0], null, 2));
+          console.log('[GoogleSheetsSync] listed_at:', normalizedData[0]?.listed_at);
+          console.log('[GoogleSheetsSync] following_count:', normalizedData[0]?.following_count);
+          console.log('[GoogleSheetsSync] product_price:', normalizedData[0]?.product_price);
+
           // DB에 저장
           await addInfluencersBulk(normalizedData);
         }
