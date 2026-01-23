@@ -13,9 +13,8 @@ import {
   CheckCircle2,
   XCircle,
   HelpCircle,
-  ClipboardList,
 } from 'lucide-react';
-import { googleSheetsService, PreviewResult, ImportResult, SurveyResult } from '../../services/googleSheetsService';
+import { googleSheetsService, PreviewResult, ImportResult } from '../../services/googleSheetsService';
 import { useSeedingStore } from '../../store/seedingStore';
 import { SeedingProject, SeedingInfluencer } from '../../types';
 
@@ -26,7 +25,7 @@ interface GoogleSheetsSyncProps {
   onSyncComplete?: () => void;
 }
 
-type SyncDirection = 'import' | 'export' | 'survey';
+type SyncDirection = 'import' | 'export';
 type SyncStep = 'config' | 'preview' | 'syncing' | 'result';
 
 export default function GoogleSheetsSync({
@@ -126,24 +125,6 @@ export default function GoogleSheetsSync({
         setSyncResult({
           success: true,
           added: result.added,
-          updated: result.updated,
-          errors: result.errors,
-        });
-      } else if (direction === 'survey') {
-        // 설문 응답 동기화
-        setSyncProgress(30);
-
-        const result = await googleSheetsService.syncSurveyResponses({
-          spreadsheetId: spreadsheetUrl,
-          sheetName,
-          projectId: project.id,
-        });
-
-        setSyncProgress(100);
-
-        setSyncResult({
-          success: true,
-          added: 0,
           updated: result.updated,
           errors: result.errors,
         });
@@ -276,7 +257,7 @@ export default function GoogleSheetsSync({
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     동기화 유형
                   </label>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={() => setDirection('import')}
                       className={`flex flex-col items-center gap-2 p-4 border-2 rounded-xl transition-all ${
@@ -300,33 +281,6 @@ export default function GoogleSheetsSync({
                         </div>
                         <div className="text-xs text-gray-500">
                           Sheets → DB
-                        </div>
-                      </div>
-                    </button>
-
-                    <button
-                      onClick={() => setDirection('survey')}
-                      className={`flex flex-col items-center gap-2 p-4 border-2 rounded-xl transition-all ${
-                        direction === 'survey'
-                          ? 'border-green-500 bg-green-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        direction === 'survey' ? 'bg-green-100' : 'bg-gray-100'
-                      }`}>
-                        <ClipboardList className={`w-5 h-5 ${
-                          direction === 'survey' ? 'text-green-600' : 'text-gray-500'
-                        }`} />
-                      </div>
-                      <div className="text-center">
-                        <div className={`font-medium text-sm ${
-                          direction === 'survey' ? 'text-green-900' : 'text-gray-700'
-                        }`}>
-                          설문 응답 연동
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          배송정보 동기화
                         </div>
                       </div>
                     </button>
@@ -361,29 +315,18 @@ export default function GoogleSheetsSync({
                 </div>
 
                 {/* 컬럼 매핑 안내 */}
-                <div className={`p-4 rounded-xl ${direction === 'survey' ? 'bg-green-50' : 'bg-blue-50'}`}>
+                <div className="p-4 rounded-xl bg-blue-50">
                   <div className="flex items-start gap-3">
-                    <HelpCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${direction === 'survey' ? 'text-green-500' : 'text-blue-500'}`} />
+                    <HelpCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-blue-500" />
                     <div>
-                      <div className={`text-sm font-medium mb-1 ${direction === 'survey' ? 'text-green-900' : 'text-blue-900'}`}>
-                        {direction === 'survey' ? '설문 응답 시트 안내' : '컬럼 매핑 안내'}
+                      <div className="text-sm font-medium mb-1 text-blue-900">
+                        컬럼 매핑 안내
                       </div>
-                      <div className={`text-xs space-y-1 ${direction === 'survey' ? 'text-green-700' : 'text-blue-700'}`}>
-                        {direction === 'survey' ? (
-                          <>
-                            <p>설문 응답 시트의 인스타그램 아이디로 인플루언서를 매칭합니다.</p>
-                            <p className={`font-mono px-2 py-1 rounded ${direction === 'survey' ? 'bg-green-100' : 'bg-blue-100'}`}>
-                              인스타그램 아이디, 성함, 전화번호, 주소, 배송메모 ...
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <p>스프레드시트 헤더가 다음과 일치해야 합니다:</p>
-                            <p className="font-mono bg-blue-100 px-2 py-1 rounded">
-                              계정ID, 계정명, 이메일, 연락처, 플랫폼, 팔로워, 카테고리 ...
-                            </p>
-                          </>
-                        )}
+                      <div className="text-xs space-y-1 text-blue-700">
+                        <p>스프레드시트 헤더가 다음과 일치해야 합니다:</p>
+                        <p className="font-mono bg-blue-100 px-2 py-1 rounded">
+                          계정ID, 이메일, 팔로워, 제품명, 제품단가, 배송여부 ...
+                        </p>
                       </div>
                     </div>
                   </div>

@@ -28,8 +28,6 @@ const defaultFormData = {
   // Google Sheets 연동
   listup_sheet_url: '',
   listup_sheet_name: 'Sheet1',
-  survey_sheet_url: '',
-  survey_sheet_name: 'Form Responses 1',
   auto_sync_enabled: false,
 };
 
@@ -63,8 +61,6 @@ export default function SeedingProjectModal({
         // Google Sheets 연동
         listup_sheet_url: project.listup_sheet_url || '',
         listup_sheet_name: project.listup_sheet_name || 'Sheet1',
-        survey_sheet_url: project.survey_sheet_url || '',
-        survey_sheet_name: project.survey_sheet_name || 'Form Responses 1',
         auto_sync_enabled: project.auto_sync_enabled || false,
       });
     } else {
@@ -137,8 +133,6 @@ export default function SeedingProjectModal({
       // Google Sheets 연동
       listup_sheet_url: formData.listup_sheet_url.trim() || undefined,
       listup_sheet_name: formData.listup_sheet_name.trim() || 'Sheet1',
-      survey_sheet_url: formData.survey_sheet_url.trim() || undefined,
-      survey_sheet_name: formData.survey_sheet_name.trim() || 'Form Responses 1',
       auto_sync_enabled: formData.auto_sync_enabled,
     });
   };
@@ -417,34 +411,6 @@ export default function SeedingProjectModal({
                       type="text"
                       value={formData.listup_sheet_name}
                       onChange={(e) => setFormData({ ...formData, listup_sheet_name: e.target.value })}
-                      placeholder="시트명"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 설문 응답 시트 */}
-              <div className="space-y-3 mb-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                  <Link className="w-4 h-4" />
-                  설문 응답 시트
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="col-span-2">
-                    <input
-                      type="text"
-                      value={formData.survey_sheet_url}
-                      onChange={(e) => setFormData({ ...formData, survey_sheet_url: e.target.value })}
-                      placeholder="스프레드시트 URL 또는 ID"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
-                    />
-                  </div>
-                  <div>
-                    <input
-                      type="text"
-                      value={formData.survey_sheet_name}
-                      onChange={(e) => setFormData({ ...formData, survey_sheet_name: e.target.value })}
                       placeholder="시트명"
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
                     />

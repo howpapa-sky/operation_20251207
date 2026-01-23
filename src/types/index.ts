@@ -936,8 +936,6 @@ export interface SeedingProject {
   // Google Sheets 연동
   listup_sheet_url?: string;       // 리스트업 시트 URL
   listup_sheet_name?: string;      // 리스트업 시트명 (기본: Sheet1)
-  survey_sheet_url?: string;       // 설문 응답 시트 URL
-  survey_sheet_name?: string;      // 설문 응답 시트명 (기본: Form Responses 1)
   auto_sync_enabled?: boolean;     // 자동 동기화 활성화
   last_synced_at?: string;         // 마지막 동기화 일시
 
@@ -993,6 +991,8 @@ export interface SeedingInfluencer {
   seeding_type: SeedingType;       // 무가/유가
   content_type: ContentType;       // 스토리/릴스/피드
   fee?: number;                    // 원고비 (유가인 경우)
+  product_name?: string;           // 발송 제품명
+  product_price?: number;          // 제품 단가
   status: SeedingStatus;
 
   // 배송 정보
