@@ -267,21 +267,19 @@ function normalizeInfluencerData(data: any[]): any[] {
       console.log('[normalizeInfluencerData] Row 0 - priceRaw:', priceRaw, '→', parsePrice(priceRaw));
     }
 
-    // following_count: 0도 유효한 값이므로 undefined 체크 필요
-    const followingCount = followingRaw !== undefined ? parseNumber(followingRaw) : undefined;
-    const followerCount = followerRaw !== undefined ? parseNumber(followerRaw) : 0;
-
     return {
       ...item,
       // 날짜 필드 변환
       listed_at: parseDateToISO(listedAtRaw),
       posted_at: parseDateToISO(postedAtRaw),
-      // 숫자 필드 변환 (0도 유효한 값)
-      follower_count: followerCount,
-      following_count: followingCount !== undefined && followingCount > 0 ? followingCount : undefined,
+      // 숫자 필드 변환 (0도 유효한 값으로 유지)
+      follower_count: parseNumber(followerRaw),
+      following_count: followingRaw !== undefined && followingRaw !== null && followingRaw !== ''
+        ? parseNumber(followingRaw)
+        : undefined,
       // 가격 필드 변환
       product_price: parsePrice(priceRaw),
-      fee: parseNumber(feeRaw) || 0,
+      fee: parseNumber(feeRaw),
       // 문자열 필드
       email: emailRaw ? String(emailRaw).trim() : item.email,
       profile_url: profileUrlRaw ? String(profileUrlRaw).trim() : item.profile_url,
