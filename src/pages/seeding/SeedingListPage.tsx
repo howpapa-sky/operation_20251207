@@ -26,6 +26,7 @@ import SeedingStatusTabs from '../../components/seeding/SeedingStatusTabs';
 import SeedingTable from '../../components/seeding/SeedingTable';
 import SeedingDetailPanel from '../../components/seeding/SeedingDetailPanel';
 import SeedingAddModal from '../../components/seeding/SeedingAddModal';
+import GoogleSheetsSync from '../../components/seeding/GoogleSheetsSync';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -74,6 +75,7 @@ export default function SeedingListPage() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
 
   // Fetch data
   useEffect(() => {
@@ -307,10 +309,7 @@ export default function SeedingListPage() {
         <SeedingListHeader
           project={currentProject}
           stats={projectStats}
-          onSync={() => {
-            // TODO: Implement Google Sheets sync
-            console.log('Sync clicked');
-          }}
+          onSync={() => setIsSyncModalOpen(true)}
         />
       )}
 
@@ -539,6 +538,20 @@ export default function SeedingListPage() {
           projectId={projectId}
           onAddSingle={handleAddSingle}
           onAddBulk={handleAddBulk}
+        />
+      )}
+
+      {/* Google Sheets Sync Modal */}
+      {currentProject && (
+        <GoogleSheetsSync
+          isOpen={isSyncModalOpen}
+          onClose={() => setIsSyncModalOpen(false)}
+          project={currentProject}
+          onSyncComplete={() => {
+            if (projectId) {
+              fetchInfluencers(projectId);
+            }
+          }}
         />
       )}
     </div>
