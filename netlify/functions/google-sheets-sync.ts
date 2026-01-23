@@ -673,6 +673,178 @@ async function exportToSheets(params: ExportParams): Promise<SyncResult> {
   };
 }
 
+// ========== 설문 응답 시트 컬럼 매핑 ==========
+
+const surveyColumnMapping: Record<string, string> = {
+  // 인스타그램 아이디 (매칭 키)
+  '인스타그램 아이디 (Ex. nucio_official)': 'account_id',
+  '인스타그램 아이디': 'account_id',
+  '인스타그램아이디': 'account_id',
+  'Instagram ID': 'account_id',
+  'instagram_id': 'account_id',
+
+  // 배송 정보
+  '성함 (받으시는분)': 'shipping.recipient_name',
+  '성함': 'shipping.recipient_name',
+  '받으시는분': 'shipping.recipient_name',
+  '수령인': 'shipping.recipient_name',
+
+  '전화번호': 'shipping.phone',
+  '연락처': 'shipping.phone',
+
+  '주소': 'shipping.address',
+  '배송주소': 'shipping.address',
+
+  '배송메모': 'shipping.memo',
+  '배송 메모': 'shipping.memo',
+  '요청사항': 'shipping.memo',
+
+  // 이메일
+  '이메일 주소': 'email',
+  '이메일': 'email',
+
+  // 기타
+  '원하시는 제품 (사전 협의된 제품으로 신청 해주세요)': 'requested_product',
+  '원하시는 제품': 'requested_product',
+  '제품': 'requested_product',
+
+  '브랜드': 'brand',
+  '타임스탬프': 'survey_submitted_at',
+};
+
+// 설문 응답에서 배송 정보 동기화
+interface SyncSurveyParams {
+  spreadsheetId: string;
+  sheetName: string;
+  projectId: string;
+}
+
+async function syncSurveyResponses(params: SyncSurveyParams): Promise<SyncResult> {
+  const sheets = await getSheets();
+  const spreadsheetId = extractSpreadsheetId(params.spreadsheetId);
+
+  // 설문 응답 시트 읽기
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${params.sheetName}!A:Z`,
+  });
+
+  const rows = response.data.values || [];
+  if (rows.length < 2) {
+    return { success: true, updated: 0, errors: ['설문 응답 데이터가 없습니다.'] };
+  }
+
+  const headers = rows[0] as string[];
+  const dataRows = rows.slice(1);
+
+  const errors: string[] = [];
+  let updatedCount = 0;
+  let notFoundCount = 0;
+
+  for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+    const row = dataRows[rowIndex];
+
+    try {
+      // 설문 응답 데이터 파싱
+      const surveyData: any = {
+        shipping: {},
+      };
+
+      headers.forEach((header, colIndex) => {
+        const field = surveyColumnMapping[header];
+        if (field && row[colIndex]) {
+          const value = String(row[colIndex]).trim();
+          if (value) {
+            setNestedValue(surveyData, field, value);
+          }
+        }
+      });
+
+      // account_id 정규화 (@ 제거 후 다시 추가)
+      let accountId = surveyData.account_id;
+      if (!accountId) {
+        continue; // 아이디 없으면 스킵
+      }
+
+      // @ 처리
+      accountId = accountId.replace(/^@/, '').trim();
+      const normalizedAccountId = `@${accountId}`;
+      const accountIdWithoutAt = accountId;
+
+      // DB에서 해당 인플루언서 찾기 (프로젝트 내에서)
+      const { data: influencers, error: findError } = await supabase
+        .from('seeding_influencers')
+        .select('id, account_id, shipping')
+        .eq('project_id', params.projectId)
+        .or(`account_id.eq.${normalizedAccountId},account_id.eq.${accountIdWithoutAt},account_id.ilike.%${accountIdWithoutAt}%`);
+
+      if (findError) {
+        errors.push(`행 ${rowIndex + 2}: DB 조회 오류 - ${findError.message}`);
+        continue;
+      }
+
+      if (!influencers || influencers.length === 0) {
+        notFoundCount++;
+        continue; // 매칭되는 인플루언서 없음
+      }
+
+      // 첫 번째 매칭된 인플루언서 업데이트
+      const influencer = influencers[0];
+
+      // 기존 shipping 정보와 병합
+      const existingShipping = influencer.shipping || {};
+      const updatedShipping = {
+        ...existingShipping,
+        recipient_name: surveyData.shipping?.recipient_name || existingShipping.recipient_name || '',
+        phone: surveyData.shipping?.phone || existingShipping.phone || '',
+        address: surveyData.shipping?.address || existingShipping.address || '',
+        memo: surveyData.shipping?.memo || existingShipping.memo || '',
+      };
+
+      // 업데이트할 데이터 구성
+      const updateData: any = {
+        shipping: updatedShipping,
+        updated_at: new Date().toISOString(),
+      };
+
+      // 이메일 업데이트 (기존에 없으면)
+      if (surveyData.email) {
+        updateData.email = surveyData.email;
+      }
+
+      // 요청 제품을 notes에 추가
+      if (surveyData.requested_product) {
+        updateData.notes = `[요청제품] ${surveyData.requested_product}`;
+      }
+
+      // DB 업데이트
+      const { error: updateError } = await supabase
+        .from('seeding_influencers')
+        .update(updateData)
+        .eq('id', influencer.id);
+
+      if (updateError) {
+        errors.push(`행 ${rowIndex + 2}: 업데이트 오류 - ${updateError.message}`);
+        continue;
+      }
+
+      updatedCount++;
+    } catch (err: any) {
+      errors.push(`행 ${rowIndex + 2}: ${err.message}`);
+    }
+  }
+
+  if (notFoundCount > 0) {
+    errors.push(`${notFoundCount}건의 응답이 프로젝트 내 인플루언서와 매칭되지 않았습니다.`);
+  }
+
+  return {
+    success: true,
+    updated: updatedCount,
+    errors,
+  };
+}
+
 // ========== Handler ==========
 
 const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
@@ -725,6 +897,10 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
 
       case 'export':
         result = await exportToSheets(params);
+        break;
+
+      case 'sync-survey':
+        result = await syncSurveyResponses(params);
         break;
 
       default:

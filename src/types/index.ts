@@ -933,6 +933,14 @@ export interface SeedingProject {
   // 상태
   status: SeedingProjectStatus;
 
+  // Google Sheets 연동
+  listup_sheet_url?: string;       // 리스트업 시트 URL
+  listup_sheet_name?: string;      // 리스트업 시트명 (기본: Sheet1)
+  survey_sheet_url?: string;       // 설문 응답 시트 URL
+  survey_sheet_name?: string;      // 설문 응답 시트명 (기본: Form Responses 1)
+  auto_sync_enabled?: boolean;     // 자동 동기화 활성화
+  last_synced_at?: string;         // 마지막 동기화 일시
+
   // 메타
   description?: string;
   assignee_id?: string;
