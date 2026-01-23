@@ -676,12 +676,15 @@ async function exportToSheets(params: ExportParams): Promise<SyncResult> {
 // ========== 설문 응답 시트 컬럼 매핑 ==========
 
 const surveyColumnMapping: Record<string, string> = {
-  // 인스타그램 아이디 (매칭 키)
+  // 인스타그램 아이디 (매칭 키) - 다양한 변형 지원
   '인스타그램 아이디 (Ex. nucio_official)': 'account_id',
+  '인스타그램 아이디 (Ex. @howpapa_official)': 'account_id',
   '인스타그램 아이디': 'account_id',
   '인스타그램아이디': 'account_id',
   'Instagram ID': 'account_id',
   'instagram_id': 'account_id',
+  '인스타': 'account_id',
+  'instagram': 'account_id',
 
   // 배송 정보
   '성함 (받으시는분)': 'shipping.recipient_name',
@@ -751,7 +754,29 @@ async function syncSurveyResponses(params: SyncSurveyParams): Promise<SyncResult
       };
 
       headers.forEach((header, colIndex) => {
-        const field = surveyColumnMapping[header];
+        // 정확한 매핑 먼저 시도
+        let field = surveyColumnMapping[header];
+
+        // 정확한 매핑이 없으면 부분 매칭 시도
+        if (!field) {
+          const headerLower = header.toLowerCase();
+          if (headerLower.includes('인스타그램') || headerLower.includes('instagram')) {
+            field = 'account_id';
+          } else if (headerLower.includes('성함') || headerLower.includes('받으시는')) {
+            field = 'shipping.recipient_name';
+          } else if (headerLower.includes('전화') || headerLower.includes('연락')) {
+            field = 'shipping.phone';
+          } else if (headerLower.includes('주소')) {
+            field = 'shipping.address';
+          } else if (headerLower.includes('배송') && headerLower.includes('메모')) {
+            field = 'shipping.memo';
+          } else if (headerLower.includes('이메일') || headerLower.includes('email')) {
+            field = 'email';
+          } else if (headerLower.includes('제품')) {
+            field = 'requested_product';
+          }
+        }
+
         if (field && row[colIndex]) {
           const value = String(row[colIndex]).trim();
           if (value) {
@@ -760,14 +785,21 @@ async function syncSurveyResponses(params: SyncSurveyParams): Promise<SyncResult
         }
       });
 
-      // account_id 정규화 (@ 제거 후 다시 추가)
+      // account_id에서 Instagram URL이면 username 추출
       let accountId = surveyData.account_id;
       if (!accountId) {
         continue; // 아이디 없으면 스킵
       }
 
-      // @ 처리
-      accountId = accountId.replace(/^@/, '').trim();
+      // URL에서 username 추출 (extractAccountFromUrl 함수 활용)
+      const extracted = extractAccountFromUrl(accountId);
+      if (extracted.accountId) {
+        accountId = extracted.accountId.replace(/^@/, '').trim();
+      } else {
+        // URL이 아니면 직접 @ 처리
+        accountId = accountId.replace(/^@/, '').trim();
+      }
+
       const normalizedAccountId = `@${accountId}`;
       const accountIdWithoutAt = accountId;
 
