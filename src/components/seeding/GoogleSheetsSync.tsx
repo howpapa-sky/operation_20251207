@@ -280,7 +280,7 @@ function normalizeInfluencerData(data: any[]): any[] {
       posted_at: parseDateToISO(postedAtRaw),
       // 숫자 필드 변환 (0도 유효한 값으로 유지)
       follower_count: parseNumber(followerRaw),
-      following_count: followingRaw !== undefined && followingRaw !== null && followingRaw !== ''
+      following_count: followingRaw != null && followingRaw !== ''
         ? parseNumber(followingRaw)
         : undefined,
       // 가격 필드 변환
