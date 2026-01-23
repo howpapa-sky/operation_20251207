@@ -333,9 +333,9 @@ export default function GoogleSheetsSync({
   const [error, setError] = useState<string | null>(null);
 
   // 스토어
-  const { addInfluencersBulk, deleteInfluencersByProject, getInfluencersByProject } = useSeedingStore();
+  const { addInfluencersBulk, deleteInfluencersByProject, getInfluencersByProject, updateProject } = useSeedingStore();
 
-  // 모달 열릴 때 초기화
+  // 모달 열릴 때 초기화 및 저장된 URL 로드
   useEffect(() => {
     if (isOpen) {
       setStep('config');
@@ -343,8 +343,16 @@ export default function GoogleSheetsSync({
       setSyncResult(null);
       setError(null);
       setSyncProgress(0);
+
+      // 저장된 시트 URL 불러오기
+      if (project.listup_sheet_url) {
+        setSpreadsheetUrl(project.listup_sheet_url);
+      }
+      if (project.listup_sheet_name) {
+        setSheetName(project.listup_sheet_name);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, project.listup_sheet_url, project.listup_sheet_name]);
 
   // 미리보기 실행
   const handlePreview = async () => {
@@ -446,6 +454,13 @@ export default function GoogleSheetsSync({
         });
       }
 
+      // 시트 URL 저장 (다음에 자동으로 불러오기 위해)
+      await updateProject(project.id, {
+        listup_sheet_url: spreadsheetUrl,
+        listup_sheet_name: sheetName,
+        last_synced_at: new Date().toISOString(),
+      });
+
       setStep('result');
       onSyncComplete?.();
     } catch (err: any) {
@@ -543,6 +558,43 @@ export default function GoogleSheetsSync({
                     placeholder="Sheet1"
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   />
+                </div>
+
+                {/* 자동 동기화 설정 */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
+                      <Loader2 className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-gray-900">
+                        매일 오전 9시 자동 가져오기
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {project.last_synced_at
+                          ? `마지막 동기화: ${new Date(project.last_synced_at).toLocaleString('ko-KR')}`
+                          : '아직 동기화된 적 없음'}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      await updateProject(project.id, {
+                        auto_sync_enabled: !project.auto_sync_enabled,
+                        listup_sheet_url: spreadsheetUrl || project.listup_sheet_url,
+                        listup_sheet_name: sheetName || project.listup_sheet_name,
+                      });
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      project.auto_sync_enabled ? 'bg-orange-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        project.auto_sync_enabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
                 </div>
 
                 {/* 동기화 방향 */}
