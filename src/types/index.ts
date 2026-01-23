@@ -984,8 +984,10 @@ export interface SeedingInfluencer {
   email?: string;
   phone?: string;
   follower_count: number;
+  following_count?: number;        // 팔로잉 수
   category?: string;               // 뷰티, 육아, 라이프스타일 등
   profile_url?: string;
+  listed_at?: string;              // 리스트업 날짜
 
   // 시딩 정보
   seeding_type: SeedingType;       // 무가/유가
