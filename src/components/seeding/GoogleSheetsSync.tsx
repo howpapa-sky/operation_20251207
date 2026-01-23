@@ -440,7 +440,7 @@ export default function GoogleSheetsSync({
         // 가져오기
         setSyncProgress(10);
 
-        // 기존 데이터 삭제 (중복 방지) - project_id로 한 번에 삭제
+        // 기존 데이터 삭제 (중복 방지)
         await deleteInfluencersByProject(project.id);
 
         setSyncProgress(30);
@@ -454,21 +454,15 @@ export default function GoogleSheetsSync({
         setSyncProgress(60);
 
         if (result.data && result.data.length > 0) {
-          // 디버깅: Netlify Function에서 반환된 원본 데이터 확인
-          console.log('[GoogleSheetsSync] Raw data from Netlify Function:', JSON.stringify(result.data[0], null, 2));
-          console.log('[GoogleSheetsSync] Raw data keys:', Object.keys(result.data[0]));
+          // 디버깅: Netlify Function에서 반환된 데이터 확인
+          console.log('[handleSync] First record from Netlify:', JSON.stringify(result.data[0], null, 2));
+          console.log('[handleSync] Keys:', Object.keys(result.data[0]));
+          console.log('[handleSync] listed_at:', result.data[0]?.listed_at);
+          console.log('[handleSync] following_count:', result.data[0]?.following_count);
+          console.log('[handleSync] product_price:', result.data[0]?.product_price);
 
-          // 프론트엔드에서 데이터 정규화 (Netlify Function 버전과 상관없이 동작)
-          const normalizedData = normalizeInfluencerData(result.data);
-
-          // 디버깅: 정규화 후 데이터 확인
-          console.log('[GoogleSheetsSync] Normalized data:', JSON.stringify(normalizedData[0], null, 2));
-          console.log('[GoogleSheetsSync] listed_at:', normalizedData[0]?.listed_at);
-          console.log('[GoogleSheetsSync] following_count:', normalizedData[0]?.following_count);
-          console.log('[GoogleSheetsSync] product_price:', normalizedData[0]?.product_price);
-
-          // DB에 저장
-          await addInfluencersBulk(normalizedData);
+          // Netlify Function에서 이미 처리된 데이터를 그대로 DB에 저장
+          await addInfluencersBulk(result.data);
         }
 
         setSyncProgress(100);
