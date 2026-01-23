@@ -707,6 +707,10 @@ async function importFromSheets(params: ImportParams): Promise<SyncResult> {
           }
         } else if (isYes(record._product_shipped)) {
           record.status = 'shipped';
+          // shipped_at 설정 (없으면 현재 시간)
+          if (!record.shipping.shipped_at) {
+            record.shipping.shipped_at = new Date().toISOString();
+          }
         } else if (isYes(record._acceptance)) {
           record.status = 'accepted';
           if (!record.accepted_at) {
@@ -728,7 +732,6 @@ async function importFromSheets(params: ImportParams): Promise<SyncResult> {
       delete record._acceptance;
       delete record._product_shipped;
       delete record._upload_completed;
-      delete record.following_count; // DB에 없는 필드
       delete record.listed_at; // created_at으로 대체됨
 
       // 기본값 설정
