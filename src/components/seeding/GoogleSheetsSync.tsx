@@ -110,27 +110,87 @@ function findFieldValue(item: any, ...fieldNames: string[]): any {
   return undefined;
 }
 
+// Yes/No 값을 boolean으로 변환
+function parseYesNo(value: any): boolean {
+  if (!value) return false;
+  const str = String(value).trim().toLowerCase();
+  return str === 'yes' || str === 'y' || str === 'o' || str === '예' || str === '네' || str === 'true' || str === '1';
+}
+
+// 상태 결정 (Yes/No 필드들로부터)
+function determineStatus(item: any): string {
+  // Upload completed → posted
+  const uploadCompleted = findFieldValue(item, '_upload_completed', 'Upload completed', '업로드완료');
+  if (parseYesNo(uploadCompleted)) return 'posted';
+
+  // Product Shipment → shipped
+  const shipped = findFieldValue(item, '_product_shipped', 'Product Shipment (Yes/No)', 'Product Shipment', '발송', '발송여부', '제품발송');
+  if (parseYesNo(shipped)) return 'shipped';
+
+  // acceptance → accepted or rejected
+  const acceptance = findFieldValue(item, '_acceptance', 'acceptance (Yes/No)', 'acceptance', '수락', '수락여부');
+  if (acceptance !== undefined && acceptance !== null && acceptance !== '') {
+    if (parseYesNo(acceptance)) return 'accepted';
+    // "No"인 경우 rejected
+    const str = String(acceptance).trim().toLowerCase();
+    if (str === 'no' || str === 'n' || str === 'x' || str === '아니오' || str === '거절') return 'rejected';
+  }
+
+  // Response received → contacted
+  const response = findFieldValue(item, '_response_received', 'Response received (Yes/No)', 'Response received', '응답여부', '응답');
+  if (parseYesNo(response)) return 'contacted';
+
+  // DM sent → contacted
+  const dmSent = findFieldValue(item, '_dm_sent', 'DM sent (Yes/No)', 'DM sent', 'DM발송', 'dm발송');
+  if (parseYesNo(dmSent)) return 'contacted';
+
+  // 기본값
+  return item.status || 'listed';
+}
+
 // 인플루언서 데이터 정규화 (프론트엔드에서 추가 변환)
-// 다양한 필드명을 모두 처리 (배포된 Netlify Function 버전과 상관없이 동작)
+// Google Sheets 1열 헤더 전체 매핑 지원
 function normalizeInfluencerData(data: any[]): any[] {
   return data.map(item => {
-    // 다양한 필드명에서 값 찾기
+    // ===== 기본 정보 =====
     const listedAtRaw = findFieldValue(item, 'listed_at', 'Date', 'date', '날짜', '등록일');
-    const followingRaw = findFieldValue(item, 'following_count', 'Following', 'following', '팔로잉');
     const followerRaw = findFieldValue(item, 'follower_count', 'Follower', 'follower', '팔로워', 'Followers');
-    const priceRaw = findFieldValue(item, 'product_price', 'Cost', 'cost', 'Price', 'price', '가격', '제품단가', '단가');
+    const followingRaw = findFieldValue(item, 'following_count', 'Following', 'following', '팔로잉');
+    const emailRaw = findFieldValue(item, 'email', 'E-mail', 'Email', 'e-mail', '이메일');
+    const profileUrlRaw = findFieldValue(item, 'profile_url', 'URL(youtube, instagram)', 'URL', 'url', '프로필URL', '링크');
+
+    // ===== 제품 정보 =====
+    const productNameRaw = findFieldValue(item, 'product_name', 'Product', 'product', '제품명', '제품', '상품명');
+    const priceRaw = findFieldValue(item, 'product_price', 'price', 'Price', 'Cost', 'cost', '가격', '제품단가', '단가');
     const feeRaw = findFieldValue(item, 'fee', 'Fee', '원고비');
+
+    // ===== 날짜 정보 =====
+    const postedAtRaw = findFieldValue(item, 'posted_at', 'upload date (MM/DD)', 'upload date', '업로드일', '포스팅일');
+
+    // ===== 메모 =====
+    const notesRaw = findFieldValue(item, 'notes', 'NOTE', 'note', 'Notes', 'Memo', '메모', '비고');
+
+    // ===== 상태 결정 =====
+    const status = determineStatus(item);
 
     return {
       ...item,
       // 날짜 필드 변환
       listed_at: parseDateToISO(listedAtRaw),
+      posted_at: parseDateToISO(postedAtRaw),
       // 숫자 필드 변환
       follower_count: parseNumber(followerRaw),
       following_count: parseNumber(followingRaw) || undefined,
       // 가격 필드 변환
       product_price: parsePrice(priceRaw),
       fee: parseNumber(feeRaw) || 0,
+      // 문자열 필드
+      email: emailRaw ? String(emailRaw).trim() : item.email,
+      profile_url: profileUrlRaw ? String(profileUrlRaw).trim() : item.profile_url,
+      product_name: productNameRaw ? String(productNameRaw).trim() : item.product_name,
+      notes: notesRaw ? String(notesRaw).trim() : item.notes,
+      // 상태
+      status,
     };
   });
 }
