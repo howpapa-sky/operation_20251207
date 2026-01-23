@@ -180,6 +180,7 @@ const columnMapping: Record<string, string> = {
   '상품단가': 'product_price',
   '상품가격': 'product_price',
   '단가': 'product_price',
+  '가격': 'product_price',
   'price': 'product_price',
   'Price': 'product_price',
   'product_price': 'product_price',
@@ -199,15 +200,35 @@ const columnMapping: Record<string, string> = {
   'DM sent (Yes/No)': '_dm_sent',
   'DM sent': '_dm_sent',
   'DM': '_dm_sent',
+  'dm발송여부': '_dm_sent',
+  'DM발송여부': '_dm_sent',
+  'DM발송': '_dm_sent',
+  'dm발송': '_dm_sent',
+
   'Response received (Yes/No)': '_response_received',
   'Response received': '_response_received',
   'Response': '_response_received',
+  '응답여부': '_response_received',
+  '응답': '_response_received',
+
   'acceptance (Yes/No)': '_acceptance',
   'acceptance': '_acceptance',
   '수락': '_acceptance',
+  '수락여부': '_acceptance',
+
   'Product Shipment (Yes/No)': '_product_shipped',
   'Product Shipment': '_product_shipped',
   '발송': '_product_shipped',
+  '발송여부': '_product_shipped',
+  '제품발송': '_product_shipped',
+  '제품발송여부': '_product_shipped',
+
+  // 발송일자
+  '발송일자': 'shipping.shipped_at',
+  '발송일': 'shipping.shipped_at',
+  'shipped_at': 'shipping.shipped_at',
+  'Shipped Date': 'shipping.shipped_at',
+
   'upload date (MM/DD)': 'posted_at',
   'upload date': 'posted_at',
   '업로드일': 'posted_at',
@@ -331,6 +352,34 @@ function extractAccountFromUrl(url: string): { accountId: string | null; platfor
   }
 
   return { accountId: null, platform: null };
+}
+
+// ========== "제품명 (가격원)" 형식 파싱 ==========
+
+function parseProductWithPrice(value: string): { productName: string | null; productPrice: number | null } {
+  if (!value || typeof value !== 'string') {
+    return { productName: null, productPrice: null };
+  }
+
+  const str = value.trim();
+
+  // 패턴: "제품명 (가격원)" 또는 "제품명 (가격)"
+  // 예: "바스앤샴푸·힙클렌저 (15,000원)", "스틱밥 2종 (15000원)", "리프팅크림 (28,000)"
+  const match = str.match(/^(.+?)\s*\(([0-9,]+)원?\)$/);
+
+  if (match) {
+    const productName = match[1].trim();
+    const priceStr = match[2].replace(/,/g, '');
+    const productPrice = parseInt(priceStr, 10);
+
+    return {
+      productName,
+      productPrice: isNaN(productPrice) ? null : productPrice,
+    };
+  }
+
+  // 패턴 없으면 전체를 제품명으로 반환
+  return { productName: str, productPrice: null };
 }
 
 // ========== Google Sheets 인증 ==========
@@ -574,6 +623,17 @@ async function importFromSheets(params: ImportParams): Promise<SyncResult> {
         const extracted = extractAccountFromUrl(record.account_name);
         if (extracted.accountId) {
           record.account_id = extracted.accountId;
+        }
+      }
+
+      // product_name에서 가격 추출 시도 (예: "바스앤샴푸·힙클렌저 (15,000원)")
+      if (record.product_name && !record.product_price) {
+        const parsed = parseProductWithPrice(record.product_name);
+        if (parsed.productName) {
+          record.product_name = parsed.productName;
+        }
+        if (parsed.productPrice) {
+          record.product_price = parsed.productPrice;
         }
       }
 
