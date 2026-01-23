@@ -732,7 +732,6 @@ async function importFromSheets(params: ImportParams): Promise<SyncResult> {
       delete record._acceptance;
       delete record._product_shipped;
       delete record._upload_completed;
-      delete record.listed_at; // created_at으로 대체됨
 
       // 기본값 설정
       if (!record.platform) record.platform = 'instagram';
