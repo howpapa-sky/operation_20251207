@@ -180,6 +180,7 @@ const columnMapping: Record<string, string> = {
   '상품단가': 'product_price',
   '상품가격': 'product_price',
   '단가': 'product_price',
+  '가격': 'product_price',
   'price': 'product_price',
   'Price': 'product_price',
   'product_price': 'product_price',
@@ -199,15 +200,35 @@ const columnMapping: Record<string, string> = {
   'DM sent (Yes/No)': '_dm_sent',
   'DM sent': '_dm_sent',
   'DM': '_dm_sent',
+  'dm발송여부': '_dm_sent',
+  'DM발송여부': '_dm_sent',
+  'DM발송': '_dm_sent',
+  'dm발송': '_dm_sent',
+
   'Response received (Yes/No)': '_response_received',
   'Response received': '_response_received',
   'Response': '_response_received',
+  '응답여부': '_response_received',
+  '응답': '_response_received',
+
   'acceptance (Yes/No)': '_acceptance',
   'acceptance': '_acceptance',
   '수락': '_acceptance',
+  '수락여부': '_acceptance',
+
   'Product Shipment (Yes/No)': '_product_shipped',
   'Product Shipment': '_product_shipped',
   '발송': '_product_shipped',
+  '발송여부': '_product_shipped',
+  '제품발송': '_product_shipped',
+  '제품발송여부': '_product_shipped',
+
+  // 발송일자
+  '발송일자': 'shipping.shipped_at',
+  '발송일': 'shipping.shipped_at',
+  'shipped_at': 'shipping.shipped_at',
+  'Shipped Date': 'shipping.shipped_at',
+
   'upload date (MM/DD)': 'posted_at',
   'upload date': 'posted_at',
   '업로드일': 'posted_at',
