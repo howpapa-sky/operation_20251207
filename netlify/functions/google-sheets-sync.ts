@@ -354,6 +354,34 @@ function extractAccountFromUrl(url: string): { accountId: string | null; platfor
   return { accountId: null, platform: null };
 }
 
+// ========== "제품명 (가격원)" 형식 파싱 ==========
+
+function parseProductWithPrice(value: string): { productName: string | null; productPrice: number | null } {
+  if (!value || typeof value !== 'string') {
+    return { productName: null, productPrice: null };
+  }
+
+  const str = value.trim();
+
+  // 패턴: "제품명 (가격원)" 또는 "제품명 (가격)"
+  // 예: "바스앤샴푸·힙클렌저 (15,000원)", "스틱밥 2종 (15000원)", "리프팅크림 (28,000)"
+  const match = str.match(/^(.+?)\s*\(([0-9,]+)원?\)$/);
+
+  if (match) {
+    const productName = match[1].trim();
+    const priceStr = match[2].replace(/,/g, '');
+    const productPrice = parseInt(priceStr, 10);
+
+    return {
+      productName,
+      productPrice: isNaN(productPrice) ? null : productPrice,
+    };
+  }
+
+  // 패턴 없으면 전체를 제품명으로 반환
+  return { productName: str, productPrice: null };
+}
+
 // ========== Google Sheets 인증 ==========
 
 async function getGoogleCredentials(): Promise<{ email: string; privateKey: string }> {
@@ -595,6 +623,17 @@ async function importFromSheets(params: ImportParams): Promise<SyncResult> {
         const extracted = extractAccountFromUrl(record.account_name);
         if (extracted.accountId) {
           record.account_id = extracted.accountId;
+        }
+      }
+
+      // product_name에서 가격 추출 시도 (예: "바스앤샴푸·힙클렌저 (15,000원)")
+      if (record.product_name && !record.product_price) {
+        const parsed = parseProductWithPrice(record.product_name);
+        if (parsed.productName) {
+          record.product_name = parsed.productName;
+        }
+        if (parsed.productPrice) {
+          record.product_price = parsed.productPrice;
         }
       }
 
