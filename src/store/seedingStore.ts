@@ -125,6 +125,11 @@ function dbToProject(record: any): SeedingProject {
     status: record.status,
     description: record.description || undefined,
     assignee_id: record.assignee_id || undefined,
+    // Google Sheets 동기화 설정
+    listup_sheet_url: record.listup_sheet_url || undefined,
+    listup_sheet_name: record.listup_sheet_name || 'Sheet1',
+    auto_sync_enabled: record.auto_sync_enabled || false,
+    last_synced_at: record.last_synced_at || undefined,
     created_at: record.created_at,
     updated_at: record.updated_at,
   };
