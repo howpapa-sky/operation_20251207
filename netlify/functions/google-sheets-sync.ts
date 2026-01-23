@@ -519,6 +519,40 @@ function convertValueToSheet(field: string, value: any): string {
 
 // ========== 핵심 기능 ==========
 
+// 내부 필드명 → 한글 표시명 매핑
+const fieldDisplayNames: Record<string, string> = {
+  'listed_at': '날짜',
+  'account_id': '계정',
+  'account_name': '계정',
+  'follower_count': '팔로워',
+  'following_count': '팔로잉',
+  'email': '이메일',
+  'phone': '연락처',
+  'platform': '플랫폼',
+  'category': '카테고리',
+  'profile_url': '계정',
+  'seeding_type': '유형',
+  'content_type': '콘텐츠',
+  'fee': '원고비',
+  'product_name': '제품',
+  'product_price': '가격',
+  'status': '상태',
+  'notes': '비고',
+  '_dm_sent': 'dm발송여부',
+  '_response_received': '응답여부',
+  '_acceptance': '수락여부',
+  '_product_shipped': '발송여부',
+  '_upload_completed': '업로드완료',
+  'posted_at': '업로드일',
+  'shipping.recipient_name': '수령인',
+  'shipping.phone': '배송연락처',
+  'shipping.address': '주소',
+  'shipping.quantity': '수량',
+  'shipping.carrier': '택배사',
+  'shipping.tracking_number': '송장번호',
+  'shipping.shipped_at': '발송일자',
+};
+
 // 스프레드시트 미리보기
 async function previewSheets(params: PreviewParams): Promise<any> {
   const sheets = await getSheets();
@@ -542,8 +576,14 @@ async function previewSheets(params: PreviewParams): Promise<any> {
   const unmappedHeaders: string[] = [];
 
   headers.forEach((header) => {
-    if (columnMapping[header]) {
-      mappedFields.push(columnMapping[header]);
+    const cleanHeader = header.trim().replace(/^["'\n]+|["'\n]+$/g, '');
+    const field = columnMapping[header] || columnMapping[cleanHeader];
+    if (field) {
+      // 한글 표시명으로 변환 (중복 제거)
+      const displayName = fieldDisplayNames[field] || field;
+      if (!mappedFields.includes(displayName)) {
+        mappedFields.push(displayName);
+      }
     } else {
       unmappedHeaders.push(header);
     }
@@ -602,7 +642,9 @@ async function importFromSheets(params: ImportParams): Promise<SyncResult> {
       };
 
       headers.forEach((header, colIndex) => {
-        const field = columnMapping[header];
+        // 헤더 정리 (따옴표, 줄바꿈 제거)
+        const cleanHeader = header.trim().replace(/^["'\n]+|["'\n]+$/g, '');
+        const field = columnMapping[header] || columnMapping[cleanHeader];
         if (field) {
           const value = convertValueToDb(field, row[colIndex]);
           if (value !== undefined) {
