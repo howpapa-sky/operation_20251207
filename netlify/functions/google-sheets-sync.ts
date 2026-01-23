@@ -3,8 +3,14 @@ import { google, sheets_v4 } from 'googleapis';
 import { createClient } from '@supabase/supabase-js';
 
 // ========== Supabase 클라이언트 ==========
-const supabaseUrl = process.env.VITE_SUPABASE_URL!;
-const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY!;
+// Netlify Functions는 VITE_ 접두사 환경변수에 접근할 수 없음
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY!;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error('Missing Supabase environment variables');
+}
+
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // ========== 타입 정의 ==========
@@ -445,6 +451,17 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
   }
 
   try {
+    // 환경변수 체크
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({
+          error: 'Supabase 환경변수가 설정되지 않았습니다. Netlify에 SUPABASE_URL과 SUPABASE_SERVICE_ROLE_KEY를 추가하세요.',
+        }),
+      };
+    }
+
     const body = JSON.parse(event.body || '{}');
     const { action, ...params } = body;
 
