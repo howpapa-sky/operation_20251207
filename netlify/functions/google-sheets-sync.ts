@@ -748,7 +748,14 @@ async function importFromSheets(params: ImportParams): Promise<SyncResult> {
         const cleanHeader = header.trim().replace(/^["'\n]+|["'\n]+$/g, '');
         const field = columnMapping[header] || columnMapping[cleanHeader];
         if (field) {
-          const value = convertValueToDb(field, row[colIndex]);
+          const rawValue = row[colIndex];
+          const value = convertValueToDb(field, rawValue);
+
+          // 디버깅 로그 (첫 번째 행만)
+          if (rowIndex === 0 && (field === 'listed_at' || field === 'following_count' || field === 'product_price' || field === 'follower_count')) {
+            console.log(`[DEBUG] header="${header}", field="${field}", raw="${rawValue}", converted="${value}"`);
+          }
+
           if (value !== undefined) {
             setNestedValue(record, field, value);
           }
@@ -844,11 +851,25 @@ async function importFromSheets(params: ImportParams): Promise<SyncResult> {
       // 행 인덱스 저장 (동기화용)
       record.sheet_row_index = rowIndex + 2; // 1-indexed, 헤더 제외
 
+      // 첫 번째 레코드 디버깅 로그
+      if (rowIndex === 0) {
+        console.log('[DEBUG] First record:', JSON.stringify({
+          account_id: record.account_id,
+          listed_at: record.listed_at,
+          follower_count: record.follower_count,
+          following_count: record.following_count,
+          product_price: record.product_price,
+        }, null, 2));
+      }
+
       results.push(record);
     } catch (err: any) {
       errors.push(`행 ${rowIndex + 2}: ${err.message}`);
     }
   });
+
+  // 전체 결과 요약 로그
+  console.log(`[DEBUG] Total records: ${results.length}, First record fields: listed_at=${results[0]?.listed_at}, following_count=${results[0]?.following_count}, product_price=${results[0]?.product_price}`);
 
   return {
     success: true,
