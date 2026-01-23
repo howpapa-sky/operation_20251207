@@ -20,7 +20,11 @@ import { SeedingProject, SeedingInfluencer } from '../../types';
 
 // ========== 프론트엔드 데이터 변환 유틸리티 ==========
 
-// 날짜 문자열을 ISO 형식으로 변환
+// 현재 연도 가져오기
+const CURRENT_YEAR = new Date().getFullYear();
+
+// 날짜 문자열을 ISO 형식(YYYY-MM-DD)으로 변환
+// 지원 형식: YYYY-MM-DD, MM/DD/YYYY, YYYY.MM.DD, MM/DD, 12월4일, 12/4 등
 function parseDateToISO(value: any): string | undefined {
   if (!value) return undefined;
 
@@ -32,6 +36,13 @@ function parseDateToISO(value: any): string | undefined {
     return str.split('T')[0];
   }
 
+  // YYYY.MM.DD 또는 YYYY/MM/DD 형식
+  const yyyymmddMatch = str.match(/^(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})$/);
+  if (yyyymmddMatch) {
+    const [, year, month, day] = yyyymmddMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
   // MM/DD/YYYY 형식
   const mmddyyyyMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (mmddyyyyMatch) {
@@ -39,14 +50,46 @@ function parseDateToISO(value: any): string | undefined {
     return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
   }
 
-  // YYYY.MM.DD 형식
-  const yyyymmddMatch = str.match(/^(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})$/);
-  if (yyyymmddMatch) {
-    const [, year, month, day] = yyyymmddMatch;
+  // DD/MM/YYYY 형식 (유럽식) - 일이 12보다 크면 DD/MM으로 처리
+  const ddmmyyyyMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (ddmmyyyyMatch) {
+    const [, first, second, year] = ddmmyyyyMatch;
+    const firstNum = parseInt(first);
+    if (firstNum > 12) {
+      // DD/MM/YYYY
+      return `${year}-${second.padStart(2, '0')}-${first.padStart(2, '0')}`;
+    }
+  }
+
+  // MM/DD 형식 (연도 없음 - 현재 연도 사용)
+  const mmddMatch = str.match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (mmddMatch) {
+    const [, month, day] = mmddMatch;
+    return `${CURRENT_YEAR}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // 한글 형식: 12월4일, 12월 4일, 1월15일 등
+  const koreanMatch = str.match(/^(\d{1,2})월\s*(\d{1,2})일?$/);
+  if (koreanMatch) {
+    const [, month, day] = koreanMatch;
+    return `${CURRENT_YEAR}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // 한글 형식 with 연도: 2025년12월4일, 2025년 12월 4일
+  const koreanFullMatch = str.match(/^(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일?$/);
+  if (koreanFullMatch) {
+    const [, year, month, day] = koreanFullMatch;
     return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
   }
 
-  // Date 객체로 파싱 시도
+  // YYYYMMDD 형식 (구분자 없음)
+  const compactMatch = str.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (compactMatch) {
+    const [, year, month, day] = compactMatch;
+    return `${year}-${month}-${day}`;
+  }
+
+  // Date 객체로 파싱 시도 (최후의 수단)
   try {
     const date = new Date(str);
     if (!isNaN(date.getTime())) {
@@ -56,18 +99,19 @@ function parseDateToISO(value: any): string | undefined {
     // 무시
   }
 
+  console.warn(`[parseDateToISO] Failed to parse date: "${str}"`);
   return undefined;
 }
 
-// 숫자 파싱 (K, M 단위 지원)
+// 숫자 파싱 (K, M, 만, 억 단위 지원)
 function parseNumber(value: any): number {
   if (value === undefined || value === null) return 0;
   if (typeof value === 'number') return value;
 
-  const str = String(value).trim().toLowerCase();
+  const str = String(value).trim();
   if (!str) return 0;
 
-  // K 단위 (4.4K → 4400)
+  // K 단위 (4.4K, 293K → 4400, 293000)
   const kMatch = str.match(/^([\d,.]+)\s*k$/i);
   if (kMatch) {
     const num = parseFloat(kMatch[1].replace(/,/g, ''));
@@ -81,7 +125,27 @@ function parseNumber(value: any): number {
     return isNaN(num) ? 0 : Math.round(num * 1000000);
   }
 
-  // 일반 숫자
+  // 만 단위 (29.3만 → 293000)
+  const manMatch = str.match(/^([\d,.]+)\s*만$/);
+  if (manMatch) {
+    const num = parseFloat(manMatch[1].replace(/,/g, ''));
+    return isNaN(num) ? 0 : Math.round(num * 10000);
+  }
+
+  // 억 단위 (1.2억 → 120000000)
+  const ukMatch = str.match(/^([\d,.]+)\s*억$/);
+  if (ukMatch) {
+    const num = parseFloat(ukMatch[1].replace(/,/g, ''));
+    return isNaN(num) ? 0 : Math.round(num * 100000000);
+  }
+
+  // 소수점 포함 숫자 (79.2 등)
+  if (str.includes('.')) {
+    const num = parseFloat(str.replace(/,/g, ''));
+    return isNaN(num) ? 0 : Math.round(num);
+  }
+
+  // 일반 숫자 (쉼표, 공백 제거)
   const num = parseInt(str.replace(/[,\s]/g, ''), 10);
   return isNaN(num) ? 0 : num;
 }
