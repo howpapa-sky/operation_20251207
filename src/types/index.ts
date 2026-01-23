@@ -1100,3 +1100,76 @@ export interface SeedingProjectStats {
   total_reach: number;
   total_engagement: number;
 }
+
+// ========== 개발 요청서 ==========
+
+// 개발 요청 브랜드
+export type DevRequestBrand = 'howpapa' | 'nuccio' | 'common';
+
+export const devRequestBrandLabels: Record<DevRequestBrand, string> = {
+  howpapa: 'HOWPAPA',
+  nuccio: 'NUCCIO',
+  common: '공통',
+};
+
+// 개발 요청 유형
+export type DevRequestType = 'feature' | 'ui' | 'bug' | 'other';
+
+export const devRequestTypeLabels: Record<DevRequestType, string> = {
+  feature: '기능 추가',
+  ui: 'UI 개선',
+  bug: '버그 수정',
+  other: '기타',
+};
+
+// 개발 요청 우선순위
+export type DevRequestPriority = 'urgent' | 'high' | 'normal' | 'low';
+
+export const devRequestPriorityLabels: Record<DevRequestPriority, string> = {
+  urgent: '🔴 긴급',
+  high: '🟠 높음',
+  normal: '🟡 보통',
+  low: '🟢 낮음',
+};
+
+export const devRequestPriorityColors: Record<DevRequestPriority, string> = {
+  urgent: 'bg-red-100 text-red-700',
+  high: 'bg-orange-100 text-orange-700',
+  normal: 'bg-yellow-100 text-yellow-700',
+  low: 'bg-green-100 text-green-700',
+};
+
+// 개발 요청 상태
+export type DevRequestStatus = 'pending' | 'in_progress' | 'completed' | 'on_hold';
+
+export const devRequestStatusLabels: Record<DevRequestStatus, string> = {
+  pending: '⏳ 대기',
+  in_progress: '🔄 진행중',
+  completed: '✅ 완료',
+  on_hold: '⏸️ 보류',
+};
+
+export const devRequestStatusColors: Record<DevRequestStatus, string> = {
+  pending: 'bg-gray-100 text-gray-700',
+  in_progress: 'bg-blue-100 text-blue-700',
+  completed: 'bg-green-100 text-green-700',
+  on_hold: 'bg-amber-100 text-amber-700',
+};
+
+// 개발 요청서 인터페이스
+export interface DevRequest {
+  id: string;
+  request_date: string;            // 요청일
+  requester: string;               // 요청자
+  brand: DevRequestBrand;          // 브랜드
+  request_type: DevRequestType;    // 요청 유형
+  title: string;                   // 요청 제목
+  description: string;             // 상세 내용
+  priority: DevRequestPriority;    // 우선순위
+  due_date?: string;               // 희망 완료일
+  status: DevRequestStatus;        // 처리 상태
+  completed_at?: string;           // 처리 완료일
+  notes?: string;                  // 비고
+  created_at: string;
+  updated_at: string;
+}

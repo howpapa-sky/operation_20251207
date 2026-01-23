@@ -26,6 +26,7 @@ import {
   FolderKanban,
   MessageSquareText,
   BookOpen,
+  FileText,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useProjectSettingsStore } from '../../store/useProjectSettingsStore';
@@ -46,6 +47,7 @@ const allMenuItems: MenuItem[] = [
   { icon: Package, label: '제품 발주', path: '/product-order', projectType: 'product_order' },
   { icon: ShoppingCart, label: '공동구매', path: '/group-purchase', projectType: 'group_purchase' },
   { icon: FolderOpen, label: '기타 프로젝트', path: '/other', projectType: 'other' },
+  { icon: FileText, label: '개발 요청서', path: '/dev-requests' },
   { icon: Box, label: '제품 마스터', path: '/product-master' },
   { icon: Gift, label: '프로모션 관리', path: '/promotion' },
   { icon: DollarSign, label: '매출 관리', path: '/sales' },
