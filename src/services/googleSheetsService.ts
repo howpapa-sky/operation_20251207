@@ -27,12 +27,6 @@ export interface ExportResult {
   rows: number;
 }
 
-export interface SurveyResult {
-  success: boolean;
-  updated: number;
-  errors: string[];
-}
-
 export interface SyncParams {
   spreadsheetId: string;
   sheetName: string;
@@ -135,29 +129,6 @@ export const googleSheetsService = {
   },
 
   /**
-   * 설문 응답 시트에서 배송 정보 동기화
-   */
-  async syncSurveyResponses(params: SyncParams): Promise<SurveyResult> {
-    const response = await fetch(API_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'sync-survey',
-        spreadsheetId: this.extractSpreadsheetId(params.spreadsheetId),
-        sheetName: params.sheetName || 'Form Responses 1',
-        projectId: params.projectId,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || '설문 응답 동기화 실패');
-    }
-
-    return response.json();
-  },
-
-  /**
    * 컬럼 매핑 정보 (참조용)
    */
   getColumnMapping(): Record<string, string> {
@@ -173,6 +144,8 @@ export const googleSheetsService = {
       '무가/유가': 'seeding_type',
       '콘텐츠유형': 'content_type',
       '원고비': 'fee',
+      '제품명': 'product_name',
+      '제품단가': 'product_price',
       '상태': 'status',
       '수령인': 'shipping.recipient_name',
       '배송연락처': 'shipping.phone',
@@ -229,6 +202,8 @@ export const googleSheetsService = {
       '무가/유가',
       '콘텐츠유형',
       '원고비',
+      '제품명',
+      '제품단가',
       '상태',
       '수령인',
       '배송연락처',

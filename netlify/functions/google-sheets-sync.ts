@@ -166,6 +166,24 @@ const columnMapping: Record<string, string> = {
   'Cost': 'fee',
   'cost': 'fee',
 
+  // 제품 정보
+  '제품명': 'product_name',
+  '제품': 'product_name',
+  '상품명': 'product_name',
+  '상품': 'product_name',
+  'product': 'product_name',
+  'Product': 'product_name',
+  'product_name': 'product_name',
+
+  '제품단가': 'product_price',
+  '제품가격': 'product_price',
+  '상품단가': 'product_price',
+  '상품가격': 'product_price',
+  '단가': 'product_price',
+  'price': 'product_price',
+  'Price': 'product_price',
+  'product_price': 'product_price',
+
   // 날짜
   'date': 'listed_at',
   'Date': 'listed_at',
@@ -412,6 +430,7 @@ function convertValueToDb(field: string, value: any): any {
       return contentTypeMapping[value] || value;
     case 'follower_count':
     case 'fee':
+    case 'product_price':
     case 'shipping.quantity':
       const num = parseInt(String(value).replace(/[,\s]/g, ''), 10);
       return isNaN(num) ? 0 : num;
@@ -437,6 +456,7 @@ function convertValueToSheet(field: string, value: any): string {
       return contentTypeReverseMapping[value] || value;
     case 'follower_count':
     case 'fee':
+    case 'product_price':
       return Number(value).toLocaleString();
     default:
       return String(value);
@@ -673,229 +693,6 @@ async function exportToSheets(params: ExportParams): Promise<SyncResult> {
   };
 }
 
-// ========== 설문 응답 시트 컬럼 매핑 ==========
-
-const surveyColumnMapping: Record<string, string> = {
-  // 인스타그램 아이디 (매칭 키) - 다양한 변형 지원
-  '인스타그램 아이디 (Ex. nucio_official)': 'account_id',
-  '인스타그램 아이디 (Ex. @howpapa_official)': 'account_id',
-  '인스타그램 아이디': 'account_id',
-  '인스타그램아이디': 'account_id',
-  'Instagram ID': 'account_id',
-  'instagram_id': 'account_id',
-  '인스타': 'account_id',
-  'instagram': 'account_id',
-
-  // 배송 정보
-  '성함 (받으시는분)': 'shipping.recipient_name',
-  '성함': 'shipping.recipient_name',
-  '받으시는분': 'shipping.recipient_name',
-  '수령인': 'shipping.recipient_name',
-
-  '전화번호': 'shipping.phone',
-  '연락처': 'shipping.phone',
-
-  '주소': 'shipping.address',
-  '배송주소': 'shipping.address',
-
-  '배송메모': 'shipping.memo',
-  '배송 메모': 'shipping.memo',
-  '요청사항': 'shipping.memo',
-
-  // 이메일
-  '이메일 주소': 'email',
-  '이메일': 'email',
-
-  // 기타
-  '원하시는 제품 (사전 협의된 제품으로 신청 해주세요)': 'requested_product',
-  '원하시는 제품': 'requested_product',
-  '제품': 'requested_product',
-
-  '브랜드': 'brand',
-  '타임스탬프': 'survey_submitted_at',
-};
-
-// 설문 응답에서 배송 정보 동기화
-interface SyncSurveyParams {
-  spreadsheetId: string;
-  sheetName: string;
-  projectId: string;
-}
-
-async function syncSurveyResponses(params: SyncSurveyParams): Promise<SyncResult> {
-  console.log('syncSurveyResponses started:', { projectId: params.projectId, sheetName: params.sheetName });
-
-  const sheets = await getSheets();
-  const spreadsheetId = extractSpreadsheetId(params.spreadsheetId);
-  console.log('Spreadsheet ID:', spreadsheetId);
-
-  // 설문 응답 시트 읽기
-  const response = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: `${params.sheetName}!A:Z`,
-  });
-
-  const rows = response.data.values || [];
-  console.log('Sheet rows count:', rows.length);
-
-  if (rows.length < 2) {
-    return { success: true, updated: 0, errors: ['설문 응답 데이터가 없습니다.'] };
-  }
-
-  const headers = rows[0] as string[];
-  const dataRows = rows.slice(1);
-  console.log('Headers:', headers);
-  console.log('Data rows count:', dataRows.length);
-
-  // 프로젝트의 모든 인플루언서를 한 번에 조회 (최적화)
-  const { data: allInfluencers, error: fetchError } = await supabase
-    .from('seeding_influencers')
-    .select('id, account_id, shipping, email')
-    .eq('project_id', params.projectId);
-
-  if (fetchError) {
-    console.error('Failed to fetch influencers:', fetchError);
-    return { success: false, updated: 0, errors: [`인플루언서 목록 조회 실패: ${fetchError.message}`] };
-  }
-
-  console.log('Total influencers in project:', allInfluencers?.length || 0);
-
-  // 인플루언서 매칭을 위한 맵 생성 (account_id 정규화)
-  const influencerMap = new Map<string, any>();
-  (allInfluencers || []).forEach((inf) => {
-    if (inf.account_id) {
-      // @를 제거한 소문자 버전으로 저장
-      const normalized = inf.account_id.replace(/^@/, '').toLowerCase().trim();
-      influencerMap.set(normalized, inf);
-    }
-  });
-
-  const errors: string[] = [];
-  let updatedCount = 0;
-  let notFoundCount = 0;
-
-  for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
-    const row = dataRows[rowIndex];
-
-    try {
-      // 설문 응답 데이터 파싱
-      const surveyData: any = {
-        shipping: {},
-      };
-
-      headers.forEach((header, colIndex) => {
-        // 정확한 매핑 먼저 시도
-        let field = surveyColumnMapping[header];
-
-        // 정확한 매핑이 없으면 부분 매칭 시도
-        if (!field) {
-          const headerLower = header.toLowerCase();
-          if (headerLower.includes('인스타그램') || headerLower.includes('instagram')) {
-            field = 'account_id';
-          } else if (headerLower.includes('성함') || headerLower.includes('받으시는')) {
-            field = 'shipping.recipient_name';
-          } else if (headerLower.includes('전화') || headerLower.includes('연락')) {
-            field = 'shipping.phone';
-          } else if (headerLower.includes('주소')) {
-            field = 'shipping.address';
-          } else if (headerLower.includes('배송') && headerLower.includes('메모')) {
-            field = 'shipping.memo';
-          } else if (headerLower.includes('이메일') || headerLower.includes('email')) {
-            field = 'email';
-          } else if (headerLower.includes('제품')) {
-            field = 'requested_product';
-          }
-        }
-
-        if (field && row[colIndex]) {
-          const value = String(row[colIndex]).trim();
-          if (value) {
-            setNestedValue(surveyData, field, value);
-          }
-        }
-      });
-
-      // account_id에서 Instagram URL이면 username 추출
-      let accountId = surveyData.account_id;
-      if (!accountId) {
-        continue; // 아이디 없으면 스킵
-      }
-
-      // URL에서 username 추출 (extractAccountFromUrl 함수 활용)
-      const extracted = extractAccountFromUrl(accountId);
-      if (extracted.accountId) {
-        accountId = extracted.accountId.replace(/^@/, '').trim();
-      } else {
-        // URL이 아니면 직접 @ 처리
-        accountId = accountId.replace(/^@/, '').trim();
-      }
-
-      const accountIdLower = accountId.toLowerCase();
-
-      // 인메모리 맵에서 매칭 (DB 쿼리 없음)
-      const influencer = influencerMap.get(accountIdLower);
-
-      if (!influencer) {
-        console.log(`Row ${rowIndex + 2}: No match found for "${accountId}"`);
-        notFoundCount++;
-        continue;
-      }
-      console.log(`Row ${rowIndex + 2}: Found match for "${accountId}" -> ${influencer.id}`);
-
-      // 기존 shipping 정보와 병합
-      const existingShipping = influencer.shipping || {};
-      const updatedShipping = {
-        ...existingShipping,
-        recipient_name: surveyData.shipping?.recipient_name || existingShipping.recipient_name || '',
-        phone: surveyData.shipping?.phone || existingShipping.phone || '',
-        address: surveyData.shipping?.address || existingShipping.address || '',
-        memo: surveyData.shipping?.memo || existingShipping.memo || '',
-      };
-
-      // 업데이트할 데이터 구성
-      const updateData: any = {
-        shipping: updatedShipping,
-        updated_at: new Date().toISOString(),
-      };
-
-      // 이메일 업데이트 (기존에 없으면)
-      if (surveyData.email) {
-        updateData.email = surveyData.email;
-      }
-
-      // 요청 제품을 notes에 추가
-      if (surveyData.requested_product) {
-        updateData.notes = `[요청제품] ${surveyData.requested_product}`;
-      }
-
-      // DB 업데이트
-      const { error: updateError } = await supabase
-        .from('seeding_influencers')
-        .update(updateData)
-        .eq('id', influencer.id);
-
-      if (updateError) {
-        errors.push(`행 ${rowIndex + 2}: 업데이트 오류 - ${updateError.message}`);
-        continue;
-      }
-
-      updatedCount++;
-    } catch (err: any) {
-      errors.push(`행 ${rowIndex + 2}: ${err.message}`);
-    }
-  }
-
-  if (notFoundCount > 0) {
-    errors.push(`${notFoundCount}건의 응답이 프로젝트 내 인플루언서와 매칭되지 않았습니다.`);
-  }
-
-  return {
-    success: true,
-    updated: updatedCount,
-    errors,
-  };
-}
-
 // ========== Handler ==========
 
 const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
@@ -948,10 +745,6 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
 
       case 'export':
         result = await exportToSheets(params);
-        break;
-
-      case 'sync-survey':
-        result = await syncSurveyResponses(params);
         break;
 
       default:

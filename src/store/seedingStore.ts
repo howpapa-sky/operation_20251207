@@ -1024,6 +1024,9 @@ export const useSeedingStore = create<SeedingStore>()(
           total_engagement: 0,
         };
 
+        // 발송 완료 이후 상태 (비용 계산 대상)
+        const shippedStatuses = ['shipped', 'guide_sent', 'posted', 'completed'];
+
         influencers.forEach((inf) => {
           // 상태별 카운트
           stats.by_status[inf.status]++;
@@ -1034,9 +1037,13 @@ export const useSeedingStore = create<SeedingStore>()(
           // 콘텐츠별 카운트
           stats.by_content[inf.content_type]++;
 
-          // 비용 계산
-          const quantity = inf.shipping?.quantity || 1;
-          stats.total_cost += quantity * (project?.cost_price || 0);
+          // 비용 계산 (발송완료 상태인 건만 계산)
+          if (shippedStatuses.includes(inf.status)) {
+            const quantity = inf.shipping?.quantity || 1;
+            // 인플루언서별 제품단가 우선, 없으면 프로젝트 원가 사용
+            const productPrice = inf.product_price || project?.cost_price || 0;
+            stats.total_cost += quantity * productPrice;
+          }
           stats.total_fee += inf.fee || 0;
 
           // 성과 합산
@@ -1065,6 +1072,9 @@ export const useSeedingStore = create<SeedingStore>()(
 
         stats.total_seedings = influencers.length;
 
+        // 발송 완료 이후 상태 (비용 계산 대상)
+        const shippedStatuses = ['shipped', 'guide_sent', 'posted', 'completed'];
+
         influencers.forEach((inf) => {
           const project = projects.find((p) => p.id === inf.project_id);
 
@@ -1077,10 +1087,14 @@ export const useSeedingStore = create<SeedingStore>()(
           // 콘텐츠별 카운트
           stats.by_content[inf.content_type]++;
 
-          // 비용 계산
-          const quantity = inf.shipping?.quantity || 1;
-          stats.total_cost += quantity * (project?.cost_price || 0);
-          stats.total_value += quantity * (project?.selling_price || 0);
+          // 비용 계산 (발송완료 상태인 건만 계산)
+          if (shippedStatuses.includes(inf.status)) {
+            const quantity = inf.shipping?.quantity || 1;
+            // 인플루언서별 제품단가 우선, 없으면 프로젝트 원가 사용
+            const productPrice = inf.product_price || project?.cost_price || 0;
+            stats.total_cost += quantity * productPrice;
+            stats.total_value += quantity * (project?.selling_price || 0);
+          }
           stats.total_fee += inf.fee || 0;
 
           // 성과 합산
