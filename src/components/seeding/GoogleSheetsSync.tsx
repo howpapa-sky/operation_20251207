@@ -18,6 +18,96 @@ import { googleSheetsService, PreviewResult, ImportResult } from '../../services
 import { useSeedingStore } from '../../store/seedingStore';
 import { SeedingProject, SeedingInfluencer } from '../../types';
 
+// ========== 프론트엔드 데이터 변환 유틸리티 ==========
+
+// 날짜 문자열을 ISO 형식으로 변환
+function parseDateToISO(value: any): string | undefined {
+  if (!value) return undefined;
+
+  const str = String(value).trim();
+  if (!str) return undefined;
+
+  // 이미 ISO 형식인 경우 (YYYY-MM-DD)
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    return str.split('T')[0];
+  }
+
+  // MM/DD/YYYY 형식
+  const mmddyyyyMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mmddyyyyMatch) {
+    const [, month, day, year] = mmddyyyyMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // YYYY.MM.DD 형식
+  const yyyymmddMatch = str.match(/^(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})$/);
+  if (yyyymmddMatch) {
+    const [, year, month, day] = yyyymmddMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // Date 객체로 파싱 시도
+  try {
+    const date = new Date(str);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().split('T')[0];
+    }
+  } catch {
+    // 무시
+  }
+
+  return undefined;
+}
+
+// 숫자 파싱 (K, M 단위 지원)
+function parseNumber(value: any): number {
+  if (value === undefined || value === null) return 0;
+  if (typeof value === 'number') return value;
+
+  const str = String(value).trim().toLowerCase();
+  if (!str) return 0;
+
+  // K 단위 (4.4K → 4400)
+  const kMatch = str.match(/^([\d,.]+)\s*k$/i);
+  if (kMatch) {
+    const num = parseFloat(kMatch[1].replace(/,/g, ''));
+    return isNaN(num) ? 0 : Math.round(num * 1000);
+  }
+
+  // M 단위 (1.2M → 1200000)
+  const mMatch = str.match(/^([\d,.]+)\s*m$/i);
+  if (mMatch) {
+    const num = parseFloat(mMatch[1].replace(/,/g, ''));
+    return isNaN(num) ? 0 : Math.round(num * 1000000);
+  }
+
+  // 일반 숫자
+  const num = parseInt(str.replace(/[,\s]/g, ''), 10);
+  return isNaN(num) ? 0 : num;
+}
+
+// 가격 파싱 (빈 값은 undefined)
+function parsePrice(value: any): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const num = parseNumber(value);
+  return num > 0 ? num : undefined;
+}
+
+// 인플루언서 데이터 정규화 (프론트엔드에서 추가 변환)
+function normalizeInfluencerData(data: any[]): any[] {
+  return data.map(item => ({
+    ...item,
+    // 날짜 필드 변환
+    listed_at: parseDateToISO(item.listed_at),
+    // 숫자 필드 변환
+    follower_count: parseNumber(item.follower_count),
+    following_count: parseNumber(item.following_count) || undefined,
+    // 가격 필드 변환
+    product_price: parsePrice(item.product_price),
+    fee: parseNumber(item.fee) || 0,
+  }));
+}
+
 interface GoogleSheetsSyncProps {
   isOpen: boolean;
   onClose: () => void;
@@ -121,8 +211,10 @@ export default function GoogleSheetsSync({
         setSyncProgress(60);
 
         if (result.data && result.data.length > 0) {
+          // 프론트엔드에서 데이터 정규화 (Netlify Function 버전과 상관없이 동작)
+          const normalizedData = normalizeInfluencerData(result.data);
           // DB에 저장
-          await addInfluencersBulk(result.data);
+          await addInfluencersBulk(normalizedData);
         }
 
         setSyncProgress(100);
