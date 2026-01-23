@@ -13,8 +13,9 @@ import {
   CheckCircle2,
   XCircle,
   HelpCircle,
+  ClipboardList,
 } from 'lucide-react';
-import { googleSheetsService, PreviewResult, ImportResult } from '../../services/googleSheetsService';
+import { googleSheetsService, PreviewResult, ImportResult, SurveyResult } from '../../services/googleSheetsService';
 import { useSeedingStore } from '../../store/seedingStore';
 import { SeedingProject, SeedingInfluencer } from '../../types';
 
@@ -25,7 +26,7 @@ interface GoogleSheetsSyncProps {
   onSyncComplete?: () => void;
 }
 
-type SyncDirection = 'import' | 'export';
+type SyncDirection = 'import' | 'export' | 'survey';
 type SyncStep = 'config' | 'preview' | 'syncing' | 'result';
 
 export default function GoogleSheetsSync({
@@ -125,6 +126,24 @@ export default function GoogleSheetsSync({
         setSyncResult({
           success: true,
           added: result.added,
+          updated: result.updated,
+          errors: result.errors,
+        });
+      } else if (direction === 'survey') {
+        // 설문 응답 동기화
+        setSyncProgress(30);
+
+        const result = await googleSheetsService.syncSurveyResponses({
+          spreadsheetId: spreadsheetUrl,
+          sheetName,
+          projectId: project.id,
+        });
+
+        setSyncProgress(100);
+
+        setSyncResult({
+          success: true,
+          added: 0,
           updated: result.updated,
           errors: result.errors,
         });
@@ -255,12 +274,12 @@ export default function GoogleSheetsSync({
                 {/* 동기화 방향 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    동기화 방향
+                    동기화 유형
                   </label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <button
                       onClick={() => setDirection('import')}
-                      className={`flex items-center gap-3 p-4 border-2 rounded-xl transition-all ${
+                      className={`flex flex-col items-center gap-2 p-4 border-2 rounded-xl transition-all ${
                         direction === 'import'
                           ? 'border-primary-500 bg-primary-50'
                           : 'border-gray-200 hover:border-gray-300'
@@ -273,11 +292,11 @@ export default function GoogleSheetsSync({
                           direction === 'import' ? 'text-primary-600' : 'text-gray-500'
                         }`} />
                       </div>
-                      <div className="text-left">
-                        <div className={`font-medium ${
+                      <div className="text-center">
+                        <div className={`font-medium text-sm ${
                           direction === 'import' ? 'text-primary-900' : 'text-gray-700'
                         }`}>
-                          가져오기
+                          리스트 가져오기
                         </div>
                         <div className="text-xs text-gray-500">
                           Sheets → DB
@@ -286,23 +305,50 @@ export default function GoogleSheetsSync({
                     </button>
 
                     <button
-                      onClick={() => setDirection('export')}
-                      className={`flex items-center gap-3 p-4 border-2 rounded-xl transition-all ${
-                        direction === 'export'
-                          ? 'border-primary-500 bg-primary-50'
+                      onClick={() => setDirection('survey')}
+                      className={`flex flex-col items-center gap-2 p-4 border-2 rounded-xl transition-all ${
+                        direction === 'survey'
+                          ? 'border-green-500 bg-green-50'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        direction === 'export' ? 'bg-primary-100' : 'bg-gray-100'
+                        direction === 'survey' ? 'bg-green-100' : 'bg-gray-100'
                       }`}>
-                        <Upload className={`w-5 h-5 ${
-                          direction === 'export' ? 'text-primary-600' : 'text-gray-500'
+                        <ClipboardList className={`w-5 h-5 ${
+                          direction === 'survey' ? 'text-green-600' : 'text-gray-500'
                         }`} />
                       </div>
-                      <div className="text-left">
-                        <div className={`font-medium ${
-                          direction === 'export' ? 'text-primary-900' : 'text-gray-700'
+                      <div className="text-center">
+                        <div className={`font-medium text-sm ${
+                          direction === 'survey' ? 'text-green-900' : 'text-gray-700'
+                        }`}>
+                          설문 응답 연동
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          배송정보 동기화
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => setDirection('export')}
+                      className={`flex flex-col items-center gap-2 p-4 border-2 rounded-xl transition-all ${
+                        direction === 'export'
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        direction === 'export' ? 'bg-blue-100' : 'bg-gray-100'
+                      }`}>
+                        <Upload className={`w-5 h-5 ${
+                          direction === 'export' ? 'text-blue-600' : 'text-gray-500'
+                        }`} />
+                      </div>
+                      <div className="text-center">
+                        <div className={`font-medium text-sm ${
+                          direction === 'export' ? 'text-blue-900' : 'text-gray-700'
                         }`}>
                           내보내기
                         </div>
@@ -315,18 +361,29 @@ export default function GoogleSheetsSync({
                 </div>
 
                 {/* 컬럼 매핑 안내 */}
-                <div className="p-4 bg-blue-50 rounded-xl">
+                <div className={`p-4 rounded-xl ${direction === 'survey' ? 'bg-green-50' : 'bg-blue-50'}`}>
                   <div className="flex items-start gap-3">
-                    <HelpCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                    <HelpCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${direction === 'survey' ? 'text-green-500' : 'text-blue-500'}`} />
                     <div>
-                      <div className="text-sm font-medium text-blue-900 mb-1">
-                        컬럼 매핑 안내
+                      <div className={`text-sm font-medium mb-1 ${direction === 'survey' ? 'text-green-900' : 'text-blue-900'}`}>
+                        {direction === 'survey' ? '설문 응답 시트 안내' : '컬럼 매핑 안내'}
                       </div>
-                      <div className="text-xs text-blue-700 space-y-1">
-                        <p>스프레드시트 헤더가 다음과 일치해야 합니다:</p>
-                        <p className="font-mono bg-blue-100 px-2 py-1 rounded">
-                          계정ID, 계정명, 이메일, 연락처, 플랫폼, 팔로워, 카테고리, 무가/유가, 콘텐츠유형, 상태 ...
-                        </p>
+                      <div className={`text-xs space-y-1 ${direction === 'survey' ? 'text-green-700' : 'text-blue-700'}`}>
+                        {direction === 'survey' ? (
+                          <>
+                            <p>설문 응답 시트의 인스타그램 아이디로 인플루언서를 매칭합니다.</p>
+                            <p className={`font-mono px-2 py-1 rounded ${direction === 'survey' ? 'bg-green-100' : 'bg-blue-100'}`}>
+                              인스타그램 아이디, 성함, 전화번호, 주소, 배송메모 ...
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p>스프레드시트 헤더가 다음과 일치해야 합니다:</p>
+                            <p className="font-mono bg-blue-100 px-2 py-1 rounded">
+                              계정ID, 계정명, 이메일, 연락처, 플랫폼, 팔로워, 카테고리 ...
+                            </p>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -442,7 +499,11 @@ export default function GoogleSheetsSync({
               <div className="py-8 text-center">
                 <Loader2 className="w-12 h-12 text-primary-600 animate-spin mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  {direction === 'import' ? '데이터 가져오는 중...' : '데이터 내보내는 중...'}
+                  {direction === 'import'
+                    ? '데이터 가져오는 중...'
+                    : direction === 'survey'
+                    ? '설문 응답 동기화 중...'
+                    : '데이터 내보내는 중...'}
                 </h3>
                 <p className="text-sm text-gray-500 mb-6">잠시만 기다려주세요</p>
 
@@ -471,6 +532,8 @@ export default function GoogleSheetsSync({
                     <p className="text-sm text-gray-500">
                       {direction === 'import'
                         ? '스프레드시트에서 데이터를 가져왔습니다.'
+                        : direction === 'survey'
+                        ? '설문 응답에서 배송 정보를 동기화했습니다.'
                         : '스프레드시트로 데이터를 내보냈습니다.'}
                     </p>
                   </div>
@@ -510,6 +573,21 @@ export default function GoogleSheetsSync({
                             {syncResult.errors.length}
                           </div>
                           <div className="text-sm text-amber-700">오류</div>
+                        </div>
+                      </>
+                    ) : direction === 'survey' ? (
+                      <>
+                        <div className="text-center p-4 bg-green-50 rounded-xl">
+                          <div className="text-2xl font-bold text-green-600">
+                            {syncResult.updated}
+                          </div>
+                          <div className="text-sm text-green-700">배송정보 연동</div>
+                        </div>
+                        <div className="text-center p-4 bg-amber-50 rounded-xl col-span-2">
+                          <div className="text-2xl font-bold text-amber-600">
+                            {syncResult.errors.length}
+                          </div>
+                          <div className="text-sm text-amber-700">매칭 안됨/오류</div>
                         </div>
                       </>
                     ) : (
@@ -560,18 +638,33 @@ export default function GoogleSheetsSync({
                   >
                     취소
                   </button>
-                  <button
-                    onClick={handlePreview}
-                    disabled={isLoadingPreview || !spreadsheetUrl.trim()}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 disabled:opacity-50 transition-colors"
-                  >
-                    {isLoadingPreview ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                    미리보기
-                  </button>
+                  {direction === 'survey' ? (
+                    <button
+                      onClick={handleSync}
+                      disabled={isSyncing || !spreadsheetUrl.trim()}
+                      className="flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white font-medium rounded-xl hover:bg-green-700 disabled:opacity-50 transition-colors"
+                    >
+                      {isSyncing ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <ClipboardList className="w-4 h-4" />
+                      )}
+                      설문 응답 동기화
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handlePreview}
+                      disabled={isLoadingPreview || !spreadsheetUrl.trim()}
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                    >
+                      {isLoadingPreview ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                      미리보기
+                    </button>
+                  )}
                 </div>
               </>
             ) : step === 'preview' ? (

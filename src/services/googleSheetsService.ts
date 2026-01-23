@@ -27,6 +27,12 @@ export interface ExportResult {
   rows: number;
 }
 
+export interface SurveyResult {
+  success: boolean;
+  updated: number;
+  errors: string[];
+}
+
 export interface SyncParams {
   spreadsheetId: string;
   sheetName: string;
@@ -123,6 +129,29 @@ export const googleSheetsService = {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || 'Export failed');
+    }
+
+    return response.json();
+  },
+
+  /**
+   * 설문 응답 시트에서 배송 정보 동기화
+   */
+  async syncSurveyResponses(params: SyncParams): Promise<SurveyResult> {
+    const response = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'sync-survey',
+        spreadsheetId: this.extractSpreadsheetId(params.spreadsheetId),
+        sheetName: params.sheetName || 'Form Responses 1',
+        projectId: params.projectId,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || '설문 응답 동기화 실패');
     }
 
     return response.json();
