@@ -120,7 +120,7 @@ export default function SeedingTableRow({
       {/* 팔로잉 */}
       <td className="px-3 py-3">
         <span className="text-sm text-gray-700">
-          {influencer.following_count ? formatFollowers(influencer.following_count) : '-'}
+          {influencer.following_count != null ? formatFollowers(influencer.following_count) : '-'}
         </span>
       </td>
 
@@ -170,7 +170,7 @@ export default function SeedingTableRow({
       {/* 가격 */}
       <td className="px-3 py-3">
         <span className="text-sm text-gray-700">
-          {influencer.product_price ? formatCurrency(influencer.product_price) : '-'}
+          {influencer.product_price != null ? formatCurrency(influencer.product_price) : '-'}
         </span>
       </td>
 

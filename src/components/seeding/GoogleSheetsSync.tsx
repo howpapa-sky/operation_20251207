@@ -18,6 +18,331 @@ import { googleSheetsService, PreviewResult, ImportResult } from '../../services
 import { useSeedingStore } from '../../store/seedingStore';
 import { SeedingProject, SeedingInfluencer } from '../../types';
 
+// ========== 프론트엔드 데이터 변환 유틸리티 ==========
+
+// 현재 연도 가져오기
+const CURRENT_YEAR = new Date().getFullYear();
+
+// 날짜 문자열을 ISO 형식(YYYY-MM-DD)으로 변환
+// 지원 형식: YYYY-MM-DD, MM/DD/YYYY, YYYY.MM.DD, MM/DD, 12월4일, 12/4 등
+function parseDateToISO(value: any): string | undefined {
+  if (!value) return undefined;
+
+  const str = String(value).trim();
+  if (!str) return undefined;
+
+  // 이미 ISO 형식인 경우 (YYYY-MM-DD)
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    return str.split('T')[0];
+  }
+
+  // YYYY.MM.DD 또는 YYYY/MM/DD 형식
+  const yyyymmddMatch = str.match(/^(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})$/);
+  if (yyyymmddMatch) {
+    const [, year, month, day] = yyyymmddMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // MM/DD/YYYY 형식
+  const mmddyyyyMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mmddyyyyMatch) {
+    const [, month, day, year] = mmddyyyyMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // DD/MM/YYYY 형식 (유럽식) - 일이 12보다 크면 DD/MM으로 처리
+  const ddmmyyyyMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (ddmmyyyyMatch) {
+    const [, first, second, year] = ddmmyyyyMatch;
+    const firstNum = parseInt(first);
+    if (firstNum > 12) {
+      // DD/MM/YYYY
+      return `${year}-${second.padStart(2, '0')}-${first.padStart(2, '0')}`;
+    }
+  }
+
+  // MM/DD 형식 (연도 없음 - 현재 연도 사용)
+  const mmddMatch = str.match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (mmddMatch) {
+    const [, month, day] = mmddMatch;
+    return `${CURRENT_YEAR}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // 한글 형식: 12월4일, 12월 4일, 1월15일 등
+  const koreanMatch = str.match(/^(\d{1,2})월\s*(\d{1,2})일?$/);
+  if (koreanMatch) {
+    const [, month, day] = koreanMatch;
+    return `${CURRENT_YEAR}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // 한글 형식 with 연도: 2025년12월4일, 2025년 12월 4일
+  const koreanFullMatch = str.match(/^(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일?$/);
+  if (koreanFullMatch) {
+    const [, year, month, day] = koreanFullMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // YYYYMMDD 형식 (구분자 없음)
+  const compactMatch = str.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (compactMatch) {
+    const [, year, month, day] = compactMatch;
+    return `${year}-${month}-${day}`;
+  }
+
+  // Date 객체로 파싱 시도 (최후의 수단)
+  try {
+    const date = new Date(str);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().split('T')[0];
+    }
+  } catch {
+    // 무시
+  }
+
+  console.warn(`[parseDateToISO] Failed to parse date: "${str}"`);
+  return undefined;
+}
+
+// 숫자 파싱 (K, M, 만, 억 단위 지원)
+function parseNumber(value: any): number {
+  if (value === undefined || value === null) return 0;
+  if (typeof value === 'number') return value;
+
+  const str = String(value).trim();
+  if (!str) return 0;
+
+  // K 단위 (4.4K, 293K → 4400, 293000)
+  const kMatch = str.match(/^([\d,.]+)\s*k$/i);
+  if (kMatch) {
+    const num = parseFloat(kMatch[1].replace(/,/g, ''));
+    return isNaN(num) ? 0 : Math.round(num * 1000);
+  }
+
+  // M 단위 (1.2M → 1200000)
+  const mMatch = str.match(/^([\d,.]+)\s*m$/i);
+  if (mMatch) {
+    const num = parseFloat(mMatch[1].replace(/,/g, ''));
+    return isNaN(num) ? 0 : Math.round(num * 1000000);
+  }
+
+  // 만 단위 (29.3만 → 293000)
+  const manMatch = str.match(/^([\d,.]+)\s*만$/);
+  if (manMatch) {
+    const num = parseFloat(manMatch[1].replace(/,/g, ''));
+    return isNaN(num) ? 0 : Math.round(num * 10000);
+  }
+
+  // 억 단위 (1.2억 → 120000000)
+  const ukMatch = str.match(/^([\d,.]+)\s*억$/);
+  if (ukMatch) {
+    const num = parseFloat(ukMatch[1].replace(/,/g, ''));
+    return isNaN(num) ? 0 : Math.round(num * 100000000);
+  }
+
+  // 소수점 포함 숫자 (79.2 등)
+  if (str.includes('.')) {
+    const num = parseFloat(str.replace(/,/g, ''));
+    return isNaN(num) ? 0 : Math.round(num);
+  }
+
+  // 일반 숫자 (쉼표, 공백 제거)
+  const num = parseInt(str.replace(/[,\s]/g, ''), 10);
+  return isNaN(num) ? 0 : num;
+}
+
+// 가격 파싱 (빈 값은 undefined)
+function parsePrice(value: any): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const num = parseNumber(value);
+  return num > 0 ? num : undefined;
+}
+
+// 여러 필드명에서 값 찾기 (대소문자 무시, 공백/특수문자 무시)
+function findFieldValue(item: any, ...fieldNames: string[]): any {
+  // 정규화 함수: 소문자 변환, 공백/특수문자 제거
+  const normalize = (s: string) => s.toLowerCase().replace(/[\s\-_\.]/g, '');
+
+  for (const name of fieldNames) {
+    // 1. 정확히 일치
+    if (item[name] !== undefined && item[name] !== null && item[name] !== '') {
+      return item[name];
+    }
+  }
+
+  // 2. 대소문자/공백 무시하고 검색
+  const normalizedNames = fieldNames.map(normalize);
+  for (const key of Object.keys(item)) {
+    const normalizedKey = normalize(key);
+    for (const normalizedName of normalizedNames) {
+      if (normalizedKey === normalizedName && item[key] !== undefined && item[key] !== null && item[key] !== '') {
+        return item[key];
+      }
+    }
+  }
+
+  // 3. 부분 일치 검색 (키가 필드명을 포함하거나 반대)
+  for (const key of Object.keys(item)) {
+    const normalizedKey = normalize(key);
+    for (const normalizedName of normalizedNames) {
+      if ((normalizedKey.includes(normalizedName) || normalizedName.includes(normalizedKey)) &&
+          item[key] !== undefined && item[key] !== null && item[key] !== '') {
+        return item[key];
+      }
+    }
+  }
+
+  return undefined;
+}
+
+// Yes/No 값을 boolean으로 변환
+function parseYesNo(value: any): boolean {
+  if (!value) return false;
+  const str = String(value).trim().toLowerCase();
+  return str === 'yes' || str === 'y' || str === 'o' || str === '예' || str === '네' || str === 'true' || str === '1';
+}
+
+// 상태 결정 (Yes/No 필드들로부터)
+function determineStatus(item: any): string {
+  // Upload completed → posted
+  const uploadCompleted = findFieldValue(item, '_upload_completed', 'Upload completed', '업로드완료');
+  if (parseYesNo(uploadCompleted)) return 'posted';
+
+  // Product Shipment → shipped
+  const shipped = findFieldValue(item, '_product_shipped', 'Product Shipment (Yes/No)', 'Product Shipment', '발송', '발송여부', '제품발송');
+  if (parseYesNo(shipped)) return 'shipped';
+
+  // acceptance → accepted or rejected
+  const acceptance = findFieldValue(item, '_acceptance', 'acceptance (Yes/No)', 'acceptance', '수락', '수락여부');
+  if (acceptance !== undefined && acceptance !== null && acceptance !== '') {
+    if (parseYesNo(acceptance)) return 'accepted';
+    // "No"인 경우 rejected
+    const str = String(acceptance).trim().toLowerCase();
+    if (str === 'no' || str === 'n' || str === 'x' || str === '아니오' || str === '거절') return 'rejected';
+  }
+
+  // Response received → contacted
+  const response = findFieldValue(item, '_response_received', 'Response received (Yes/No)', 'Response received', '응답여부', '응답');
+  if (parseYesNo(response)) return 'contacted';
+
+  // DM sent → contacted
+  const dmSent = findFieldValue(item, '_dm_sent', 'DM sent (Yes/No)', 'DM sent', 'DM발송', 'dm발송');
+  if (parseYesNo(dmSent)) return 'contacted';
+
+  // 기본값
+  return item.status || 'listed';
+}
+
+// 인플루언서 데이터 정규화 (프론트엔드에서 추가 변환)
+// Google Sheets 1열 헤더 전체 매핑 지원
+// 중요: Netlify Function에서 이미 필드명이 DB 필드명으로 변환되어 올 수 있음
+function normalizeInfluencerData(data: any[]): any[] {
+  console.log('========== [normalizeInfluencerData] START ==========');
+  console.log('[normalizeInfluencerData] Total records:', data.length);
+  console.log('[normalizeInfluencerData] Input data keys:', data.length > 0 ? Object.keys(data[0]) : 'empty');
+  console.log('[normalizeInfluencerData] First item RAW:', JSON.stringify(data[0], null, 2));
+
+  return data.map((item, index) => {
+    // ===== 기본 정보 =====
+    // Netlify Function에서 이미 DB 필드명으로 변환되어 왔을 수 있으므로 직접 접근 우선
+    const listedAtRaw = item.listed_at ?? findFieldValue(item, 'Date', 'date', '날짜', '등록일');
+    const followerRaw = item.follower_count ?? findFieldValue(item, 'Follower', 'follower', '팔로워', 'Followers');
+    const followingRaw = item.following_count ?? findFieldValue(item, 'Following', 'following', '팔로잉');
+    const emailRaw = item.email ?? findFieldValue(item, 'E-mail', 'Email', 'e-mail', '이메일');
+    const profileUrlRaw = item.profile_url ?? findFieldValue(item, 'URL(youtube, instagram)', 'URL', 'url', '프로필URL', '링크');
+
+    // ===== 제품 정보 =====
+    const productNameRaw = item.product_name ?? findFieldValue(item, 'Product', 'product', '제품명', '제품', '상품명');
+    const priceRaw = item.product_price ?? findFieldValue(item, 'price', 'Price', 'Cost', 'cost', '가격', '제품단가', '단가');
+    const feeRaw = item.fee ?? findFieldValue(item, 'Fee', '원고비');
+
+    // ===== 날짜 정보 =====
+    const postedAtRaw = item.posted_at ?? findFieldValue(item, 'upload date (MM/DD)', 'upload date', '업로드일', '포스팅일');
+
+    // ===== 메모 =====
+    const notesRaw = item.notes ?? findFieldValue(item, 'NOTE', 'note', 'Notes', 'Memo', '메모', '비고');
+
+    // ===== 상태 결정 =====
+    const status = determineStatus(item);
+
+    // 첫 번째 행 상세 디버깅
+    if (index === 0) {
+      console.log('---------- Row 0 Debug ----------');
+      console.log('item.listed_at:', item.listed_at, '(직접)');
+      console.log('listedAtRaw:', listedAtRaw, '→ parseDateToISO:', parseDateToISO(listedAtRaw));
+      console.log('item.follower_count:', item.follower_count, '(직접)');
+      console.log('followerRaw:', followerRaw, '→ parseNumber:', parseNumber(followerRaw));
+      console.log('item.following_count:', item.following_count, '(직접)');
+      console.log('followingRaw:', followingRaw, '→ parseNumber:', followingRaw != null ? parseNumber(followingRaw) : 'undefined');
+      console.log('item.product_price:', item.product_price, '(직접)');
+      console.log('priceRaw:', priceRaw, '→ parsePrice:', parsePrice(priceRaw));
+      console.log('status:', status);
+      console.log('----------------------------------');
+    }
+
+    // 날짜 처리: 이미 ISO 형식이면 그대로 사용
+    const processedListedAt = listedAtRaw != null && listedAtRaw !== ''
+      ? (typeof listedAtRaw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(listedAtRaw)
+          ? listedAtRaw.split('T')[0]
+          : parseDateToISO(listedAtRaw))
+      : undefined;
+
+    const processedPostedAt = postedAtRaw != null && postedAtRaw !== ''
+      ? (typeof postedAtRaw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(postedAtRaw)
+          ? postedAtRaw.split('T')[0]
+          : parseDateToISO(postedAtRaw))
+      : undefined;
+
+    // 숫자 처리: 이미 숫자면 그대로 사용
+    const processedFollowerCount = typeof followerRaw === 'number'
+      ? followerRaw
+      : parseNumber(followerRaw);
+
+    // following_count는 값이 있을 때만 설정 (0도 유효한 값)
+    let processedFollowingCount: number | undefined = undefined;
+    if (followingRaw != null && followingRaw !== '') {
+      processedFollowingCount = typeof followingRaw === 'number'
+        ? followingRaw
+        : parseNumber(followingRaw);
+    }
+
+    // product_price는 값이 있을 때만 설정
+    let processedProductPrice: number | undefined = undefined;
+    if (priceRaw != null && priceRaw !== '') {
+      const priceNum = typeof priceRaw === 'number' ? priceRaw : parseNumber(priceRaw);
+      if (priceNum > 0) {
+        processedProductPrice = priceNum;
+      }
+    }
+
+    const result = {
+      ...item,
+      // 날짜 필드 변환
+      listed_at: processedListedAt,
+      posted_at: processedPostedAt,
+      // 숫자 필드 변환 (0도 유효한 값으로 유지)
+      follower_count: processedFollowerCount,
+      following_count: processedFollowingCount,
+      // 가격 필드 변환
+      product_price: processedProductPrice,
+      fee: typeof feeRaw === 'number' ? feeRaw : parseNumber(feeRaw),
+      // 문자열 필드
+      email: emailRaw ? String(emailRaw).trim() : undefined,
+      profile_url: profileUrlRaw ? String(profileUrlRaw).trim() : undefined,
+      product_name: productNameRaw ? String(productNameRaw).trim() : undefined,
+      notes: notesRaw ? String(notesRaw).trim() : undefined,
+      // 상태
+      status,
+    };
+
+    if (index === 0) {
+      console.log('[normalizeInfluencerData] First item RESULT:', JSON.stringify(result, null, 2));
+      console.log('========== [normalizeInfluencerData] END ==========');
+    }
+
+    return result;
+  });
+}
+
 interface GoogleSheetsSyncProps {
   isOpen: boolean;
   onClose: () => void;
@@ -58,9 +383,9 @@ export default function GoogleSheetsSync({
   const [error, setError] = useState<string | null>(null);
 
   // 스토어
-  const { addInfluencersBulk, deleteInfluencersByProject, getInfluencersByProject } = useSeedingStore();
+  const { addInfluencersBulk, deleteInfluencersByProject, getInfluencersByProject, updateProject } = useSeedingStore();
 
-  // 모달 열릴 때 초기화
+  // 모달 열릴 때 초기화 및 저장된 URL 로드
   useEffect(() => {
     if (isOpen) {
       setStep('config');
@@ -68,8 +393,16 @@ export default function GoogleSheetsSync({
       setSyncResult(null);
       setError(null);
       setSyncProgress(0);
+
+      // 저장된 시트 URL 불러오기
+      if (project.listup_sheet_url) {
+        setSpreadsheetUrl(project.listup_sheet_url);
+      }
+      if (project.listup_sheet_name) {
+        setSheetName(project.listup_sheet_name);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, project.listup_sheet_url, project.listup_sheet_name]);
 
   // 미리보기 실행
   const handlePreview = async () => {
@@ -121,8 +454,21 @@ export default function GoogleSheetsSync({
         setSyncProgress(60);
 
         if (result.data && result.data.length > 0) {
+          // 디버깅: Netlify Function에서 반환된 원본 데이터 확인
+          console.log('[GoogleSheetsSync] Raw data from Netlify Function:', JSON.stringify(result.data[0], null, 2));
+          console.log('[GoogleSheetsSync] Raw data keys:', Object.keys(result.data[0]));
+
+          // 프론트엔드에서 데이터 정규화 (Netlify Function 버전과 상관없이 동작)
+          const normalizedData = normalizeInfluencerData(result.data);
+
+          // 디버깅: 정규화 후 데이터 확인
+          console.log('[GoogleSheetsSync] Normalized data:', JSON.stringify(normalizedData[0], null, 2));
+          console.log('[GoogleSheetsSync] listed_at:', normalizedData[0]?.listed_at);
+          console.log('[GoogleSheetsSync] following_count:', normalizedData[0]?.following_count);
+          console.log('[GoogleSheetsSync] product_price:', normalizedData[0]?.product_price);
+
           // DB에 저장
-          await addInfluencersBulk(result.data);
+          await addInfluencersBulk(normalizedData);
         }
 
         setSyncProgress(100);
@@ -157,6 +503,13 @@ export default function GoogleSheetsSync({
           errors: [],
         });
       }
+
+      // 시트 URL 저장 (다음에 자동으로 불러오기 위해)
+      await updateProject(project.id, {
+        listup_sheet_url: spreadsheetUrl,
+        listup_sheet_name: sheetName,
+        last_synced_at: new Date().toISOString(),
+      });
 
       setStep('result');
       onSyncComplete?.();
@@ -255,6 +608,43 @@ export default function GoogleSheetsSync({
                     placeholder="Sheet1"
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   />
+                </div>
+
+                {/* 자동 동기화 설정 */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
+                      <Loader2 className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-gray-900">
+                        매일 오전 9시 자동 가져오기
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {project.last_synced_at
+                          ? `마지막 동기화: ${new Date(project.last_synced_at).toLocaleString('ko-KR')}`
+                          : '아직 동기화된 적 없음'}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      await updateProject(project.id, {
+                        auto_sync_enabled: !project.auto_sync_enabled,
+                        listup_sheet_url: spreadsheetUrl || project.listup_sheet_url,
+                        listup_sheet_name: sheetName || project.listup_sheet_name,
+                      });
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      project.auto_sync_enabled ? 'bg-orange-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        project.auto_sync_enabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
                 </div>
 
                 {/* 동기화 방향 */}
