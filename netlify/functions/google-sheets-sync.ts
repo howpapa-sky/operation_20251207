@@ -162,10 +162,6 @@ const columnMapping: Record<string, string> = {
   'NOTE': 'notes',
   '비고': 'notes',
 
-  // 비용/원고비
-  'Cost': 'fee',
-  'cost': 'fee',
-
   // 제품 정보
   '제품명': 'product_name',
   '제품': 'product_name',
@@ -467,6 +463,104 @@ function getNestedValue(obj: any, path: string): any {
   return current;
 }
 
+// 날짜 문자열을 ISO 형식으로 변환
+function parseDateToISO(value: string): string | undefined {
+  if (!value || typeof value !== 'string') {
+    return undefined;
+  }
+
+  const str = value.trim();
+  if (!str) return undefined;
+
+  // 이미 ISO 형식인 경우 (YYYY-MM-DD 또는 YYYY-MM-DDTHH:mm:ss)
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    return str.split('T')[0]; // 날짜 부분만 반환
+  }
+
+  // MM/DD/YYYY 또는 M/D/YYYY 형식
+  const mmddyyyyMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mmddyyyyMatch) {
+    const [, month, day, year] = mmddyyyyMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // MM/DD 형식 (현재 연도 사용)
+  const mmddMatch = str.match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (mmddMatch) {
+    const [, month, day] = mmddMatch;
+    const year = new Date().getFullYear();
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // YYYY.MM.DD 또는 YYYY-MM-DD 형식
+  const yyyymmddMatch = str.match(/^(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})$/);
+  if (yyyymmddMatch) {
+    const [, year, month, day] = yyyymmddMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // DD.MM.YYYY 형식 (유럽식)
+  const ddmmyyyyMatch = str.match(/^(\d{1,2})[.\-](\d{1,2})[.\-](\d{4})$/);
+  if (ddmmyyyyMatch) {
+    const [, day, month, year] = ddmmyyyyMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // 한글 날짜 형식: 2024년 1월 15일
+  const koreanMatch = str.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
+  if (koreanMatch) {
+    const [, year, month, day] = koreanMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // Google Sheets 시리얼 날짜 (숫자) 처리
+  const numVal = parseFloat(str);
+  if (!isNaN(numVal) && numVal > 40000 && numVal < 60000) {
+    // Excel/Google Sheets epoch: 1899-12-30
+    const date = new Date((numVal - 25569) * 86400 * 1000);
+    return date.toISOString().split('T')[0];
+  }
+
+  // 파싱 실패 시 원본 값 반환 (Date 객체가 처리할 수 있는지 시도)
+  try {
+    const date = new Date(str);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().split('T')[0];
+    }
+  } catch {
+    // 무시
+  }
+
+  return undefined;
+}
+
+// 숫자 문자열 파싱 (K, M 단위 지원)
+function parseNumberWithUnit(value: string): number {
+  if (!value || typeof value !== 'string') {
+    return 0;
+  }
+
+  const str = value.trim().toLowerCase();
+  if (!str) return 0;
+
+  // K (천), M (백만) 단위 처리
+  const kMatch = str.match(/^([\d,.]+)\s*k$/i);
+  if (kMatch) {
+    const num = parseFloat(kMatch[1].replace(/,/g, ''));
+    return isNaN(num) ? 0 : Math.round(num * 1000);
+  }
+
+  const mMatch = str.match(/^([\d,.]+)\s*m$/i);
+  if (mMatch) {
+    const num = parseFloat(mMatch[1].replace(/,/g, ''));
+    return isNaN(num) ? 0 : Math.round(num * 1000000);
+  }
+
+  // 일반 숫자
+  const num = parseInt(String(value).replace(/[,\s]/g, ''), 10);
+  return isNaN(num) ? 0 : num;
+}
+
 // 값 변환 (스프레드시트 → DB)
 function convertValueToDb(field: string, value: any): any {
   if (value === undefined || value === null || value === '') {
@@ -483,11 +577,19 @@ function convertValueToDb(field: string, value: any): any {
     case 'content_type':
       return contentTypeMapping[value] || value;
     case 'follower_count':
+    case 'following_count':
+      // K, M 단위 지원 (4.4K → 4400, 1.2M → 1200000)
+      return parseNumberWithUnit(String(value));
     case 'fee':
     case 'product_price':
     case 'shipping.quantity':
       const num = parseInt(String(value).replace(/[,\s]/g, ''), 10);
-      return isNaN(num) ? 0 : num;
+      return isNaN(num) ? undefined : num; // NaN이면 undefined 반환 (0 대신)
+    case 'listed_at':
+    case 'posted_at':
+    case 'shipping.shipped_at':
+      // 날짜 형식 변환
+      return parseDateToISO(String(value));
     default:
       return String(value).trim();
   }
