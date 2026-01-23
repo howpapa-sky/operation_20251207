@@ -44,27 +44,122 @@ interface SyncResult {
 
 // ========== 컬럼 매핑 ==========
 
-// 스프레드시트 헤더 → DB 필드
+// 스프레드시트 헤더 → DB 필드 (한글 + 영문 + 다양한 변형 지원)
 const columnMapping: Record<string, string> = {
+  // 계정 정보
   '계정ID': 'account_id',
+  '계정': 'account_id',
+  'account_id': 'account_id',
+  'Account ID': 'account_id',
+  'ID': 'account_id',
+
   '계정명': 'account_name',
+  '이름': 'account_name',
+  'name': 'account_name',
+  'Name': 'account_name',
+  '닉네임': 'account_name',
+
+  // 이메일
   '이메일': 'email',
+  'email': 'email',
+  'Email': 'email',
+  'E-mail': 'email',
+  'e-mail': 'email',
+  '메일': 'email',
+
+  // 연락처
   '연락처': 'phone',
+  '전화번호': 'phone',
+  'phone': 'phone',
+  'Phone': 'phone',
+  '휴대폰': 'phone',
+
+  // 플랫폼
   '플랫폼': 'platform',
+  'platform': 'platform',
+  'Platform': 'platform',
+
+  // 팔로워
   '팔로워': 'follower_count',
+  '팔로워수': 'follower_count',
+  'follower': 'follower_count',
+  'Follower': 'follower_count',
+  'followers': 'follower_count',
+  'Followers': 'follower_count',
+  '구독자': 'follower_count',
+  '구독자수': 'follower_count',
+
+  // 카테고리
   '카테고리': 'category',
+  'category': 'category',
+  'Category': 'category',
+  '분야': 'category',
+
+  // 프로필 URL (계정ID 추출용)
   '프로필URL': 'profile_url',
+  'URL': 'profile_url',
+  'url': 'profile_url',
+  'URL(youtube, instagram)': 'profile_url',
+  '인스타그램': 'profile_url',
+  '유튜브': 'profile_url',
+  'instagram': 'profile_url',
+  'Instagram': 'profile_url',
+  'youtube': 'profile_url',
+  'Youtube': 'profile_url',
+  'YouTube': 'profile_url',
+  '링크': 'profile_url',
+  'link': 'profile_url',
+  'Link': 'profile_url',
+  '프로필': 'profile_url',
+
+  // 시딩 유형
   '무가/유가': 'seeding_type',
+  '유형': 'seeding_type',
+  '시딩유형': 'seeding_type',
+  'type': 'seeding_type',
+  'Type': 'seeding_type',
+
+  // 콘텐츠 유형
   '콘텐츠유형': 'content_type',
+  '콘텐츠': 'content_type',
+  'content': 'content_type',
+  'Content': 'content_type',
+
+  // 원고비
   '원고비': 'fee',
+  '비용': 'fee',
+  'fee': 'fee',
+  'Fee': 'fee',
+  '금액': 'fee',
+
+  // 상태
   '상태': 'status',
+  'status': 'status',
+  'Status': 'status',
+
+  // 배송 정보
   '수령인': 'shipping.recipient_name',
+  '받는분': 'shipping.recipient_name',
   '배송연락처': 'shipping.phone',
   '주소': 'shipping.address',
+  '배송주소': 'shipping.address',
+  'address': 'shipping.address',
+  'Address': 'shipping.address',
   '수량': 'shipping.quantity',
   '택배사': 'shipping.carrier',
   '송장번호': 'shipping.tracking_number',
+  '운송장번호': 'shipping.tracking_number',
+  '운송장': 'shipping.tracking_number',
+
+  // 메모
   '메모': 'notes',
+  'memo': 'notes',
+  'Memo': 'notes',
+  'note': 'notes',
+  'Note': 'notes',
+  'notes': 'notes',
+  'Notes': 'notes',
+  '비고': 'notes',
 };
 
 // DB 필드 → 스프레드시트 헤더 (역매핑)
@@ -127,6 +222,63 @@ const contentTypeReverseMapping: Record<string, string> = Object.entries(content
   (acc, [korean, english]) => ({ ...acc, [english]: korean }),
   {}
 );
+
+// ========== URL에서 계정ID 추출 ==========
+
+function extractAccountFromUrl(url: string): { accountId: string | null; platform: string | null } {
+  if (!url || typeof url !== 'string') {
+    return { accountId: null, platform: null };
+  }
+
+  const urlStr = url.trim();
+
+  // Instagram URL 패턴
+  // https://www.instagram.com/username/ or https://instagram.com/username
+  const instagramMatch = urlStr.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/([a-zA-Z0-9._]+)/i);
+  if (instagramMatch) {
+    return { accountId: `@${instagramMatch[1]}`, platform: 'instagram' };
+  }
+
+  // YouTube URL 패턴
+  // https://www.youtube.com/@username or https://youtube.com/channel/xxx or https://youtube.com/c/xxx
+  const youtubeHandleMatch = urlStr.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/@([a-zA-Z0-9._-]+)/i);
+  if (youtubeHandleMatch) {
+    return { accountId: `@${youtubeHandleMatch[1]}`, platform: 'youtube' };
+  }
+
+  const youtubeChannelMatch = urlStr.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:channel|c)\/([a-zA-Z0-9._-]+)/i);
+  if (youtubeChannelMatch) {
+    return { accountId: youtubeChannelMatch[1], platform: 'youtube' };
+  }
+
+  // TikTok URL 패턴
+  // https://www.tiktok.com/@username
+  const tiktokMatch = urlStr.match(/(?:https?:\/\/)?(?:www\.)?tiktok\.com\/@([a-zA-Z0-9._]+)/i);
+  if (tiktokMatch) {
+    return { accountId: `@${tiktokMatch[1]}`, platform: 'tiktok' };
+  }
+
+  // 네이버 블로그 URL 패턴
+  // https://blog.naver.com/username
+  const naverBlogMatch = urlStr.match(/(?:https?:\/\/)?blog\.naver\.com\/([a-zA-Z0-9._-]+)/i);
+  if (naverBlogMatch) {
+    return { accountId: naverBlogMatch[1], platform: 'blog' };
+  }
+
+  // @ 로 시작하는 경우 (계정ID로 직접 입력된 경우)
+  if (urlStr.startsWith('@')) {
+    return { accountId: urlStr, platform: null };
+  }
+
+  // 그 외의 경우 텍스트에서 @username 패턴 추출 시도
+  // "딩이 | 채채맘🐰 (@ding__03)" 형태에서 @ding__03 추출
+  const atMatch = urlStr.match(/@([a-zA-Z0-9._-]+)/);
+  if (atMatch) {
+    return { accountId: `@${atMatch[1]}`, platform: null };
+  }
+
+  return { accountId: null, platform: null };
+}
 
 // ========== Google Sheets 인증 ==========
 
@@ -349,6 +501,26 @@ async function importFromSheets(params: ImportParams): Promise<SyncResult> {
           }
         }
       });
+
+      // account_id가 없으면 profile_url에서 추출 시도
+      if (!record.account_id && record.profile_url) {
+        const extracted = extractAccountFromUrl(record.profile_url);
+        if (extracted.accountId) {
+          record.account_id = extracted.accountId;
+          // 플랫폼도 함께 설정 (플랫폼이 없는 경우에만)
+          if (!record.platform && extracted.platform) {
+            record.platform = extracted.platform;
+          }
+        }
+      }
+
+      // account_name에서도 account_id 추출 시도 (예: "딩이 | 채채맘🐰 (@ding__03)")
+      if (!record.account_id && record.account_name) {
+        const extracted = extractAccountFromUrl(record.account_name);
+        if (extracted.accountId) {
+          record.account_id = extracted.accountId;
+        }
+      }
 
       // 필수 필드 검증
       if (!record.account_id) {
