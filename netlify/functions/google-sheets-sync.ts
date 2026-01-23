@@ -184,6 +184,8 @@ const columnMapping: Record<string, string> = {
   'price': 'product_price',
   'Price': 'product_price',
   'product_price': 'product_price',
+  'Cost': 'product_price',
+  'cost': 'product_price',
 
   // 날짜
   'date': 'listed_at',
@@ -212,7 +214,10 @@ const columnMapping: Record<string, string> = {
   '응답': '_response_received',
 
   'acceptance (Yes/No)': '_acceptance',
+  '"acceptance (Yes/No)"': '_acceptance',
+  '\nacceptance (Yes/No)': '_acceptance',
   'acceptance': '_acceptance',
+  'Acceptance': '_acceptance',
   '수락': '_acceptance',
   '수락여부': '_acceptance',
 
