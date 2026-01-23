@@ -13,49 +13,28 @@ interface SeedingTableProps {
   isLoading?: boolean;
 }
 
-type SortField = 'account_id' | 'follower_count' | 'status' | 'posted_at' | 'performance';
+type SortField = 'listed_at' | 'account_id' | 'follower_count' | 'following_count' | 'email' | 'product_name' | 'product_price' | 'shipped_at' | 'notes';
 type SortDirection = 'asc' | 'desc';
 
 // 스켈레톤 로딩 컴포넌트
 function SkeletonRow() {
   return (
     <tr className="animate-pulse">
-      <td className="w-12 px-4 py-3">
-        <div className="w-4 h-4 bg-gray-200 rounded" />
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-gray-200 rounded-full" />
-          <div className="space-y-1.5">
-            <div className="w-24 h-4 bg-gray-200 rounded" />
-            <div className="w-16 h-3 bg-gray-200 rounded" />
-          </div>
-        </div>
-      </td>
-      <td className="px-4 py-3">
-        <div className="w-12 h-4 bg-gray-200 rounded" />
-      </td>
-      <td className="px-4 py-3">
-        <div className="w-10 h-5 bg-gray-200 rounded" />
-      </td>
-      <td className="px-4 py-3">
-        <div className="w-12 h-5 bg-gray-200 rounded" />
-      </td>
-      <td className="px-4 py-3">
-        <div className="w-16 h-6 bg-gray-200 rounded-full" />
-      </td>
-      <td className="px-4 py-3">
-        <div className="w-14 h-4 bg-gray-200 rounded" />
-      </td>
-      <td className="px-4 py-3">
-        <div className="w-10 h-4 bg-gray-200 rounded" />
-      </td>
-      <td className="px-4 py-3">
-        <div className="w-10 h-4 bg-gray-200 rounded" />
-      </td>
-      <td className="w-12 px-4 py-3">
-        <div className="w-6 h-6 bg-gray-200 rounded" />
-      </td>
+      <td className="w-12 px-3 py-3"><div className="w-4 h-4 bg-gray-200 rounded" /></td>
+      <td className="px-3 py-3"><div className="w-16 h-4 bg-gray-200 rounded" /></td>
+      <td className="px-3 py-3"><div className="w-20 h-4 bg-gray-200 rounded" /></td>
+      <td className="px-3 py-3"><div className="w-12 h-4 bg-gray-200 rounded" /></td>
+      <td className="px-3 py-3"><div className="w-12 h-4 bg-gray-200 rounded" /></td>
+      <td className="px-3 py-3"><div className="w-32 h-4 bg-gray-200 rounded" /></td>
+      <td className="px-3 py-3"><div className="w-8 h-4 bg-gray-200 rounded" /></td>
+      <td className="px-3 py-3"><div className="w-8 h-4 bg-gray-200 rounded" /></td>
+      <td className="px-3 py-3"><div className="w-8 h-4 bg-gray-200 rounded" /></td>
+      <td className="px-3 py-3"><div className="w-16 h-4 bg-gray-200 rounded" /></td>
+      <td className="px-3 py-3"><div className="w-14 h-4 bg-gray-200 rounded" /></td>
+      <td className="px-3 py-3"><div className="w-8 h-4 bg-gray-200 rounded" /></td>
+      <td className="px-3 py-3"><div className="w-16 h-4 bg-gray-200 rounded" /></td>
+      <td className="px-3 py-3"><div className="w-20 h-4 bg-gray-200 rounded" /></td>
+      <td className="w-12 px-3 py-3"><div className="w-6 h-6 bg-gray-200 rounded" /></td>
     </tr>
   );
 }
@@ -78,34 +57,40 @@ export default function SeedingTable({
       let comparison = 0;
 
       switch (sortField) {
+        case 'listed_at':
+          if (!a.listed_at && !b.listed_at) comparison = 0;
+          else if (!a.listed_at) comparison = 1;
+          else if (!b.listed_at) comparison = -1;
+          else comparison = new Date(a.listed_at).getTime() - new Date(b.listed_at).getTime();
+          break;
         case 'account_id':
           comparison = a.account_id.localeCompare(b.account_id);
           break;
         case 'follower_count':
           comparison = a.follower_count - b.follower_count;
           break;
-        case 'status': {
-          const statusOrder: Record<SeedingStatus, number> = {
-            listed: 0,
-            contacted: 1,
-            accepted: 2,
-            rejected: 3,
-            shipped: 4,
-            guide_sent: 5,
-            posted: 6,
-            completed: 7,
-          };
-          comparison = statusOrder[a.status] - statusOrder[b.status];
+        case 'following_count':
+          comparison = (a.following_count || 0) - (b.following_count || 0);
           break;
-        }
-        case 'posted_at':
-          if (!a.posted_at && !b.posted_at) comparison = 0;
-          else if (!a.posted_at) comparison = 1;
-          else if (!b.posted_at) comparison = -1;
-          else comparison = new Date(a.posted_at).getTime() - new Date(b.posted_at).getTime();
+        case 'email':
+          comparison = (a.email || '').localeCompare(b.email || '');
           break;
-        case 'performance':
-          comparison = (a.performance?.views || 0) - (b.performance?.views || 0);
+        case 'product_name':
+          comparison = (a.product_name || '').localeCompare(b.product_name || '');
+          break;
+        case 'product_price':
+          comparison = (a.product_price || 0) - (b.product_price || 0);
+          break;
+        case 'shipped_at':
+          const aShipped = a.shipping?.shipped_at;
+          const bShipped = b.shipping?.shipped_at;
+          if (!aShipped && !bShipped) comparison = 0;
+          else if (!aShipped) comparison = 1;
+          else if (!bShipped) comparison = -1;
+          else comparison = new Date(aShipped).getTime() - new Date(bShipped).getTime();
+          break;
+        case 'notes':
+          comparison = (a.notes || '').localeCompare(b.notes || '');
           break;
       }
 
@@ -165,11 +150,11 @@ export default function SeedingTable({
   return (
     <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px]">
+        <table className="w-full min-w-[1400px]">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/50">
               {/* Checkbox */}
-              <th className="w-12 px-4 py-3">
+              <th className="w-12 px-3 py-3">
                 <input
                   type="checkbox"
                   checked={isAllSelected}
@@ -181,8 +166,19 @@ export default function SeedingTable({
                 />
               </th>
 
-              {/* Account */}
-              <th className="px-4 py-3 text-left">
+              {/* 날짜 */}
+              <th className="px-3 py-3 text-left">
+                <button
+                  onClick={() => handleSort('listed_at')}
+                  className="flex items-center gap-1 text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                >
+                  날짜
+                  <SortIcon field="listed_at" />
+                </button>
+              </th>
+
+              {/* 계정 */}
+              <th className="px-3 py-3 text-left">
                 <button
                   onClick={() => handleSort('account_id')}
                   className="flex items-center gap-1 text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
@@ -192,8 +188,8 @@ export default function SeedingTable({
                 </button>
               </th>
 
-              {/* Followers */}
-              <th className="px-4 py-3 text-left">
+              {/* 팔로워 */}
+              <th className="px-3 py-3 text-left">
                 <button
                   onClick={() => handleSort('follower_count')}
                   className="flex items-center gap-1 text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
@@ -203,62 +199,102 @@ export default function SeedingTable({
                 </button>
               </th>
 
-              {/* Type */}
-              <th className="px-4 py-3 text-left">
-                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  유형
-                </span>
-              </th>
-
-              {/* Content */}
-              <th className="px-4 py-3 text-left">
-                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  콘텐츠
-                </span>
-              </th>
-
-              {/* Status */}
-              <th className="px-4 py-3 text-left">
+              {/* 팔로잉 */}
+              <th className="px-3 py-3 text-left">
                 <button
-                  onClick={() => handleSort('status')}
+                  onClick={() => handleSort('following_count')}
                   className="flex items-center gap-1 text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
                 >
-                  상태
-                  <SortIcon field="status" />
+                  팔로잉
+                  <SortIcon field="following_count" />
                 </button>
               </th>
 
-              {/* Shipping */}
-              <th className="px-4 py-3 text-left">
-                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  배송
-                </span>
-              </th>
-
-              {/* Posting */}
-              <th className="px-4 py-3 text-left">
+              {/* 이메일 */}
+              <th className="px-3 py-3 text-left">
                 <button
-                  onClick={() => handleSort('posted_at')}
+                  onClick={() => handleSort('email')}
                   className="flex items-center gap-1 text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
                 >
-                  포스팅
-                  <SortIcon field="posted_at" />
+                  이메일
+                  <SortIcon field="email" />
                 </button>
               </th>
 
-              {/* Performance */}
-              <th className="px-4 py-3 text-left">
+              {/* DM발송여부 */}
+              <th className="px-3 py-3 text-left">
+                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  DM발송
+                </span>
+              </th>
+
+              {/* 응답여부 */}
+              <th className="px-3 py-3 text-left">
+                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  응답
+                </span>
+              </th>
+
+              {/* 수락여부 */}
+              <th className="px-3 py-3 text-left">
+                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  수락
+                </span>
+              </th>
+
+              {/* 제품 */}
+              <th className="px-3 py-3 text-left">
                 <button
-                  onClick={() => handleSort('performance')}
+                  onClick={() => handleSort('product_name')}
                   className="flex items-center gap-1 text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
                 >
-                  성과
-                  <SortIcon field="performance" />
+                  제품
+                  <SortIcon field="product_name" />
+                </button>
+              </th>
+
+              {/* 가격 */}
+              <th className="px-3 py-3 text-left">
+                <button
+                  onClick={() => handleSort('product_price')}
+                  className="flex items-center gap-1 text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                >
+                  가격
+                  <SortIcon field="product_price" />
+                </button>
+              </th>
+
+              {/* 발송여부 */}
+              <th className="px-3 py-3 text-left">
+                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  발송
+                </span>
+              </th>
+
+              {/* 발송일자 */}
+              <th className="px-3 py-3 text-left">
+                <button
+                  onClick={() => handleSort('shipped_at')}
+                  className="flex items-center gap-1 text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                >
+                  발송일자
+                  <SortIcon field="shipped_at" />
+                </button>
+              </th>
+
+              {/* 비고 */}
+              <th className="px-3 py-3 text-left">
+                <button
+                  onClick={() => handleSort('notes')}
+                  className="flex items-center gap-1 text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                >
+                  비고
+                  <SortIcon field="notes" />
                 </button>
               </th>
 
               {/* Actions */}
-              <th className="w-12 px-4 py-3"></th>
+              <th className="w-12 px-3 py-3"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
