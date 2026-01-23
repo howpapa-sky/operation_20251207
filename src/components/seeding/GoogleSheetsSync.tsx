@@ -444,8 +444,6 @@ export default function GoogleSheetsSync({
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
                   {direction === 'import'
                     ? '데이터 가져오는 중...'
-                    : direction === 'survey'
-                    ? '설문 응답 동기화 중...'
                     : '데이터 내보내는 중...'}
                 </h3>
                 <p className="text-sm text-gray-500 mb-6">잠시만 기다려주세요</p>
@@ -475,8 +473,6 @@ export default function GoogleSheetsSync({
                     <p className="text-sm text-gray-500">
                       {direction === 'import'
                         ? '스프레드시트에서 데이터를 가져왔습니다.'
-                        : direction === 'survey'
-                        ? '설문 응답에서 배송 정보를 동기화했습니다.'
                         : '스프레드시트로 데이터를 내보냈습니다.'}
                     </p>
                   </div>
@@ -516,21 +512,6 @@ export default function GoogleSheetsSync({
                             {syncResult.errors.length}
                           </div>
                           <div className="text-sm text-amber-700">오류</div>
-                        </div>
-                      </>
-                    ) : direction === 'survey' ? (
-                      <>
-                        <div className="text-center p-4 bg-green-50 rounded-xl">
-                          <div className="text-2xl font-bold text-green-600">
-                            {syncResult.updated}
-                          </div>
-                          <div className="text-sm text-green-700">배송정보 연동</div>
-                        </div>
-                        <div className="text-center p-4 bg-amber-50 rounded-xl col-span-2">
-                          <div className="text-2xl font-bold text-amber-600">
-                            {syncResult.errors.length}
-                          </div>
-                          <div className="text-sm text-amber-700">매칭 안됨/오류</div>
                         </div>
                       </>
                     ) : (
@@ -581,33 +562,18 @@ export default function GoogleSheetsSync({
                   >
                     취소
                   </button>
-                  {direction === 'survey' ? (
-                    <button
-                      onClick={handleSync}
-                      disabled={isSyncing || !spreadsheetUrl.trim()}
-                      className="flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white font-medium rounded-xl hover:bg-green-700 disabled:opacity-50 transition-colors"
-                    >
-                      {isSyncing ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <ClipboardList className="w-4 h-4" />
-                      )}
-                      설문 응답 동기화
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handlePreview}
-                      disabled={isLoadingPreview || !spreadsheetUrl.trim()}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 disabled:opacity-50 transition-colors"
-                    >
-                      {isLoadingPreview ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                      미리보기
-                    </button>
-                  )}
+                  <button
+                    onClick={handlePreview}
+                    disabled={isLoadingPreview || !spreadsheetUrl.trim()}
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                  >
+                    {isLoadingPreview ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                    미리보기
+                  </button>
                 </div>
               </>
             ) : step === 'preview' ? (
