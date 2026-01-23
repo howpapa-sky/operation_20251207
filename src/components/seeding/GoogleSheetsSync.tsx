@@ -157,20 +157,40 @@ function parsePrice(value: any): number | undefined {
   return num > 0 ? num : undefined;
 }
 
-// 여러 필드명에서 값 찾기 (대소문자 무시)
+// 여러 필드명에서 값 찾기 (대소문자 무시, 공백/특수문자 무시)
 function findFieldValue(item: any, ...fieldNames: string[]): any {
+  // 정규화 함수: 소문자 변환, 공백/특수문자 제거
+  const normalize = (s: string) => s.toLowerCase().replace(/[\s\-_\.]/g, '');
+
   for (const name of fieldNames) {
+    // 1. 정확히 일치
     if (item[name] !== undefined && item[name] !== null && item[name] !== '') {
       return item[name];
     }
-    // 대소문자 무시 검색
-    const lowerName = name.toLowerCase();
-    for (const key of Object.keys(item)) {
-      if (key.toLowerCase() === lowerName && item[key] !== undefined && item[key] !== null && item[key] !== '') {
+  }
+
+  // 2. 대소문자/공백 무시하고 검색
+  const normalizedNames = fieldNames.map(normalize);
+  for (const key of Object.keys(item)) {
+    const normalizedKey = normalize(key);
+    for (const normalizedName of normalizedNames) {
+      if (normalizedKey === normalizedName && item[key] !== undefined && item[key] !== null && item[key] !== '') {
         return item[key];
       }
     }
   }
+
+  // 3. 부분 일치 검색 (키가 필드명을 포함하거나 반대)
+  for (const key of Object.keys(item)) {
+    const normalizedKey = normalize(key);
+    for (const normalizedName of normalizedNames) {
+      if ((normalizedKey.includes(normalizedName) || normalizedName.includes(normalizedKey)) &&
+          item[key] !== undefined && item[key] !== null && item[key] !== '') {
+        return item[key];
+      }
+    }
+  }
+
   return undefined;
 }
 
@@ -215,7 +235,10 @@ function determineStatus(item: any): string {
 // 인플루언서 데이터 정규화 (프론트엔드에서 추가 변환)
 // Google Sheets 1열 헤더 전체 매핑 지원
 function normalizeInfluencerData(data: any[]): any[] {
-  return data.map(item => {
+  console.log('[normalizeInfluencerData] Input data keys:', data.length > 0 ? Object.keys(data[0]) : 'empty');
+  console.log('[normalizeInfluencerData] First item raw:', data[0]);
+
+  return data.map((item, index) => {
     // ===== 기본 정보 =====
     const listedAtRaw = findFieldValue(item, 'listed_at', 'Date', 'date', '날짜', '등록일');
     const followerRaw = findFieldValue(item, 'follower_count', 'Follower', 'follower', '팔로워', 'Followers');
@@ -237,14 +260,25 @@ function normalizeInfluencerData(data: any[]): any[] {
     // ===== 상태 결정 =====
     const status = determineStatus(item);
 
+    // 첫 번째 행 디버깅
+    if (index === 0) {
+      console.log('[normalizeInfluencerData] Row 0 - followerRaw:', followerRaw, '→', parseNumber(followerRaw));
+      console.log('[normalizeInfluencerData] Row 0 - followingRaw:', followingRaw, '→', parseNumber(followingRaw));
+      console.log('[normalizeInfluencerData] Row 0 - priceRaw:', priceRaw, '→', parsePrice(priceRaw));
+    }
+
+    // following_count: 0도 유효한 값이므로 undefined 체크 필요
+    const followingCount = followingRaw !== undefined ? parseNumber(followingRaw) : undefined;
+    const followerCount = followerRaw !== undefined ? parseNumber(followerRaw) : 0;
+
     return {
       ...item,
       // 날짜 필드 변환
       listed_at: parseDateToISO(listedAtRaw),
       posted_at: parseDateToISO(postedAtRaw),
-      // 숫자 필드 변환
-      follower_count: parseNumber(followerRaw),
-      following_count: parseNumber(followingRaw) || undefined,
+      // 숫자 필드 변환 (0도 유효한 값)
+      follower_count: followerCount,
+      following_count: followingCount !== undefined && followingCount > 0 ? followingCount : undefined,
       // 가격 필드 변환
       product_price: parsePrice(priceRaw),
       fee: parseNumber(feeRaw) || 0,
