@@ -467,45 +467,103 @@ export const useSeedingStore = create<SeedingStore>()(
 
       addInfluencersBulk: async (influencers) => {
         set({ isLoading: true, error: null });
-        try {
-          const records = influencers.map((inf) => ({
-            project_id: inf.project_id,
-            account_id: inf.account_id,
-            account_name: inf.account_name || null,
-            platform: inf.platform,
-            email: inf.email || null,
-            phone: inf.phone || null,
-            follower_count: inf.follower_count,
-            following_count: inf.following_count || null,
-            category: inf.category || null,
-            profile_url: inf.profile_url || null,
-            listed_at: inf.listed_at || null,
-            seeding_type: inf.seeding_type,
-            content_type: inf.content_type,
-            fee: inf.fee || 0,
-            product_name: inf.product_name || null,
-            product_price: inf.product_price || null,
-            status: inf.status,
-            shipping: inf.shipping as unknown as Json,
-            guide_id: inf.guide_id || null,
-            notes: inf.notes || null,
-            assignee_id: inf.assignee_id || null,
-            sheet_row_index: inf.sheet_row_index || null,
-          }));
 
+        // 레코드 변환 함수
+        const toRecord = (inf: typeof influencers[0]) => ({
+          project_id: inf.project_id,
+          account_id: inf.account_id,
+          account_name: inf.account_name || null,
+          platform: inf.platform,
+          email: inf.email || null,
+          phone: inf.phone || null,
+          follower_count: inf.follower_count || 0,
+          following_count: inf.following_count || null,
+          category: inf.category || null,
+          profile_url: inf.profile_url || null,
+          listed_at: inf.listed_at || null,
+          seeding_type: inf.seeding_type,
+          content_type: inf.content_type,
+          fee: inf.fee || 0,
+          product_name: inf.product_name || null,
+          product_price: inf.product_price || null,
+          status: inf.status,
+          shipping: inf.shipping as unknown as Json,
+          guide_id: inf.guide_id || null,
+          notes: inf.notes || null,
+          assignee_id: inf.assignee_id || null,
+          sheet_row_index: inf.sheet_row_index || null,
+        });
+
+        const allRecords = influencers.map(toRecord);
+        const successfulInfluencers: SeedingInfluencer[] = [];
+        const errors: string[] = [];
+
+        try {
+          // 먼저 벌크 삽입 시도
           const { data, error } = await supabase
             .from('seeding_influencers')
-            .insert(records)
+            .insert(allRecords)
             .select();
 
-          if (error) throw error;
+          if (!error && data) {
+            // 벌크 삽입 성공
+            const newInfluencers = data.map(dbToInfluencer);
+            set((state) => ({
+              influencers: [...newInfluencers, ...state.influencers],
+              isLoading: false,
+            }));
+            console.log(`[addInfluencersBulk] Bulk insert success: ${data.length} records`);
+            return;
+          }
 
-          const newInfluencers = (data || []).map(dbToInfluencer);
-          set((state) => ({
-            influencers: [...newInfluencers, ...state.influencers],
-            isLoading: false,
-          }));
+          // 벌크 삽입 실패 시, 개별 삽입으로 폴백 (Partial Success)
+          console.warn(`[addInfluencersBulk] Bulk insert failed, falling back to individual inserts:`, error?.message);
+
+          for (let i = 0; i < allRecords.length; i++) {
+            const record = allRecords[i];
+            try {
+              const { data: singleData, error: singleError } = await supabase
+                .from('seeding_influencers')
+                .insert(record)
+                .select()
+                .single();
+
+              if (singleError) {
+                const errorMsg = `Row ${i + 1} (${record.account_id}): ${singleError.message}`;
+                console.error(`[addInfluencersBulk] ${errorMsg}`);
+                errors.push(errorMsg);
+              } else if (singleData) {
+                successfulInfluencers.push(dbToInfluencer(singleData));
+              }
+            } catch (rowError: any) {
+              const errorMsg = `Row ${i + 1} (${record.account_id}): ${rowError.message}`;
+              console.error(`[addInfluencersBulk] ${errorMsg}`);
+              errors.push(errorMsg);
+            }
+          }
+
+          // 성공한 레코드들 상태에 추가
+          if (successfulInfluencers.length > 0) {
+            set((state) => ({
+              influencers: [...successfulInfluencers, ...state.influencers],
+              isLoading: false,
+              error: errors.length > 0 ? `${successfulInfluencers.length}건 성공, ${errors.length}건 실패` : null,
+            }));
+            console.log(`[addInfluencersBulk] Partial success: ${successfulInfluencers.length}/${allRecords.length} records`);
+          } else {
+            set({
+              isLoading: false,
+              error: `모든 레코드 삽입 실패 (${errors.length}건)`
+            });
+          }
+
+          // 에러가 있어도 성공한 것들은 저장되었으므로, 성공 건수가 있으면 throw하지 않음
+          if (successfulInfluencers.length === 0 && errors.length > 0) {
+            throw new Error(errors.join('\n'));
+          }
+
         } catch (error: any) {
+          console.error('[addInfluencersBulk] Error:', error);
           set({ error: error.message, isLoading: false });
           throw error;
         }
