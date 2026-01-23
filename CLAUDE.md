@@ -125,3 +125,72 @@ npx shadcn@latest add [name]       # shadcn 컴포넌트 추가
 3. **상태 관리**: 전역 상태는 Zustand, 로컬 상태는 useState
 4. **불변성**: 상태 업데이트 시 spread 연산자 사용
 5. **일관성**: 새 UI 작성 전 shadcn/ui 컴포넌트 확인 필수
+
+---
+
+## 인플루언서 시딩 기능
+
+### 주요 파일
+| 파일 | 설명 |
+|------|------|
+| `src/store/seedingStore.ts` | Zustand 스토어 (CRUD, 통계 계산) |
+| `src/types/index.ts` | SeedingInfluencer, SeedingProject 타입 |
+| `netlify/functions/google-sheets-sync.ts` | Google Sheets 연동 Netlify Function |
+| `src/services/googleSheetsService.ts` | Sheets API 클라이언트 |
+| `src/components/seeding/GoogleSheetsSync.tsx` | Sheets 동기화 UI |
+
+### Google Sheets 컬럼 매핑
+시트 가져오기 시 헤더명 → DB 필드 매핑:
+
+```
+Date → listed_at
+Follower → follower_count
+E-mail → email
+URL(youtube, instagram) → profile_url (account_id 자동 추출)
+DM sent (Yes/No) → status 판별용
+Response received (Yes/No) → status 판별용
+acceptance (Yes/No) → status 판별용
+Product → product_name (가격 파싱: "제품명 (15,000원)" → product_name + product_price)
+Product Shipment (Yes/No) → status=shipped
+NOTE → notes
+Cost → product_price
+```
+
+### 컬럼 매핑 추가 방법
+`netlify/functions/google-sheets-sync.ts`의 `columnMapping` 객체에 추가:
+```ts
+const columnMapping: Record<string, string> = {
+  '새컬럼명': 'db_field_name',
+  'New Column': 'db_field_name',
+  // ...
+};
+```
+
+### 비용 계산 로직
+- **발송완료 상태만 계산**: `shipped`, `guide_sent`, `posted`, `completed`
+- 계산식: `수량 × (인플루언서별 product_price || 프로젝트 cost_price)`
+- 위치: `seedingStore.ts` → `getProjectStats()`, `getOverallStats()`
+
+### 시트 가져오기 플로우
+1. 기존 데이터 삭제 (deleteInfluencersBulk)
+2. Netlify Function으로 시트 데이터 파싱
+3. DB에 새 데이터 추가 (addInfluencersBulk)
+
+### DB 스키마 변경 시
+1. `supabase/migrations/`에 SQL 파일 추가
+2. Supabase SQL Editor에서 실행
+3. `seedingStore.ts`의 `dbToInfluencer()`, `addInfluencer()`, `addInfluencersBulk()`, `updateInfluencer()` 수정
+4. `src/types/index.ts`의 타입 업데이트
+
+### 상태값 (SeedingStatus)
+```
+listed → 리스트업
+contacted → 연락완료
+accepted → 수락
+rejected → 거절
+shipped → 제품발송
+guide_sent → 가이드발송
+posted → 포스팅완료
+completed → 완료
+```
+

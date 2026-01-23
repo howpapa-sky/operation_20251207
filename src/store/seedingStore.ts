@@ -62,6 +62,7 @@ interface SeedingStore {
   updatePerformance: (id: string, performance: Partial<SeedingPerformance>) => Promise<void>;
   deleteInfluencer: (id: string) => Promise<void>;
   deleteInfluencersBulk: (ids: string[]) => Promise<void>;
+  deleteInfluencersByProject: (projectId: string) => Promise<void>;
   getInfluencerById: (id: string) => SeedingInfluencer | undefined;
 
   // ===== 템플릿 액션 =====
@@ -654,10 +655,35 @@ export const useSeedingStore = create<SeedingStore>()(
         }));
 
         try {
+          // 배치로 삭제 (100개씩)
+          const batchSize = 100;
+          for (let i = 0; i < ids.length; i += batchSize) {
+            const batch = ids.slice(i, i + batchSize);
+            const { error } = await supabase
+              .from('seeding_influencers')
+              .delete()
+              .in('id', batch);
+
+            if (error) throw error;
+          }
+        } catch (error: any) {
+          set({ influencers: previousInfluencers, error: error.message });
+          throw error;
+        }
+      },
+
+      deleteInfluencersByProject: async (projectId) => {
+        const previousInfluencers = get().influencers;
+
+        set((state) => ({
+          influencers: state.influencers.filter((i) => i.project_id !== projectId),
+        }));
+
+        try {
           const { error } = await supabase
             .from('seeding_influencers')
             .delete()
-            .in('id', ids);
+            .eq('project_id', projectId);
 
           if (error) throw error;
         } catch (error: any) {

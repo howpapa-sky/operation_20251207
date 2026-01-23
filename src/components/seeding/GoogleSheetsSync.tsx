@@ -58,7 +58,7 @@ export default function GoogleSheetsSync({
   const [error, setError] = useState<string | null>(null);
 
   // 스토어
-  const { addInfluencersBulk, getInfluencersByProject, deleteInfluencersBulk } = useSeedingStore();
+  const { addInfluencersBulk, deleteInfluencersByProject, getInfluencersByProject } = useSeedingStore();
 
   // 모달 열릴 때 초기화
   useEffect(() => {
@@ -107,12 +107,8 @@ export default function GoogleSheetsSync({
         // 가져오기
         setSyncProgress(10);
 
-        // 기존 데이터 삭제 (중복 방지)
-        const existingInfluencers = getInfluencersByProject(project.id);
-        if (existingInfluencers.length > 0) {
-          const existingIds = existingInfluencers.map((inf) => inf.id);
-          await deleteInfluencersBulk(existingIds);
-        }
+        // 기존 데이터 삭제 (중복 방지) - project_id로 한 번에 삭제
+        await deleteInfluencersByProject(project.id);
 
         setSyncProgress(30);
 
