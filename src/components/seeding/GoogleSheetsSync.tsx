@@ -235,8 +235,10 @@ function determineStatus(item: any): string {
 // 인플루언서 데이터 정규화 (프론트엔드에서 추가 변환)
 // Google Sheets 1열 헤더 전체 매핑 지원
 function normalizeInfluencerData(data: any[]): any[] {
+  console.log('========== [normalizeInfluencerData] START ==========');
+  console.log('[normalizeInfluencerData] Total records:', data.length);
   console.log('[normalizeInfluencerData] Input data keys:', data.length > 0 ? Object.keys(data[0]) : 'empty');
-  console.log('[normalizeInfluencerData] First item raw:', data[0]);
+  console.log('[normalizeInfluencerData] First item RAW:', JSON.stringify(data[0], null, 2));
 
   return data.map((item, index) => {
     // ===== 기본 정보 =====
@@ -260,14 +262,18 @@ function normalizeInfluencerData(data: any[]): any[] {
     // ===== 상태 결정 =====
     const status = determineStatus(item);
 
-    // 첫 번째 행 디버깅
+    // 첫 번째 행 상세 디버깅
     if (index === 0) {
-      console.log('[normalizeInfluencerData] Row 0 - followerRaw:', followerRaw, '→', parseNumber(followerRaw));
-      console.log('[normalizeInfluencerData] Row 0 - followingRaw:', followingRaw, '→', parseNumber(followingRaw));
-      console.log('[normalizeInfluencerData] Row 0 - priceRaw:', priceRaw, '→', parsePrice(priceRaw));
+      console.log('---------- Row 0 Debug ----------');
+      console.log('listedAtRaw:', listedAtRaw, '→ parseDateToISO:', parseDateToISO(listedAtRaw));
+      console.log('followerRaw:', followerRaw, '→ parseNumber:', parseNumber(followerRaw));
+      console.log('followingRaw:', followingRaw, '→ parseNumber:', parseNumber(followingRaw));
+      console.log('priceRaw:', priceRaw, '→ parsePrice:', parsePrice(priceRaw));
+      console.log('status:', status);
+      console.log('----------------------------------');
     }
 
-    return {
+    const result = {
       ...item,
       // 날짜 필드 변환
       listed_at: parseDateToISO(listedAtRaw),
@@ -288,6 +294,13 @@ function normalizeInfluencerData(data: any[]): any[] {
       // 상태
       status,
     };
+
+    if (index === 0) {
+      console.log('[normalizeInfluencerData] First item RESULT:', JSON.stringify(result, null, 2));
+      console.log('========== [normalizeInfluencerData] END ==========');
+    }
+
+    return result;
   });
 }
 
