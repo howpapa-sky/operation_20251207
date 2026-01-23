@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, FolderKanban, Loader2 } from 'lucide-react';
+import { X, FolderKanban, Loader2, FileSpreadsheet, Link } from 'lucide-react';
 import { SeedingProject, SeedingProjectStatus, Brand, ProductMaster } from '../../types';
 import ProductSelector from './ProductSelector';
 import UserSelect from '../common/UserSelect';
@@ -25,6 +25,12 @@ const defaultFormData = {
   status: 'planning' as SeedingProjectStatus,
   description: '',
   assignee_id: '',
+  // Google Sheets 연동
+  listup_sheet_url: '',
+  listup_sheet_name: 'Sheet1',
+  survey_sheet_url: '',
+  survey_sheet_name: 'Form Responses 1',
+  auto_sync_enabled: false,
 };
 
 export default function SeedingProjectModal({
@@ -54,6 +60,12 @@ export default function SeedingProjectModal({
         status: project.status,
         description: project.description || '',
         assignee_id: project.assignee_id || '',
+        // Google Sheets 연동
+        listup_sheet_url: project.listup_sheet_url || '',
+        listup_sheet_name: project.listup_sheet_name || 'Sheet1',
+        survey_sheet_url: project.survey_sheet_url || '',
+        survey_sheet_name: project.survey_sheet_name || 'Form Responses 1',
+        auto_sync_enabled: project.auto_sync_enabled || false,
       });
     } else {
       setFormData(defaultFormData);
@@ -122,6 +134,12 @@ export default function SeedingProjectModal({
       status: formData.status,
       description: formData.description.trim() || undefined,
       assignee_id: formData.assignee_id || undefined,
+      // Google Sheets 연동
+      listup_sheet_url: formData.listup_sheet_url.trim() || undefined,
+      listup_sheet_name: formData.listup_sheet_name.trim() || 'Sheet1',
+      survey_sheet_url: formData.survey_sheet_url.trim() || undefined,
+      survey_sheet_name: formData.survey_sheet_name.trim() || 'Form Responses 1',
+      auto_sync_enabled: formData.auto_sync_enabled,
     });
   };
 
@@ -369,6 +387,81 @@ export default function SeedingProjectModal({
                 placeholder="프로젝트에 대한 간단한 설명..."
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-100 focus:border-primary-500 resize-none"
               />
+            </div>
+
+            {/* Google Sheets 연동 섹션 */}
+            <div className="pt-4 border-t border-gray-200">
+              <div className="flex items-center gap-2 mb-4">
+                <FileSpreadsheet className="w-5 h-5 text-green-600" />
+                <h3 className="text-sm font-semibold text-gray-900">Google Sheets 연동</h3>
+              </div>
+
+              {/* 리스트업 시트 */}
+              <div className="space-y-3 mb-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <Link className="w-4 h-4" />
+                  리스트업 시트
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <input
+                      type="text"
+                      value={formData.listup_sheet_url}
+                      onChange={(e) => setFormData({ ...formData, listup_sheet_url: e.target.value })}
+                      placeholder="스프레드시트 URL 또는 ID"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={formData.listup_sheet_name}
+                      onChange={(e) => setFormData({ ...formData, listup_sheet_name: e.target.value })}
+                      placeholder="시트명"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 설문 응답 시트 */}
+              <div className="space-y-3 mb-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <Link className="w-4 h-4" />
+                  설문 응답 시트
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <input
+                      type="text"
+                      value={formData.survey_sheet_url}
+                      onChange={(e) => setFormData({ ...formData, survey_sheet_url: e.target.value })}
+                      placeholder="스프레드시트 URL 또는 ID"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={formData.survey_sheet_name}
+                      onChange={(e) => setFormData({ ...formData, survey_sheet_name: e.target.value })}
+                      placeholder="시트명"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-100 focus:border-primary-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 자동 동기화 */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.auto_sync_enabled}
+                  onChange={(e) => setFormData({ ...formData, auto_sync_enabled: e.target.checked })}
+                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <span className="text-sm text-gray-700">매일 오전 9시 자동 동기화</span>
+              </label>
             </div>
           </form>
 
