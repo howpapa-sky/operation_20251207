@@ -723,8 +723,11 @@ interface SyncSurveyParams {
 }
 
 async function syncSurveyResponses(params: SyncSurveyParams): Promise<SyncResult> {
+  console.log('syncSurveyResponses started:', { projectId: params.projectId, sheetName: params.sheetName });
+
   const sheets = await getSheets();
   const spreadsheetId = extractSpreadsheetId(params.spreadsheetId);
+  console.log('Spreadsheet ID:', spreadsheetId);
 
   // 설문 응답 시트 읽기
   const response = await sheets.spreadsheets.values.get({
@@ -733,12 +736,16 @@ async function syncSurveyResponses(params: SyncSurveyParams): Promise<SyncResult
   });
 
   const rows = response.data.values || [];
+  console.log('Sheet rows count:', rows.length);
+
   if (rows.length < 2) {
     return { success: true, updated: 0, errors: ['설문 응답 데이터가 없습니다.'] };
   }
 
   const headers = rows[0] as string[];
   const dataRows = rows.slice(1);
+  console.log('Headers:', headers);
+  console.log('Data rows count:', dataRows.length);
 
   const errors: string[] = [];
   let updatedCount = 0;
@@ -804,21 +811,61 @@ async function syncSurveyResponses(params: SyncSurveyParams): Promise<SyncResult
       const accountIdWithoutAt = accountId;
 
       // DB에서 해당 인플루언서 찾기 (프로젝트 내에서)
-      const { data: influencers, error: findError } = await supabase
+      // 특수문자가 있을 수 있으므로 여러 쿼리로 분리하여 안전하게 검색
+      let influencers: any[] = [];
+      let findError: any = null;
+
+      // 1. 정확한 매칭 시도 (@포함)
+      const { data: exactMatch, error: err1 } = await supabase
         .from('seeding_influencers')
         .select('id, account_id, shipping')
         .eq('project_id', params.projectId)
-        .or(`account_id.eq.${normalizedAccountId},account_id.eq.${accountIdWithoutAt},account_id.ilike.%${accountIdWithoutAt}%`);
+        .eq('account_id', normalizedAccountId);
+
+      if (err1) {
+        findError = err1;
+      } else if (exactMatch && exactMatch.length > 0) {
+        influencers = exactMatch;
+      } else {
+        // 2. @없이 정확한 매칭 시도
+        const { data: exactMatch2, error: err2 } = await supabase
+          .from('seeding_influencers')
+          .select('id, account_id, shipping')
+          .eq('project_id', params.projectId)
+          .eq('account_id', accountIdWithoutAt);
+
+        if (err2) {
+          findError = err2;
+        } else if (exactMatch2 && exactMatch2.length > 0) {
+          influencers = exactMatch2;
+        } else {
+          // 3. 부분 매칭 시도 (ilike)
+          const { data: partialMatch, error: err3 } = await supabase
+            .from('seeding_influencers')
+            .select('id, account_id, shipping')
+            .eq('project_id', params.projectId)
+            .ilike('account_id', `%${accountIdWithoutAt}%`);
+
+          if (err3) {
+            findError = err3;
+          } else if (partialMatch) {
+            influencers = partialMatch;
+          }
+        }
+      }
 
       if (findError) {
+        console.error(`Row ${rowIndex + 2} DB query error:`, findError);
         errors.push(`행 ${rowIndex + 2}: DB 조회 오류 - ${findError.message}`);
         continue;
       }
 
       if (!influencers || influencers.length === 0) {
+        console.log(`Row ${rowIndex + 2}: No match found for "${accountIdWithoutAt}"`);
         notFoundCount++;
         continue; // 매칭되는 인플루언서 없음
       }
+      console.log(`Row ${rowIndex + 2}: Found match for "${accountIdWithoutAt}" -> ${influencers[0].id}`);
 
       // 첫 번째 매칭된 인플루언서 업데이트
       const influencer = influencers[0];
