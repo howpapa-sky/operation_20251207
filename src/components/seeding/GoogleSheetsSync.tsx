@@ -234,60 +234,112 @@ function determineStatus(item: any): string {
 
 // 인플루언서 데이터 정규화 (프론트엔드에서 추가 변환)
 // Google Sheets 1열 헤더 전체 매핑 지원
+// 중요: Netlify Function에서 이미 필드명이 DB 필드명으로 변환되어 올 수 있음
 function normalizeInfluencerData(data: any[]): any[] {
+  console.log('========== [normalizeInfluencerData] START ==========');
+  console.log('[normalizeInfluencerData] Total records:', data.length);
   console.log('[normalizeInfluencerData] Input data keys:', data.length > 0 ? Object.keys(data[0]) : 'empty');
-  console.log('[normalizeInfluencerData] First item raw:', data[0]);
+  console.log('[normalizeInfluencerData] First item RAW:', JSON.stringify(data[0], null, 2));
 
   return data.map((item, index) => {
     // ===== 기본 정보 =====
-    const listedAtRaw = findFieldValue(item, 'listed_at', 'Date', 'date', '날짜', '등록일');
-    const followerRaw = findFieldValue(item, 'follower_count', 'Follower', 'follower', '팔로워', 'Followers');
-    const followingRaw = findFieldValue(item, 'following_count', 'Following', 'following', '팔로잉');
-    const emailRaw = findFieldValue(item, 'email', 'E-mail', 'Email', 'e-mail', '이메일');
-    const profileUrlRaw = findFieldValue(item, 'profile_url', 'URL(youtube, instagram)', 'URL', 'url', '프로필URL', '링크');
+    // Netlify Function에서 이미 DB 필드명으로 변환되어 왔을 수 있으므로 직접 접근 우선
+    const listedAtRaw = item.listed_at ?? findFieldValue(item, 'Date', 'date', '날짜', '등록일');
+    const followerRaw = item.follower_count ?? findFieldValue(item, 'Follower', 'follower', '팔로워', 'Followers');
+    const followingRaw = item.following_count ?? findFieldValue(item, 'Following', 'following', '팔로잉');
+    const emailRaw = item.email ?? findFieldValue(item, 'E-mail', 'Email', 'e-mail', '이메일');
+    const profileUrlRaw = item.profile_url ?? findFieldValue(item, 'URL(youtube, instagram)', 'URL', 'url', '프로필URL', '링크');
 
     // ===== 제품 정보 =====
-    const productNameRaw = findFieldValue(item, 'product_name', 'Product', 'product', '제품명', '제품', '상품명');
-    const priceRaw = findFieldValue(item, 'product_price', 'price', 'Price', 'Cost', 'cost', '가격', '제품단가', '단가');
-    const feeRaw = findFieldValue(item, 'fee', 'Fee', '원고비');
+    const productNameRaw = item.product_name ?? findFieldValue(item, 'Product', 'product', '제품명', '제품', '상품명');
+    const priceRaw = item.product_price ?? findFieldValue(item, 'price', 'Price', 'Cost', 'cost', '가격', '제품단가', '단가');
+    const feeRaw = item.fee ?? findFieldValue(item, 'Fee', '원고비');
 
     // ===== 날짜 정보 =====
-    const postedAtRaw = findFieldValue(item, 'posted_at', 'upload date (MM/DD)', 'upload date', '업로드일', '포스팅일');
+    const postedAtRaw = item.posted_at ?? findFieldValue(item, 'upload date (MM/DD)', 'upload date', '업로드일', '포스팅일');
 
     // ===== 메모 =====
-    const notesRaw = findFieldValue(item, 'notes', 'NOTE', 'note', 'Notes', 'Memo', '메모', '비고');
+    const notesRaw = item.notes ?? findFieldValue(item, 'NOTE', 'note', 'Notes', 'Memo', '메모', '비고');
 
     // ===== 상태 결정 =====
     const status = determineStatus(item);
 
-    // 첫 번째 행 디버깅
+    // 첫 번째 행 상세 디버깅
     if (index === 0) {
-      console.log('[normalizeInfluencerData] Row 0 - followerRaw:', followerRaw, '→', parseNumber(followerRaw));
-      console.log('[normalizeInfluencerData] Row 0 - followingRaw:', followingRaw, '→', parseNumber(followingRaw));
-      console.log('[normalizeInfluencerData] Row 0 - priceRaw:', priceRaw, '→', parsePrice(priceRaw));
+      console.log('---------- Row 0 Debug ----------');
+      console.log('item.listed_at:', item.listed_at, '(직접)');
+      console.log('listedAtRaw:', listedAtRaw, '→ parseDateToISO:', parseDateToISO(listedAtRaw));
+      console.log('item.follower_count:', item.follower_count, '(직접)');
+      console.log('followerRaw:', followerRaw, '→ parseNumber:', parseNumber(followerRaw));
+      console.log('item.following_count:', item.following_count, '(직접)');
+      console.log('followingRaw:', followingRaw, '→ parseNumber:', followingRaw != null ? parseNumber(followingRaw) : 'undefined');
+      console.log('item.product_price:', item.product_price, '(직접)');
+      console.log('priceRaw:', priceRaw, '→ parsePrice:', parsePrice(priceRaw));
+      console.log('status:', status);
+      console.log('----------------------------------');
     }
 
-    return {
+    // 날짜 처리: 이미 ISO 형식이면 그대로 사용
+    const processedListedAt = listedAtRaw != null && listedAtRaw !== ''
+      ? (typeof listedAtRaw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(listedAtRaw)
+          ? listedAtRaw.split('T')[0]
+          : parseDateToISO(listedAtRaw))
+      : undefined;
+
+    const processedPostedAt = postedAtRaw != null && postedAtRaw !== ''
+      ? (typeof postedAtRaw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(postedAtRaw)
+          ? postedAtRaw.split('T')[0]
+          : parseDateToISO(postedAtRaw))
+      : undefined;
+
+    // 숫자 처리: 이미 숫자면 그대로 사용
+    const processedFollowerCount = typeof followerRaw === 'number'
+      ? followerRaw
+      : parseNumber(followerRaw);
+
+    // following_count는 값이 있을 때만 설정 (0도 유효한 값)
+    let processedFollowingCount: number | undefined = undefined;
+    if (followingRaw != null && followingRaw !== '') {
+      processedFollowingCount = typeof followingRaw === 'number'
+        ? followingRaw
+        : parseNumber(followingRaw);
+    }
+
+    // product_price는 값이 있을 때만 설정
+    let processedProductPrice: number | undefined = undefined;
+    if (priceRaw != null && priceRaw !== '') {
+      const priceNum = typeof priceRaw === 'number' ? priceRaw : parseNumber(priceRaw);
+      if (priceNum > 0) {
+        processedProductPrice = priceNum;
+      }
+    }
+
+    const result = {
       ...item,
       // 날짜 필드 변환
-      listed_at: parseDateToISO(listedAtRaw),
-      posted_at: parseDateToISO(postedAtRaw),
+      listed_at: processedListedAt,
+      posted_at: processedPostedAt,
       // 숫자 필드 변환 (0도 유효한 값으로 유지)
-      follower_count: parseNumber(followerRaw),
-      following_count: followingRaw !== undefined && followingRaw !== null && followingRaw !== ''
-        ? parseNumber(followingRaw)
-        : undefined,
+      follower_count: processedFollowerCount,
+      following_count: processedFollowingCount,
       // 가격 필드 변환
-      product_price: parsePrice(priceRaw),
-      fee: parseNumber(feeRaw),
+      product_price: processedProductPrice,
+      fee: typeof feeRaw === 'number' ? feeRaw : parseNumber(feeRaw),
       // 문자열 필드
-      email: emailRaw ? String(emailRaw).trim() : item.email,
-      profile_url: profileUrlRaw ? String(profileUrlRaw).trim() : item.profile_url,
-      product_name: productNameRaw ? String(productNameRaw).trim() : item.product_name,
-      notes: notesRaw ? String(notesRaw).trim() : item.notes,
+      email: emailRaw ? String(emailRaw).trim() : undefined,
+      profile_url: profileUrlRaw ? String(profileUrlRaw).trim() : undefined,
+      product_name: productNameRaw ? String(productNameRaw).trim() : undefined,
+      notes: notesRaw ? String(notesRaw).trim() : undefined,
       // 상태
       status,
     };
+
+    if (index === 0) {
+      console.log('[normalizeInfluencerData] First item RESULT:', JSON.stringify(result, null, 2));
+      console.log('========== [normalizeInfluencerData] END ==========');
+    }
+
+    return result;
   });
 }
 
