@@ -15,6 +15,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { useDevRequestStore } from '../store/devRequestStore';
+import { useStore } from '../store/useStore';
 import {
   DevRequest,
   DevRequestStatus,
@@ -105,15 +106,17 @@ function DevRequestModal({
   onClose,
   request,
   onSave,
+  currentUserName,
 }: {
   isOpen: boolean;
   onClose: () => void;
   request?: DevRequest | null;
   onSave: (data: Omit<DevRequest, 'id' | 'created_at' | 'updated_at'>) => void;
+  currentUserName?: string;
 }) {
   const [formData, setFormData] = useState({
     request_date: new Date().toISOString().split('T')[0],
-    requester: '',
+    requester: currentUserName || '',
     brand: 'common' as DevRequestBrand,
     request_type: 'feature' as DevRequestType,
     title: '',
@@ -141,7 +144,7 @@ function DevRequestModal({
     } else {
       setFormData({
         request_date: new Date().toISOString().split('T')[0],
-        requester: '',
+        requester: currentUserName || '',
         brand: 'common',
         request_type: 'feature',
         title: '',
@@ -152,7 +155,7 @@ function DevRequestModal({
         notes: '',
       });
     }
-  }, [request, isOpen]);
+  }, [request, isOpen, currentUserName]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -315,6 +318,7 @@ function DevRequestModal({
 }
 
 export default function DevRequestPage() {
+  const { user } = useStore();
   const {
     requests,
     isLoading,
@@ -659,6 +663,7 @@ export default function DevRequestPage() {
         onClose={() => { setIsModalOpen(false); setEditingRequest(null); }}
         request={editingRequest}
         onSave={handleSave}
+        currentUserName={user?.name}
       />
     </div>
   );
