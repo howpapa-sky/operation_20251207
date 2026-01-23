@@ -220,6 +220,12 @@ export default function SeedingDetailPanel({
                 {influencer.account_name && <span>{influencer.account_name}</span>}
                 <span>•</span>
                 <span>{formatFollowers(influencer.follower_count)} 팔로워</span>
+                {influencer.following_count !== undefined && influencer.following_count > 0 && (
+                  <>
+                    <span>•</span>
+                    <span>{formatFollowers(influencer.following_count)} 팔로잉</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
