@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp,
@@ -15,6 +15,7 @@ import {
   Users,
   Package,
   ShoppingCart,
+  BarChart3,
 } from 'lucide-react';
 import {
   PieChart,
@@ -32,7 +33,9 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { useStore } from '../store/useStore';
+import { useSeedingStore } from '../store/seedingStore';
 import UpcomingSchedules from '../components/common/UpcomingSchedules';
+import SeedingKPICard from '../components/dashboard/SeedingKPICard';
 import {
   formatCurrency,
   formatDate,
@@ -73,6 +76,26 @@ const typeIcons: Record<ProjectType, React.ElementType> = {
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { projects, user } = useStore();
+  const { fetchProjects: fetchSeedingProjects, fetchInfluencers, getTodayStats } = useSeedingStore();
+
+  // 시딩 데이터 로드
+  useEffect(() => {
+    fetchSeedingProjects();
+    fetchInfluencers();
+  }, [fetchSeedingProjects, fetchInfluencers]);
+
+  // 오늘의 시딩 통계
+  const howpapaStats = useMemo(() => getTodayStats('howpapa'), [getTodayStats]);
+  const nuccioStats = useMemo(() => getTodayStats('nuccio'), [getTodayStats]);
+
+  // 오늘 날짜
+  const todayString = useMemo(() => {
+    return new Date().toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  }, []);
 
   // 통계 계산
   const stats = useMemo(() => {
@@ -344,6 +367,37 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 오늘의 시딩 현황 */}
+      <Card>
+        <CardHeader className="pb-3 border-b">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-indigo-600" />
+              <CardTitle className="text-base">오늘의 시딩 현황</CardTitle>
+            </div>
+            <span className="text-sm text-gray-500">{todayString}</span>
+          </div>
+        </CardHeader>
+        <CardContent className="p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <SeedingKPICard
+              brand="howpapa"
+              targetListup={100}
+              targetAcceptance={15}
+              actualListup={howpapaStats.listup}
+              actualAcceptance={howpapaStats.accepted}
+            />
+            <SeedingKPICard
+              brand="nuccio"
+              targetListup={100}
+              targetAcceptance={15}
+              actualListup={nuccioStats.listup}
+              actualAcceptance={nuccioStats.accepted}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 다가오는 세부 일정 & 지연된 일정 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
