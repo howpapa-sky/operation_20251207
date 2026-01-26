@@ -382,21 +382,16 @@ async function importData(params: ImportParams) {
         }
       });
 
-      // 날짜 필드
+      // 날짜 필드 - 항상 설정 (파싱 실패 시 null)
       const listedAtRaw = get('listed_at');
-      if (listedAtRaw) {
-        const parsed = parseDate(listedAtRaw);
-        if (parsed) record.listed_at = parsed;
-      }
+      record.listed_at = listedAtRaw ? parseDate(listedAtRaw) : null;
 
-      // 숫자 필드
+      // 숫자 필드 - 모두 동일한 패턴으로 항상 설정
       const followerRaw = get('follower_count');
       record.follower_count = followerRaw ? parseNum(followerRaw) : 0;
 
       const followingRaw = get('following_count');
-      if (followingRaw !== undefined && followingRaw !== null && followingRaw !== '') {
-        record.following_count = parseNum(followingRaw);
-      }
+      record.following_count = followingRaw ? parseNum(followingRaw) : 0;
 
       const priceRaw = get('product_price');
       if (priceRaw !== undefined && priceRaw !== null && priceRaw !== '') {
