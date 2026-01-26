@@ -195,9 +195,12 @@ export default function SeedingReportsPage() {
     return data;
   }, [filteredData]);
 
-  // 시딩 유형 데이터
+  // 시딩 유형 데이터 (비용은 발송완료 상태만)
   const seedingTypeData = useMemo(() => {
     const { influencers: filtered, projects: filteredProjects } = filteredData;
+
+    // 발송 완료 이후 상태 (비용 계산 대상)
+    const shippedStatuses = ['shipped', 'guide_sent', 'posted', 'completed'];
 
     let freeCount = 0;
     let paidCount = 0;
@@ -205,16 +208,25 @@ export default function SeedingReportsPage() {
     let paidCost = 0;
 
     filtered.forEach((inf) => {
-      const project = filteredProjects.find((p) => p.id === inf.project_id);
-      const quantity = inf.shipping?.quantity || 1;
-      const cost = project ? quantity * project.cost_price : 0;
-
+      // 카운트는 모든 인플루언서
       if (inf.seeding_type === 'free') {
         freeCount++;
-        freeCost += cost;
       } else {
         paidCount++;
-        paidCost += cost + (inf.fee || 0);
+      }
+
+      // 비용은 발송완료 상태만
+      if (shippedStatuses.includes(inf.status)) {
+        const project = filteredProjects.find((p) => p.id === inf.project_id);
+        const quantity = inf.shipping?.quantity || 1;
+        const productPrice = inf.product_price || project?.cost_price || 0;
+        const cost = quantity * productPrice;
+
+        if (inf.seeding_type === 'free') {
+          freeCost += cost;
+        } else {
+          paidCost += cost + (inf.fee || 0);
+        }
       }
     });
 
