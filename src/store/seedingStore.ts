@@ -482,7 +482,10 @@ export const useSeedingStore = create<SeedingStore>()(
 
         // 레코드 변환 함수 (|| 대신 ?? 사용으로 0 값 보존)
         const toRecord = (inf: typeof influencers[0], index: number) => {
-          const record = {
+          // shipped_at 추출 (inf.shipped_at 또는 inf.shipping.shipped_at)
+        const shippedAtValue = (inf as any).shipped_at || inf.shipping?.shipped_at || null;
+
+        const record = {
             project_id: inf.project_id,
             account_id: inf.account_id,
             account_name: inf.account_name || null,
@@ -501,6 +504,7 @@ export const useSeedingStore = create<SeedingStore>()(
             product_price: inf.product_price ?? null,
             status: inf.status,
             shipping: inf.shipping as unknown as Json,
+            shipped_at: shippedAtValue,  // shipped_at 필드 추가
             guide_id: inf.guide_id || null,
             notes: inf.notes || null,
             assignee_id: inf.assignee_id || null,
@@ -513,11 +517,14 @@ export const useSeedingStore = create<SeedingStore>()(
               listed_at: inf.listed_at,
               following_count: inf.following_count,
               product_price: inf.product_price,
+              shipped_at: (inf as any).shipped_at,
+              'shipping.shipped_at': inf.shipping?.shipped_at,
             }));
             console.log('[addInfluencersBulk] First record:', JSON.stringify({
               listed_at: record.listed_at,
               following_count: record.following_count,
               product_price: record.product_price,
+              shipped_at: record.shipped_at,
             }));
           }
 
@@ -533,9 +540,11 @@ export const useSeedingStore = create<SeedingStore>()(
           listed_at: influencers[0]?.listed_at,
           following_count: influencers[0]?.following_count,
           follower_count: influencers[0]?.follower_count,
+          shipped_at: (influencers[0] as any)?.shipped_at,
           'allRecords[0].listed_at': allRecords[0]?.listed_at,
           'allRecords[0].following_count': allRecords[0]?.following_count,
           'allRecords[0].follower_count': allRecords[0]?.follower_count,
+          'allRecords[0].shipped_at': allRecords[0]?.shipped_at,
         });
 
         try {

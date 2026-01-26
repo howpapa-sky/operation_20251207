@@ -57,22 +57,28 @@ export default function ProductSeedingTable({
       const completedSeedings = completedInfluencers.length;
       const postingRate = totalSeedings > 0 ? (completedSeedings / totalSeedings) * 100 : 0;
 
+      // 발송 완료 이후 상태 (비용 계산 대상)
+      const shippedStatuses = ['shipped', 'guide_sent', 'posted', 'completed'];
+
       // 성과 합산
       let totalReach = 0;
       let totalFee = 0;
+      let totalProductCost = 0;
+
       projectInfluencers.forEach((inf) => {
         if (inf.performance) {
           totalReach += (inf.performance.views || 0) + (inf.performance.story_views || 0);
         }
-        totalFee += inf.fee || 0;
+
+        // 발송완료 상태인 건만 비용 계산
+        if (shippedStatuses.includes(inf.status)) {
+          const quantity = inf.shipping?.quantity || 1;
+          const productPrice = inf.product_price || project.cost_price || 0;
+          totalProductCost += quantity * productPrice;
+          totalFee += inf.fee || 0;
+        }
       });
 
-      // 비용 계산 (인플루언서별 product_price 우선, 없으면 프로젝트 cost_price)
-      const totalProductCost = projectInfluencers.reduce((sum, inf) => {
-        const quantity = inf.shipping?.quantity || 1;
-        const productPrice = inf.product_price || project.cost_price || 0;
-        return sum + (quantity * productPrice);
-      }, 0);
       const totalCost = totalProductCost + totalFee;
 
       // CPM 계산

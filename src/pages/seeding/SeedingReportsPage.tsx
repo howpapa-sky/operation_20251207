@@ -114,21 +114,34 @@ export default function SeedingReportsPage() {
     };
   }, [filteredData]);
 
-  // 비용 통계 계산
+  // 비용 통계 계산 (발송완료 상태만)
   const costData = useMemo(() => {
     const { influencers: filtered, projects: filteredProjects } = filteredData;
 
+    // 발송 완료 이후 상태 (비용 계산 대상)
+    const shippedStatuses = ['shipped', 'guide_sent', 'posted', 'completed'];
+
     let totalSeedingCost = 0;
     let totalFee = 0;
+    let shippedCount = 0;
 
     filtered.forEach((inf) => {
-      const project = filteredProjects.find((p) => p.id === inf.project_id);
-      const quantity = inf.shipping?.quantity || 1;
-      // 인플루언서별 product_price 우선, 없으면 프로젝트 cost_price 사용
-      const productPrice = inf.product_price || project?.cost_price || 0;
-      totalSeedingCost += quantity * productPrice;
-      totalFee += inf.fee || 0;
+      // 발송완료 상태인 건만 비용 계산
+      if (shippedStatuses.includes(inf.status)) {
+        const project = filteredProjects.find((p) => p.id === inf.project_id);
+        const quantity = inf.shipping?.quantity || 1;
+        // 인플루언서별 product_price 우선, 없으면 프로젝트 cost_price 사용
+        const productPrice = inf.product_price || project?.cost_price || 0;
+        totalSeedingCost += quantity * productPrice;
+        totalFee += inf.fee || 0;
+        shippedCount++;
+
+        // 디버깅: 비용 계산 내역
+        console.log(`[Cost Debug] ${inf.account_id}: status=${inf.status}, qty=${quantity}, price=${productPrice} (inf.product_price=${inf.product_price}, project.cost_price=${project?.cost_price}), subtotal=${quantity * productPrice}`);
+      }
     });
+
+    console.log(`[Cost Summary] ${shippedCount}건 발송완료, 총 비용: ₩${totalSeedingCost.toLocaleString()}`);
 
     return {
       totalSeedingCost,
@@ -182,9 +195,12 @@ export default function SeedingReportsPage() {
     return data;
   }, [filteredData]);
 
-  // 시딩 유형 데이터
+  // 시딩 유형 데이터 (비용은 발송완료 상태만)
   const seedingTypeData = useMemo(() => {
     const { influencers: filtered, projects: filteredProjects } = filteredData;
+
+    // 발송 완료 이후 상태 (비용 계산 대상)
+    const shippedStatuses = ['shipped', 'guide_sent', 'posted', 'completed'];
 
     let freeCount = 0;
     let paidCount = 0;
@@ -192,16 +208,25 @@ export default function SeedingReportsPage() {
     let paidCost = 0;
 
     filtered.forEach((inf) => {
-      const project = filteredProjects.find((p) => p.id === inf.project_id);
-      const quantity = inf.shipping?.quantity || 1;
-      const cost = project ? quantity * project.cost_price : 0;
-
+      // 카운트는 모든 인플루언서
       if (inf.seeding_type === 'free') {
         freeCount++;
-        freeCost += cost;
       } else {
         paidCount++;
-        paidCost += cost + (inf.fee || 0);
+      }
+
+      // 비용은 발송완료 상태만
+      if (shippedStatuses.includes(inf.status)) {
+        const project = filteredProjects.find((p) => p.id === inf.project_id);
+        const quantity = inf.shipping?.quantity || 1;
+        const productPrice = inf.product_price || project?.cost_price || 0;
+        const cost = quantity * productPrice;
+
+        if (inf.seeding_type === 'free') {
+          freeCost += cost;
+        } else {
+          paidCost += cost + (inf.fee || 0);
+        }
       }
     });
 
