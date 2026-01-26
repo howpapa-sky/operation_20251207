@@ -382,15 +382,15 @@ async function importData(params: ImportParams) {
         }
       });
 
-      // 날짜 필드 - 항상 설정 (파싱 실패 시 null)
-      const listedAtRaw = get('listed_at');
+      // 날짜 필드 - 매핑 실패 시 원본 헤더에서 직접 가져오기
+      const listedAtRaw = get('listed_at') || record['Date'] || record['date'] || record['DATE'] || record['날짜'];
       record.listed_at = listedAtRaw ? parseDate(listedAtRaw) : null;
 
-      // 숫자 필드 - 모두 동일한 패턴으로 항상 설정
-      const followerRaw = get('follower_count');
+      // 숫자 필드 - 매핑 실패 시 원본 헤더에서 직접 가져오기
+      const followerRaw = get('follower_count') || record['Follower'] || record['follower'] || record['FOLLOWER'] || record['팔로워'];
       record.follower_count = followerRaw ? parseNum(followerRaw) : 0;
 
-      const followingRaw = get('following_count');
+      const followingRaw = get('following_count') || record['Following'] || record['following'] || record['FOLLOWING'] || record['팔로잉'];
       record.following_count = followingRaw ? parseNum(followingRaw) : 0;
 
       const priceRaw = get('product_price');
