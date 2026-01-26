@@ -526,6 +526,16 @@ export const useSeedingStore = create<SeedingStore>()(
         const successfulInfluencers: SeedingInfluencer[] = [];
         const errors: string[] = [];
 
+        // 디버깅: DB insert 직전 데이터 확인
+        console.log('[DEBUG] Before DB insert:', {
+          listed_at: influencers[0]?.listed_at,
+          following_count: influencers[0]?.following_count,
+          follower_count: influencers[0]?.follower_count,
+          'allRecords[0].listed_at': allRecords[0]?.listed_at,
+          'allRecords[0].following_count': allRecords[0]?.following_count,
+          'allRecords[0].follower_count': allRecords[0]?.follower_count,
+        });
+
         try {
           // 먼저 벌크 삽입 시도
           const { data, error } = await supabase
