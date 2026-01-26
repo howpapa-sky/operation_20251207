@@ -190,6 +190,13 @@ export default function SeedingTableRow({
         </span>
       </td>
 
+      {/* 업로드 예정일 */}
+      <td className="px-3 py-3">
+        <span className="text-sm text-gray-700">
+          {influencer.upload_scheduled_at ? formatDate(influencer.upload_scheduled_at) : '-'}
+        </span>
+      </td>
+
       {/* 비고 */}
       <td className="px-3 py-3">
         <span className="text-sm text-gray-700 truncate max-w-[120px] block" title={influencer.notes}>

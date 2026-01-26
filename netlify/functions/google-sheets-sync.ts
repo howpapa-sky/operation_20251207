@@ -89,15 +89,21 @@ const HEADER_MAP: Record<string, string> = {
   '메모': 'notes',
   '비고': 'notes',
 
-  // 발송일자 (새로 추가)
-  'upload date': 'shipped_at',
-  'upload date (MM/D)': 'shipped_at',
-  'Upload Date': 'shipped_at',
+  // 발송일자
   'shipped date': 'shipped_at',
   'Shipped Date': 'shipped_at',
   '발송일': 'shipped_at',
   '발송일자': 'shipped_at',
   '배송일': 'shipped_at',
+
+  // 업로드 예정일 (새로 추가)
+  'upload date': 'upload_scheduled_at',
+  'Upload date': 'upload_scheduled_at',
+  'Upload Date': 'upload_scheduled_at',
+  'upload date (MM/D)': 'upload_scheduled_at',
+  'upload date (MM/DD)': 'upload_scheduled_at',
+  '업로드예정일': 'upload_scheduled_at',
+  '업로드 예정일': 'upload_scheduled_at',
 
   // 상태 판별용
   'DM sent (Yes/No)': '_dm_sent',
@@ -399,9 +405,15 @@ async function importData(params: ImportParams) {
       record.listed_at = listedAtRaw ? parseDate(listedAtRaw) : null;
 
       // 발송일자 필드
-      const shippedAtRaw = get('shipped_at') || record['upload date'] || record['upload date (MM/D)'] || record['Upload Date'] || record['발송일'] || record['발송일자'];
+      const shippedAtRaw = get('shipped_at') || record['shipped date'] || record['Shipped Date'] || record['발송일'] || record['발송일자'];
       if (shippedAtRaw) {
         record.shipped_at = parseDate(shippedAtRaw);
+      }
+
+      // 업로드 예정일 필드
+      const uploadScheduledAtRaw = get('upload_scheduled_at') || record['upload date'] || record['Upload date'] || record['Upload Date'] || record['upload date (MM/D)'] || record['upload date (MM/DD)'] || record['업로드 예정일'];
+      if (uploadScheduledAtRaw) {
+        record.upload_scheduled_at = parseDate(uploadScheduledAtRaw);
       }
 
       // 숫자 필드 - 매핑 실패 시 원본 헤더에서 직접 가져오기

@@ -282,6 +282,13 @@ export default function SeedingTable({
                 </button>
               </th>
 
+              {/* 업로드 예정일 */}
+              <th className="px-3 py-3 text-left">
+                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  업로드예정
+                </span>
+              </th>
+
               {/* 비고 */}
               <th className="px-3 py-3 text-left">
                 <button
