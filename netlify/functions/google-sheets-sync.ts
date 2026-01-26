@@ -402,6 +402,13 @@ async function importData(params: ImportParams) {
     updated: 0,
     errors,
     data: results,
+    // 디버깅 정보 추가
+    debug: {
+      headers: headers,
+      fieldIndex: fieldIndex,
+      firstRow: dataRows[0],
+      firstRecord: results[0],
+    },
   };
 }
 

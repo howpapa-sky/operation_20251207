@@ -476,6 +476,18 @@ export default function GoogleSheetsSync({
 
         setSyncProgress(60);
 
+        // 디버깅: Netlify Function 응답 전체 확인
+        console.log('========== [DEBUG] Netlify Function Response ==========');
+        const debugInfo = (result as any).debug;
+        console.log('[DEBUG] result.debug:', debugInfo);
+        if (debugInfo) {
+          console.log('[DEBUG] 시트 헤더:', debugInfo.headers);
+          console.log('[DEBUG] 필드 매핑:', debugInfo.fieldIndex);
+          console.log('[DEBUG] 첫 행 원본:', debugInfo.firstRow);
+          console.log('[DEBUG] 첫 레코드:', debugInfo.firstRecord);
+        }
+        console.log('=======================================================');
+
         if (result.data && result.data.length > 0) {
           // 디버깅: Netlify Function에서 반환된 데이터 확인
           console.log('[handleSync] First record from Netlify:', JSON.stringify(result.data[0], null, 2));
