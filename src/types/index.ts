@@ -1018,7 +1018,6 @@ export interface SeedingInfluencer {
   rejected_at?: string;
   rejection_reason?: string;
   completed_at?: string;
-  upload_scheduled_at?: string;    // 업로드 예정일
 
   // 메타
   notes?: string;
