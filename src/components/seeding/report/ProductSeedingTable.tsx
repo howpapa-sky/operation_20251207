@@ -67,12 +67,13 @@ export default function ProductSeedingTable({
         totalFee += inf.fee || 0;
       });
 
-      // 비용 계산 (원가 × 수량 + 원고비)
-      const totalQuantity = projectInfluencers.reduce(
-        (sum, inf) => sum + (inf.shipping?.quantity || 1),
-        0
-      );
-      const totalCost = totalQuantity * project.cost_price + totalFee;
+      // 비용 계산 (인플루언서별 product_price 우선, 없으면 프로젝트 cost_price)
+      const totalProductCost = projectInfluencers.reduce((sum, inf) => {
+        const quantity = inf.shipping?.quantity || 1;
+        const productPrice = inf.product_price || project.cost_price || 0;
+        return sum + (quantity * productPrice);
+      }, 0);
+      const totalCost = totalProductCost + totalFee;
 
       // CPM 계산
       const cpm = totalReach > 0 ? (totalCost / totalReach) * 1000 : 0;

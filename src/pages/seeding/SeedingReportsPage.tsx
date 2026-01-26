@@ -123,10 +123,10 @@ export default function SeedingReportsPage() {
 
     filtered.forEach((inf) => {
       const project = filteredProjects.find((p) => p.id === inf.project_id);
-      if (project) {
-        const quantity = inf.shipping?.quantity || 1;
-        totalSeedingCost += quantity * project.cost_price;
-      }
+      const quantity = inf.shipping?.quantity || 1;
+      // 인플루언서별 product_price 우선, 없으면 프로젝트 cost_price 사용
+      const productPrice = inf.product_price || project?.cost_price || 0;
+      totalSeedingCost += quantity * productPrice;
       totalFee += inf.fee || 0;
     });
 
