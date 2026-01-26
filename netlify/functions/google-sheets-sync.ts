@@ -73,9 +73,7 @@ const HEADER_MAP: Record<string, string> = {
   '제품명': 'product_name',
   '제품': 'product_name',
 
-  // 가격
-  'Cost': 'product_price',
-  'cost': 'product_price',
+  // 가격 (Cost는 매핑하지 않음 - 무시)
   'Price': 'product_price',
   'price': 'product_price',
   '가격': 'product_price',
@@ -413,8 +411,8 @@ async function importData(params: ImportParams) {
       const followingRaw = get('following_count') || record['Following'] || record['following'] || record['FOLLOWING'] || record['팔로잉'];
       record.following_count = followingRaw ? parseNum(followingRaw) : 0;
 
-      // 가격 - 매핑 실패 시 원본 헤더에서 직접 가져오기
-      const priceRaw = get('product_price') || record['price'] || record['Price'] || record['Cost'] || record['cost'] || record['가격'];
+      // 가격 - 매핑 실패 시 원본 헤더에서 직접 가져오기 (Cost는 무시)
+      const priceRaw = get('product_price') || record['price'] || record['Price'] || record['가격'];
       if (priceRaw !== undefined && priceRaw !== null && priceRaw !== '') {
         const price = parseNum(priceRaw);
         if (price > 0) record.product_price = price;
