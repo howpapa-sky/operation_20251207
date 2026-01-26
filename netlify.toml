@@ -12,6 +12,9 @@
 [functions."google-sheets-sync"]
   external_node_modules = ["googleapis"]
 
+[functions."daily-seeding-report"]
+  schedule = "0 10 * * *"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
