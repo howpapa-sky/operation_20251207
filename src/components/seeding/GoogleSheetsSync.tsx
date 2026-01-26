@@ -89,6 +89,15 @@ function parseDateToISO(value: any): string | undefined {
     return `${year}-${month}-${day}`;
   }
 
+  // Google Sheets 시리얼 날짜 (숫자)
+  const num = parseFloat(str);
+  if (!isNaN(num) && num > 25000 && num < 100000) {
+    const date = new Date((num - 25569) * 86400 * 1000);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().split('T')[0];
+    }
+  }
+
   // Date 객체로 파싱 시도 (최후의 수단)
   try {
     const date = new Date(str);
