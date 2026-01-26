@@ -39,7 +39,6 @@ export default function SeedingTableRow({
   };
 
   const formatCurrency = (value: number) => {
-    if (value >= 10000) return `₩${(value / 10000).toFixed(0)}만`;
     return `₩${value.toLocaleString()}`;
   };
 
@@ -187,13 +186,6 @@ export default function SeedingTableRow({
       <td className="px-3 py-3">
         <span className="text-sm text-gray-700">
           {influencer.shipping?.shipped_at ? formatDate(influencer.shipping.shipped_at) : '-'}
-        </span>
-      </td>
-
-      {/* 업로드 예정일 */}
-      <td className="px-3 py-3">
-        <span className="text-sm text-gray-700">
-          {influencer.upload_scheduled_at ? formatDate(influencer.upload_scheduled_at) : '-'}
         </span>
       </td>
 
