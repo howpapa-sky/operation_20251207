@@ -155,11 +155,13 @@ function dbToInfluencer(record: any): SeedingInfluencer {
     product_name: record.product_name || undefined,
     product_price: record.product_price != null ? parseFloat(record.product_price) : undefined,
     status: record.status,
-    shipping: record.shipping || {
-      recipient_name: '',
-      phone: '',
-      address: '',
-      quantity: 1,
+    shipping: {
+      ...(record.shipping || {}),
+      recipient_name: record.shipping?.recipient_name || '',
+      phone: record.shipping?.phone || '',
+      address: record.shipping?.address || '',
+      quantity: record.shipping?.quantity || 1,
+      shipped_at: record.shipped_at || record.shipping?.shipped_at || undefined,
     },
     guide_id: record.guide_id || undefined,
     guide_sent_at: record.guide_sent_at || undefined,
