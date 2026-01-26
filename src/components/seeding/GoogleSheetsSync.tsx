@@ -104,57 +104,58 @@ function parseDateToISO(value: any): string | undefined {
 }
 
 // 숫자 파싱 (K, M, 만, 억 단위 지원)
-function parseNumber(value: any): number {
-  if (value === undefined || value === null) return 0;
+// 값이 없으면 undefined 반환 (0도 유효한 값으로 처리하기 위해)
+function parseNumber(value: any): number | undefined {
+  if (value === undefined || value === null) return undefined;
   if (typeof value === 'number') return value;
 
   const str = String(value).trim();
-  if (!str) return 0;
+  if (!str || str === '-') return undefined;
 
   // K 단위 (4.4K, 293K → 4400, 293000)
   const kMatch = str.match(/^([\d,.]+)\s*k$/i);
   if (kMatch) {
     const num = parseFloat(kMatch[1].replace(/,/g, ''));
-    return isNaN(num) ? 0 : Math.round(num * 1000);
+    return isNaN(num) ? undefined : Math.round(num * 1000);
   }
 
   // M 단위 (1.2M → 1200000)
   const mMatch = str.match(/^([\d,.]+)\s*m$/i);
   if (mMatch) {
     const num = parseFloat(mMatch[1].replace(/,/g, ''));
-    return isNaN(num) ? 0 : Math.round(num * 1000000);
+    return isNaN(num) ? undefined : Math.round(num * 1000000);
   }
 
   // 만 단위 (29.3만 → 293000)
   const manMatch = str.match(/^([\d,.]+)\s*만$/);
   if (manMatch) {
     const num = parseFloat(manMatch[1].replace(/,/g, ''));
-    return isNaN(num) ? 0 : Math.round(num * 10000);
+    return isNaN(num) ? undefined : Math.round(num * 10000);
   }
 
   // 억 단위 (1.2억 → 120000000)
   const ukMatch = str.match(/^([\d,.]+)\s*억$/);
   if (ukMatch) {
     const num = parseFloat(ukMatch[1].replace(/,/g, ''));
-    return isNaN(num) ? 0 : Math.round(num * 100000000);
+    return isNaN(num) ? undefined : Math.round(num * 100000000);
   }
 
   // 소수점 포함 숫자 (79.2 등)
   if (str.includes('.')) {
     const num = parseFloat(str.replace(/,/g, ''));
-    return isNaN(num) ? 0 : Math.round(num);
+    return isNaN(num) ? undefined : Math.round(num);
   }
 
   // 일반 숫자 (쉼표, 공백 제거)
   const num = parseInt(str.replace(/[,\s]/g, ''), 10);
-  return isNaN(num) ? 0 : num;
+  return isNaN(num) ? undefined : num;
 }
 
 // 가격 파싱 (빈 값은 undefined)
 function parsePrice(value: any): number | undefined {
   if (value === undefined || value === null || value === '') return undefined;
   const num = parseNumber(value);
-  return num > 0 ? num : undefined;
+  return num !== undefined && num > 0 ? num : undefined;
 }
 
 // 여러 필드명에서 값 찾기 (대소문자 무시, 공백/특수문자 무시)
@@ -309,7 +310,7 @@ function normalizeInfluencerData(data: any[]): any[] {
     let processedProductPrice: number | undefined = undefined;
     if (priceRaw != null && priceRaw !== '') {
       const priceNum = typeof priceRaw === 'number' ? priceRaw : parseNumber(priceRaw);
-      if (priceNum > 0) {
+      if (priceNum !== undefined && priceNum > 0) {
         processedProductPrice = priceNum;
       }
     }
@@ -461,8 +462,19 @@ export default function GoogleSheetsSync({
           console.log('[handleSync] following_count:', result.data[0]?.following_count);
           console.log('[handleSync] product_price:', result.data[0]?.product_price);
 
-          // Netlify Function에서 이미 처리된 데이터를 그대로 DB에 저장
-          await addInfluencersBulk(result.data);
+          // 프론트엔드에서 데이터 정규화 (날짜/숫자 형식 보정)
+          const normalizedData = normalizeInfluencerData(result.data);
+
+          // 디버깅: 저장 직전 데이터 확인
+          console.log('[GoogleSheetsSync] 저장할 데이터 샘플:', {
+            첫번째: normalizedData[0],
+            listed_at: normalizedData[0]?.listed_at,
+            following_count: normalizedData[0]?.following_count,
+            follower_count: normalizedData[0]?.follower_count,
+            product_price: normalizedData[0]?.product_price,
+          });
+
+          await addInfluencersBulk(normalizedData);
         }
 
         setSyncProgress(100);
