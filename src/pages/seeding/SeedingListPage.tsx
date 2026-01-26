@@ -244,18 +244,46 @@ export default function SeedingListPage() {
   };
 
   const handleExportExcel = () => {
-    // Create CSV content
-    const headers = ['계정ID', '이름', '팔로워', '유형', '콘텐츠', '상태', '이메일', '연락처'];
-    const rows = filteredInfluencers.map((inf) => [
-      inf.account_id,
-      inf.account_name || '',
-      inf.follower_count,
-      seedingTypeLabels[inf.seeding_type],
-      contentTypeLabels[inf.content_type],
-      inf.status,
-      inf.email || '',
-      inf.phone || '',
-    ]);
+    // 상태에 따른 DM발송/응답/수락/발송 여부 판별
+    const getStatusFlags = (status: string) => {
+      const dmSent = ['contacted', 'accepted', 'rejected', 'shipped', 'guide_sent', 'posted', 'completed'].includes(status);
+      const responseReceived = ['accepted', 'rejected', 'shipped', 'guide_sent', 'posted', 'completed'].includes(status);
+      const acceptance = ['accepted', 'shipped', 'guide_sent', 'posted', 'completed'].includes(status);
+      const shipped = ['shipped', 'guide_sent', 'posted', 'completed'].includes(status);
+      return { dmSent, responseReceived, acceptance, shipped };
+    };
+
+    // 날짜 포맷팅
+    const formatDate = (dateStr?: string) => {
+      if (!dateStr) return '';
+      return dateStr.split('T')[0];
+    };
+
+    // Create CSV content with all fields
+    const headers = [
+      '날짜', '계정', '팔로워', '팔로잉', '이메일',
+      'DM발송', '응답', '수락', '제품', '가격',
+      '발송', '발송일자', '비고'
+    ];
+
+    const rows = filteredInfluencers.map((inf) => {
+      const flags = getStatusFlags(inf.status);
+      return [
+        formatDate(inf.listed_at),
+        inf.account_id,
+        inf.follower_count,
+        inf.following_count || 0,
+        inf.email || '',
+        flags.dmSent ? 'O' : '',
+        flags.responseReceived ? 'O' : '',
+        flags.acceptance ? 'O' : '',
+        inf.product_name || '',
+        inf.product_price || '',
+        flags.shipped ? 'O' : '',
+        formatDate(inf.shipping?.shipped_at),
+        inf.notes || '',
+      ];
+    });
 
     const csvContent = [headers, ...rows].map((row) => row.join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
