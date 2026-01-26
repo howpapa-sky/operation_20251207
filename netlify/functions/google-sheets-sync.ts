@@ -65,9 +65,11 @@ const HEADER_MAP: Record<string, string> = {
   '프로필URL': 'profile_url',
   '링크': 'profile_url',
 
-  // 제품
+  // 제품 (다양한 변형 추가)
   'Product': 'product_name',
   'product': 'product_name',
+  'No) Product': 'product_name',
+  'No)Product': 'product_name',
   '제품명': 'product_name',
   '제품': 'product_name',
 
@@ -86,6 +88,16 @@ const HEADER_MAP: Record<string, string> = {
   'note': 'notes',
   '메모': 'notes',
   '비고': 'notes',
+
+  // 발송일자 (새로 추가)
+  'upload date': 'shipped_at',
+  'upload date (MM/D)': 'shipped_at',
+  'Upload Date': 'shipped_at',
+  'shipped date': 'shipped_at',
+  'Shipped Date': 'shipped_at',
+  '발송일': 'shipped_at',
+  '발송일자': 'shipped_at',
+  '배송일': 'shipped_at',
 
   // 상태 판별용
   'DM sent (Yes/No)': '_dm_sent',
@@ -386,6 +398,12 @@ async function importData(params: ImportParams) {
       const listedAtRaw = get('listed_at') || record['Date'] || record['date'] || record['DATE'] || record['날짜'];
       record.listed_at = listedAtRaw ? parseDate(listedAtRaw) : null;
 
+      // 발송일자 필드
+      const shippedAtRaw = get('shipped_at') || record['upload date'] || record['upload date (MM/D)'] || record['Upload Date'] || record['발송일'] || record['발송일자'];
+      if (shippedAtRaw) {
+        record.shipped_at = parseDate(shippedAtRaw);
+      }
+
       // 숫자 필드 - 매핑 실패 시 원본 헤더에서 직접 가져오기
       const followerRaw = get('follower_count') || record['Follower'] || record['follower'] || record['FOLLOWER'] || record['팔로워'];
       record.follower_count = followerRaw ? parseNum(followerRaw) : 0;
@@ -393,7 +411,8 @@ async function importData(params: ImportParams) {
       const followingRaw = get('following_count') || record['Following'] || record['following'] || record['FOLLOWING'] || record['팔로잉'];
       record.following_count = followingRaw ? parseNum(followingRaw) : 0;
 
-      const priceRaw = get('product_price');
+      // 가격 - 매핑 실패 시 원본 헤더에서 직접 가져오기
+      const priceRaw = get('product_price') || record['price'] || record['Price'] || record['Cost'] || record['cost'] || record['가격'];
       if (priceRaw !== undefined && priceRaw !== null && priceRaw !== '') {
         const price = parseNum(priceRaw);
         if (price > 0) record.product_price = price;
@@ -406,7 +425,8 @@ async function importData(params: ImportParams) {
       const profileUrl = get('profile_url');
       if (profileUrl) record.profile_url = String(profileUrl).trim();
 
-      const productName = get('product_name');
+      // 제품명 - 매핑 실패 시 원본 헤더에서 직접 가져오기
+      const productName = get('product_name') || record['Product'] || record['product'] || record['No) Product'] || record['제품'] || record['제품명'];
       if (productName) record.product_name = String(productName).trim();
 
       const notes = get('notes');
