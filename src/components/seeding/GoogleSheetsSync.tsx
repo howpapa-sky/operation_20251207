@@ -274,6 +274,19 @@ function normalizeInfluencerData(data: any[]): any[] {
     // ===== 상태 결정 =====
     const status = determineStatus(item);
 
+    // 디버깅: Raw 데이터 확인
+    if (index === 0) {
+      console.log('[DEBUG] Raw data:', {
+        listedAtRaw,
+        followingRaw,
+        followerRaw,
+        'item.listed_at': item.listed_at,
+        'item.following_count': item.following_count,
+        'item.follower_count': item.follower_count,
+        'item keys': Object.keys(item),
+      });
+    }
+
     // 첫 번째 행 상세 디버깅
     if (index === 0) {
       console.log('---------- Row 0 Debug ----------');
@@ -462,6 +475,18 @@ export default function GoogleSheetsSync({
         });
 
         setSyncProgress(60);
+
+        // 디버깅: Netlify Function 응답 전체 확인
+        console.log('========== [DEBUG] Netlify Function Response ==========');
+        const debugInfo = (result as any).debug;
+        console.log('[DEBUG] result.debug:', debugInfo);
+        if (debugInfo) {
+          console.log('[DEBUG] 시트 헤더:', debugInfo.headers);
+          console.log('[DEBUG] 필드 매핑:', debugInfo.fieldIndex);
+          console.log('[DEBUG] 첫 행 원본:', debugInfo.firstRow);
+          console.log('[DEBUG] 첫 레코드:', debugInfo.firstRecord);
+        }
+        console.log('=======================================================');
 
         if (result.data && result.data.length > 0) {
           // 디버깅: Netlify Function에서 반환된 데이터 확인

@@ -21,23 +21,36 @@ interface PreviewParams {
 
 // ========== 헤더 매핑 (시트 헤더 → DB 필드) ==========
 const HEADER_MAP: Record<string, string> = {
-  // 날짜
+  // 날짜 (다양한 변형 추가)
   'Date': 'listed_at',
   'date': 'listed_at',
+  'DATE': 'listed_at',
   '날짜': 'listed_at',
   '등록일': 'listed_at',
+  '리스트업일': 'listed_at',
+  '리스트업': 'listed_at',
+  'Listed': 'listed_at',
+  'listed': 'listed_at',
+  'Listed Date': 'listed_at',
+  'ListedDate': 'listed_at',
 
   // 팔로워
   'Follower': 'follower_count',
   'follower': 'follower_count',
+  'FOLLOWER': 'follower_count',
   'Followers': 'follower_count',
+  'followers': 'follower_count',
+  'FOLLOWERS': 'follower_count',
   '팔로워': 'follower_count',
   '팔로워수': 'follower_count',
 
-  // 팔로잉
+  // 팔로잉 (다양한 변형 추가)
   'Following': 'following_count',
   'following': 'following_count',
+  'FOLLOWING': 'following_count',
+  'Followings': 'following_count',
   '팔로잉': 'following_count',
+  '팔로잉수': 'following_count',
 
   // 이메일
   'E-mail': 'email',
@@ -296,12 +309,30 @@ async function importData(params: ImportParams) {
   const headers = rows[0] as string[];
   const dataRows = rows.slice(1);
 
-  // 헤더 인덱스 매핑
+  // 헤더 인덱스 매핑 (대소문자 무시)
   const fieldIndex: Record<string, number> = {};
   headers.forEach((h, i) => {
     const clean = h.trim().replace(/^["'\n]+|["'\n]+$/g, '');
-    const field = HEADER_MAP[h] || HEADER_MAP[clean];
-    if (field) fieldIndex[field] = i;
+    // 정확한 매칭 시도
+    let field = HEADER_MAP[h] || HEADER_MAP[clean];
+
+    // 대소문자 무시하고 재시도
+    if (!field) {
+      const lowerClean = clean.toLowerCase();
+      for (const [key, value] of Object.entries(HEADER_MAP)) {
+        if (key.toLowerCase() === lowerClean) {
+          field = value;
+          break;
+        }
+      }
+    }
+
+    if (field) {
+      fieldIndex[field] = i;
+      console.log(`[헤더 매핑] "${h}" (clean: "${clean}") → ${field} (index: ${i})`);
+    } else {
+      console.log(`[헤더 매핑 실패] "${h}" (clean: "${clean}")`);
+    }
   });
 
   console.log('[importData] Field index mapping:', JSON.stringify(fieldIndex));
@@ -402,6 +433,13 @@ async function importData(params: ImportParams) {
     updated: 0,
     errors,
     data: results,
+    // 디버깅 정보 추가
+    debug: {
+      headers: headers,
+      fieldIndex: fieldIndex,
+      firstRow: dataRows[0],
+      firstRecord: results[0],
+    },
   };
 }
 
