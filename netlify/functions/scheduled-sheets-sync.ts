@@ -268,8 +268,8 @@ async function syncProject(project: any) {
   return { success: true, added: records.length };
 }
 
-// 메인 핸들러
-const handler: Handler = async (event, context) => {
+// 메인 핸들러 (내부용)
+const syncHandler: Handler = async (event, context) => {
   console.log('[Scheduled Sheets Sync] Starting auto-sync job at', new Date().toISOString());
 
   try {
@@ -317,6 +317,7 @@ const handler: Handler = async (event, context) => {
 // 매일 오전 9시 KST (0시 UTC) 실행
 // Cron: 분 시 일 월 요일
 // KST 09:00 = UTC 00:00
-export const scheduledHandler = schedule('0 0 * * *', handler);
+// Netlify requires the handler export to be the result of schedule()
+export const handler = schedule('0 0 * * *', syncHandler);
 
-export { handler };
+// 수동 테스트용 핸들러는 별도 파일로 분리 필요
