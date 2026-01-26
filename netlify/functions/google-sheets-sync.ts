@@ -374,6 +374,14 @@ async function importData(params: ImportParams) {
         sheet_row_index: rowIdx + 2,
       };
 
+      // ========== 원본 헤더 값도 함께 저장 (프론트엔드 fallback용) ==========
+      // 헤더 매핑이 실패해도 프론트엔드에서 처리할 수 있도록
+      headers.forEach((h, i) => {
+        if (row[i] !== undefined && row[i] !== null && row[i] !== '') {
+          record[h] = row[i];  // 원본 헤더명으로도 값 저장
+        }
+      });
+
       // 날짜 필드
       const listedAtRaw = get('listed_at');
       if (listedAtRaw) {
@@ -411,11 +419,15 @@ async function importData(params: ImportParams) {
 
       // 첫 번째 행 디버깅
       if (rowIdx === 0) {
-        console.log('[importData] First row raw values:');
+        console.log('[importData] First row raw values (from fieldIndex mapping):');
         console.log('  listed_at raw:', listedAtRaw);
         console.log('  follower_count raw:', followerRaw);
         console.log('  following_count raw:', followingRaw);
         console.log('  product_price raw:', priceRaw);
+        console.log('[importData] Original header values in record:');
+        console.log('  Date:', record['Date']);
+        console.log('  Following:', record['Following']);
+        console.log('  Follower:', record['Follower']);
         console.log('[importData] First record:', JSON.stringify(record, null, 2));
       }
 

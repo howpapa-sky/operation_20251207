@@ -492,12 +492,30 @@ export default function GoogleSheetsSync({
           // 디버깅: Netlify Function에서 반환된 데이터 확인
           console.log('[handleSync] First record from Netlify:', JSON.stringify(result.data[0], null, 2));
           console.log('[handleSync] Keys:', Object.keys(result.data[0]));
-          console.log('[handleSync] listed_at:', result.data[0]?.listed_at);
-          console.log('[handleSync] following_count:', result.data[0]?.following_count);
-          console.log('[handleSync] product_price:', result.data[0]?.product_price);
+
+          // ========== 핵심 수정: 명시적 필드 매핑 ==========
+          // 미리보기 필드명(Date, Following) → DB 필드명(listed_at, following_count) 변환
+          const mappedData = result.data.map((item: any) => ({
+            ...item,
+            // 날짜 매핑
+            listed_at: item.listed_at || item.Date || item.date || item['날짜'] || item['등록일'],
+            // 팔로잉 매핑
+            following_count: item.following_count ?? item.Following ?? item.following ?? item['팔로잉'],
+            // 팔로워 매핑
+            follower_count: item.follower_count ?? item.Follower ?? item.follower ?? item['팔로워'],
+            // 제품 가격 매핑
+            product_price: item.product_price ?? item.Cost ?? item.cost ?? item.Price ?? item.price ?? item['가격'] ?? item['단가'],
+          }));
+
+          console.log('[handleSync] After field mapping:', {
+            listed_at: mappedData[0]?.listed_at,
+            following_count: mappedData[0]?.following_count,
+            follower_count: mappedData[0]?.follower_count,
+            product_price: mappedData[0]?.product_price,
+          });
 
           // 프론트엔드에서 데이터 정규화 (날짜/숫자 형식 보정)
-          const normalizedData = normalizeInfluencerData(result.data);
+          const normalizedData = normalizeInfluencerData(mappedData);
 
           // 디버깅: 저장 직전 데이터 확인
           console.log('[GoogleSheetsSync] 저장할 데이터 샘플:', {
