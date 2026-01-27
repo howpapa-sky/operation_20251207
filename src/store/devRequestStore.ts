@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { notifyDevRequestCompleted } from '../lib/sendNaverWorks';
 
 // Type workaround - dev_requests 테이블이 아직 타입에 없음
 const db = supabase as any;
@@ -177,10 +178,29 @@ export const useDevRequestStore = create<DevRequestState>((set, get) => ({
 
   updateStatus: async (id, status) => {
     const updates: Partial<DevRequest> = { status };
+    const completedAt = new Date().toISOString();
+
     if (status === 'completed') {
-      updates.completed_at = new Date().toISOString();
+      updates.completed_at = completedAt;
     }
+
+    // 완료 시 알림을 보내기 위해 요청 정보 가져오기
+    const request = get().requests.find((r) => r.id === id);
+
     await get().updateRequest(id, updates);
+
+    // 완료 시 네이버웍스 알림 전송
+    if (status === 'completed' && request) {
+      notifyDevRequestCompleted({
+        title: request.title,
+        requester: request.requester,
+        brand: request.brand,
+        requestType: request.request_type,
+        completedAt,
+      }).catch((error) => {
+        console.error('개발요청 완료 알림 전송 실패:', error);
+      });
+    }
   },
 
   getStats: () => {
