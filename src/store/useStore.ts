@@ -635,15 +635,15 @@ export const useStore = create<AppState>()(
         if (!user) return;
 
         try {
+          // display_order 컬럼이 없을 수 있으므로 기본 정렬만 사용
           const { data, error } = await supabase
             .from('evaluation_criteria')
             .select('*')
             .eq('user_id', user.id)
-            .order('display_order', { ascending: true })
             .order('category', { ascending: true });
 
           if (!error && data) {
-            const criteria: EvaluationCriteria[] = data.map((c) => ({
+            const criteria: EvaluationCriteria[] = data.map((c: any) => ({
               id: c.id,
               name: c.name,
               description: c.description || undefined,
@@ -652,6 +652,8 @@ export const useStore = create<AppState>()(
               isActive: c.is_active,
               displayOrder: c.display_order ?? 0,
             }));
+            // displayOrder로 정렬 (display_order 컬럼이 있는 경우)
+            criteria.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
             set({ evaluationCriteria: criteria });
           }
         } catch (error) {
@@ -668,18 +670,24 @@ export const useStore = create<AppState>()(
           // 현재 최대 displayOrder 값 계산
           const currentCriteria = get().evaluationCriteria;
           const maxOrder = currentCriteria.reduce((max, c) => Math.max(max, c.displayOrder || 0), 0);
+          const newDisplayOrder = criteriaData.displayOrder ?? maxOrder + 1;
+
+          // 기본 데이터 (display_order 컬럼이 없을 수 있음)
+          const insertData: any = {
+            user_id: user.id,
+            name: criteriaData.name,
+            description: criteriaData.description || null,
+            category: criteriaData.category,
+            max_score: criteriaData.maxScore,
+            is_active: criteriaData.isActive,
+          };
+
+          // display_order 컬럼 추가 시도
+          insertData.display_order = newDisplayOrder;
 
           const { data, error } = await supabase
             .from('evaluation_criteria')
-            .insert({
-              user_id: user.id,
-              name: criteriaData.name,
-              description: criteriaData.description || null,
-              category: criteriaData.category,
-              max_score: criteriaData.maxScore,
-              is_active: criteriaData.isActive,
-              display_order: criteriaData.displayOrder ?? maxOrder + 1,
-            })
+            .insert(insertData)
             .select()
             .single();
 
@@ -691,11 +699,34 @@ export const useStore = create<AppState>()(
               category: data.category as any,
               maxScore: data.max_score,
               isActive: data.is_active,
-              displayOrder: data.display_order ?? 0,
+              displayOrder: (data as any).display_order ?? newDisplayOrder,
             };
             set((state) => ({
               evaluationCriteria: [...state.evaluationCriteria, criteria],
             }));
+          } else if (error && error.message.includes('display_order')) {
+            // display_order 컬럼이 없으면 해당 필드 없이 재시도
+            delete insertData.display_order;
+            const { data: retryData, error: retryError } = await supabase
+              .from('evaluation_criteria')
+              .insert(insertData)
+              .select()
+              .single();
+
+            if (!retryError && retryData) {
+              const criteria: EvaluationCriteria = {
+                id: retryData.id,
+                name: retryData.name,
+                description: retryData.description || undefined,
+                category: retryData.category as any,
+                maxScore: retryData.max_score,
+                isActive: retryData.is_active,
+                displayOrder: newDisplayOrder,
+              };
+              set((state) => ({
+                evaluationCriteria: [...state.evaluationCriteria, criteria],
+              }));
+            }
           }
         } catch (error) {
           console.error('Add criteria error:', error);
@@ -769,15 +800,23 @@ export const useStore = create<AppState>()(
           }));
 
           // 순차적으로 업데이트 (Supabase는 bulk update를 직접 지원하지 않음)
+          let hasDisplayOrderColumn = true;
           for (const update of updates) {
-            await supabase
+            const { error } = await supabase
               .from('evaluation_criteria')
               .update({ display_order: update.display_order })
               .eq('id', update.id)
               .eq('user_id', user.id);
+
+            // display_order 컬럼이 없으면 중단 (DB 마이그레이션 필요)
+            if (error && error.message.includes('display_order')) {
+              hasDisplayOrderColumn = false;
+              console.warn('display_order 컬럼이 없습니다. DB 마이그레이션을 실행해주세요.');
+              break;
+            }
           }
 
-          // 로컬 상태 업데이트
+          // 로컬 상태 업데이트 (DB 업데이트 성공 여부와 관계없이)
           set((state) => {
             const reordered = orderedIds
               .map((id, index) => {
@@ -788,6 +827,10 @@ export const useStore = create<AppState>()(
 
             return { evaluationCriteria: reordered };
           });
+
+          if (!hasDisplayOrderColumn) {
+            alert('순서 변경을 저장하려면 DB 마이그레이션이 필요합니다. 관리자에게 문의하세요.');
+          }
         } catch (error) {
           console.error('Reorder criteria error:', error);
         }
