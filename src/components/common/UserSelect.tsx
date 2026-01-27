@@ -32,8 +32,12 @@ export default function UserSelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // 디버깅: 컴포넌트 렌더링 시마다 users 상태 확인
+  console.log('[UserSelect] Render - users:', users.length, 'isLoading:', isLoading, 'isOpen:', isOpen);
+
   // 사용자 목록 가져오기
   useEffect(() => {
+    console.log('[UserSelect] useEffect - fetchUsers 호출');
     fetchUsers();
   }, [fetchUsers]);
 
