@@ -27,6 +27,8 @@ import {
   MessageSquareText,
   BookOpen,
   FileText,
+  Tags,
+  TrendingUp,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useProjectSettingsStore } from '../../store/useProjectSettingsStore';
@@ -49,6 +51,8 @@ const allMenuItems: MenuItem[] = [
   { icon: FolderOpen, label: '기타 프로젝트', path: '/other', projectType: 'other' },
   { icon: FileText, label: '개발 요청서', path: '/dev-requests' },
   { icon: Box, label: '제품 마스터', path: '/product-master' },
+  { icon: Tags, label: 'SKU 마스터', path: '/sku-master' },
+  { icon: TrendingUp, label: '매출 대시보드', path: '/sales-dashboard' },
   { icon: Gift, label: '프로모션 관리', path: '/promotion' },
   { icon: DollarSign, label: '매출 관리', path: '/sales' },
   { icon: BarChart3, label: '통계', path: '/statistics' },

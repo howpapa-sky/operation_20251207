@@ -21,6 +21,8 @@ import PersonalNotesPage from './pages/PersonalNotesPage';
 import MyTasksPage from './pages/MyTasksPage';
 import StatusUpdatesPage from './pages/StatusUpdatesPage';
 import DevRequestPage from './pages/DevRequestPage';
+import SKUMasterPage from './pages/SKUMasterPage';
+import SalesDashboardPage from './pages/SalesDashboardPage';
 
 // Seeding Pages
 import SeedingProjectsPage from './pages/seeding/SeedingProjectsPage';
@@ -132,6 +134,8 @@ function App() {
           <Route path="other/:id/edit" element={<OtherPage />} />
           <Route path="dev-requests" element={<DevRequestPage />} />
           <Route path="sales" element={<SalesPage />} />
+          <Route path="sku-master" element={<SKUMasterPage />} />
+          <Route path="sales-dashboard" element={<SalesDashboardPage />} />
           <Route path="product-master" element={<ProductMasterPage />} />
           <Route path="product-master/:id" element={<ProductMasterPage />} />
           <Route path="product-master/:id/edit" element={<ProductMasterPage />} />

@@ -163,3 +163,53 @@ export async function notifyEmailSent(params: {
   const message = createEmailSentNotification(params);
   return sendNaverWorksMessage({ message });
 }
+
+// 개발요청서 완료 알림 채널 ID
+const DEV_REQUEST_CHANNEL_ID = '556d52cf-b97d-0496-ca54-ad035999ea4a';
+
+// 개발요청서 완료 알림 메시지 생성
+export function createDevRequestCompletedNotification(params: {
+  title: string;
+  requester: string;
+  brand: string;
+  requestType: string;
+  completedAt: string;
+}): string {
+  const { title, requester, brand, requestType, completedAt } = params;
+
+  const brandLabel: Record<string, string> = {
+    howpapa: '하우파파',
+    nuccio: '누치오',
+    common: '공통',
+  };
+
+  const typeLabel: Record<string, string> = {
+    feature: '기능 추가',
+    ui: 'UI/UX 개선',
+    bug: '버그 수정',
+    other: '기타',
+  };
+
+  return `✅ [개발요청 완료]
+
+📋 제목: ${title}
+👤 요청자: ${requester}
+🏷️ 브랜드: ${brandLabel[brand] || brand}
+📂 유형: ${typeLabel[requestType] || requestType}
+
+🎉 요청하신 개발이 완료되었습니다!
+
+📅 완료일시: ${new Date(completedAt).toLocaleString('ko-KR')}`;
+}
+
+// 개발요청서 완료 알림 전송 헬퍼
+export async function notifyDevRequestCompleted(params: {
+  title: string;
+  requester: string;
+  brand: string;
+  requestType: string;
+  completedAt: string;
+}): Promise<NaverWorksResult> {
+  const message = createDevRequestCompletedNotification(params);
+  return sendNaverWorksMessage({ message, channelId: DEV_REQUEST_CHANNEL_ID });
+}
