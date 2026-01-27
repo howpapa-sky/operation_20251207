@@ -22,7 +22,11 @@ export default function UserSelect({
   disabled = false,
   excludeUserId,
 }: UserSelectProps) {
-  const { users, fetchUsers, isLoading } = useUserManagementStore();
+  // 개별 selector로 상태 구독 (더 안정적인 리렌더링)
+  const users = useUserManagementStore((state) => state.users);
+  const fetchUsers = useUserManagementStore((state) => state.fetchUsers);
+  const isLoading = useUserManagementStore((state) => state.isLoading);
+
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -30,8 +34,7 @@ export default function UserSelect({
 
   // 사용자 목록 가져오기
   useEffect(() => {
-    console.log('[UserSelect] users:', users.length, 'isLoading:', isLoading);
-    fetchUsers(); // 항상 최신 데이터 가져오기
+    fetchUsers();
   }, [fetchUsers]);
 
   // 외부 클릭 시 드롭다운 닫기
