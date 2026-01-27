@@ -15,6 +15,7 @@ interface SKUMasterState {
   // Actions
   fetchSKUs: () => Promise<void>;
   addSKU: (sku: Omit<SKUMaster, 'id' | 'createdAt' | 'updatedAt'>) => Promise<SKUMaster | null>;
+  addSKUsBulk: (skus: Omit<SKUMaster, 'id' | 'createdAt' | 'updatedAt'>[]) => Promise<{ success: number; failed: number }>;
   updateSKU: (id: string, updates: Partial<SKUMaster>) => Promise<void>;
   deleteSKU: (id: string) => Promise<void>;
 
@@ -153,6 +154,64 @@ export const useSKUMasterStore = create<SKUMasterState>((set, get) => ({
       console.error('Add SKU error:', error);
       set({ error: error.message, isLoading: false });
       return null;
+    }
+  },
+
+  addSKUsBulk: async (skuDataList) => {
+    set({ isLoading: true, error: null });
+    let success = 0;
+    let failed = 0;
+
+    try {
+      // 데이터 변환
+      const dbRecords = skuDataList.map((skuData) => ({
+        sku_code: skuData.skuCode,
+        product_name: skuData.productName,
+        brand: skuData.brand,
+        category: skuData.category || null,
+        cost_price: skuData.costPrice,
+        selling_price: skuData.sellingPrice,
+        effective_date: skuData.effectiveDate,
+        barcode: skuData.barcode || null,
+        supplier: skuData.supplier || null,
+        min_stock: skuData.minStock || 0,
+        current_stock: skuData.currentStock || 0,
+        is_active: skuData.isActive,
+        notes: skuData.notes || null,
+      }));
+
+      // upsert로 중복 처리 (sku_code 기준)
+      const { data, error } = await db
+        .from('sku_master')
+        .upsert(dbRecords, { onConflict: 'sku_code', ignoreDuplicates: false })
+        .select();
+
+      if (error) throw error;
+
+      success = data?.length || 0;
+      failed = skuDataList.length - success;
+
+      // 원가 이력 일괄 등록
+      if (data && data.length > 0) {
+        const historyRecords = data.map((record: any) => ({
+          sku_id: record.id,
+          new_cost: parseFloat(record.cost_price),
+          change_reason: '엑셀 일괄 등록',
+          effective_date: record.effective_date,
+        }));
+
+        await db.from('sku_cost_history').insert(historyRecords);
+      }
+
+      // 새로고침
+      await get().fetchSKUs();
+
+      set({ isLoading: false });
+      return { success, failed };
+    } catch (error: any) {
+      console.error('Bulk add SKUs error:', error);
+      set({ error: error.message, isLoading: false });
+      return { success: 0, failed: skuDataList.length };
     }
   },
 
