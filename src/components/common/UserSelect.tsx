@@ -146,10 +146,10 @@ export default function UserSelect({
         </div>
       </div>
 
-      {/* 드롭다운 */}
+      {/* 드롭다운 - 위로 열림 */}
       {isOpen && (
-        <div className="absolute z-[9999] mt-1 w-full bg-white rounded-xl shadow-lg border border-gray-200">
-          {/* 사용자 목록 - 검색 없이 바로 표시 */}
+        <div className="absolute z-[9999] bottom-full mb-1 w-full bg-white rounded-xl shadow-lg border border-gray-200">
+          {/* 사용자 목록 */}
           <div className="max-h-60 overflow-y-auto py-1">
             {isLoading ? (
               <div className="p-4 text-center text-gray-500">
