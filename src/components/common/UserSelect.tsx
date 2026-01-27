@@ -148,24 +148,9 @@ export default function UserSelect({
 
       {/* 드롭다운 */}
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-full bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-          {/* 검색 입력 */}
-          <div className="p-2 border-b border-gray-100">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                ref={inputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="이름 또는 이메일로 검색..."
-                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* 사용자 목록 */}
-          <div className="max-h-60 overflow-y-auto">
+        <div className="absolute z-[9999] mt-1 w-full bg-white rounded-xl shadow-lg border border-gray-200">
+          {/* 사용자 목록 - 검색 없이 바로 표시 */}
+          <div className="max-h-60 overflow-y-auto py-1">
             {isLoading ? (
               <div className="p-4 text-center text-gray-500">
                 <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
