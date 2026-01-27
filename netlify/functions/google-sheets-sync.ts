@@ -108,6 +108,15 @@ const HEADER_MAP: Record<string, string> = {
   'Product Shipment': '_shipped',
   '발송': '_shipped',
   '발송여부': '_shipped',
+
+  // 수락일자 (acceptance date)
+  'acceptance date': 'accepted_at',
+  'Acceptance Date': 'accepted_at',
+  'Acceptance date': 'accepted_at',
+  'accepted date': 'accepted_at',
+  'Accepted Date': 'accepted_at',
+  '수락일': 'accepted_at',
+  '수락일자': 'accepted_at',
 };
 
 // ========== 유틸 함수 ==========
@@ -402,6 +411,16 @@ async function importData(params: ImportParams) {
       const shippedAtRaw = get('shipped_at') || record['shipped date'] || record['Shipped Date'] || record['upload date'] || record['Upload date'] || record['Upload Date'] || record['upload date (MM/D)'] || record['upload date (MM/DD)'] || record['발송일'] || record['발송일자'];
       if (shippedAtRaw) {
         record.shipped_at = parseDate(shippedAtRaw);
+      }
+
+      // 수락일자 필드
+      const acceptedAtRaw = get('accepted_at') || record['acceptance date'] || record['Acceptance Date'] || record['Acceptance date'] || record['수락일'] || record['수락일자'];
+      if (acceptedAtRaw) {
+        record.accepted_at = parseDate(acceptedAtRaw);
+        // 수락일자가 있으면 상태를 accepted로 변경
+        if (record.accepted_at && record.status === 'listed') {
+          record.status = 'accepted';
+        }
       }
 
       // 숫자 필드 - 매핑 실패 시 원본 헤더에서 직접 가져오기

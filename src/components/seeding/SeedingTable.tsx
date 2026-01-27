@@ -235,10 +235,10 @@ export default function SeedingTable({
                 </span>
               </th>
 
-              {/* 수락여부 */}
+              {/* 수락일자 */}
               <th className="px-3 py-3 text-left">
                 <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  수락
+                  수락일자
                 </span>
               </th>
 

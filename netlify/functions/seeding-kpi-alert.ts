@@ -22,6 +22,12 @@ const KPI_TARGETS = {
   nuccio: { listup: 100, acceptance: 15 },
 };
 
+// ========== 브랜드별 채널 ID ==========
+const BRAND_CHANNEL_IDS: Record<Brand, string> = {
+  howpapa: 'bd36a0be-28d2-0afe-d42e-293607b966cb',
+  nuccio: '7ba5ac6c-73fd-a63d-afc1-8950ce03b601',
+};
+
 // ========== 유틸 함수 ==========
 
 // 상태 이모지 결정
@@ -106,36 +112,39 @@ function formatAlertMessage(
   threshold: number
 ): string {
   const brandName = brand.toUpperCase();
-  const brandEmoji = brand === 'howpapa' ? '🧡' : '💚';
   const dateTimeStr = formatKoreanDateTime(new Date());
 
   const listupPct = Math.round((stats.listup.actual / stats.listup.target) * 100);
   const acceptPct = Math.round((stats.acceptance.actual / stats.acceptance.target) * 100);
-  const thresholdPct = threshold * 100;
 
   const listupEmoji = getStatusEmoji(listupPct, threshold);
   const acceptEmoji = getStatusEmoji(acceptPct, threshold);
 
   if (alertType === 'warning') {
+    // 한국어 + 베트남어
     return `⚠️ [${brandName}] 시딩 진행률 주의
+⚠️ [${brandName}] Cảnh báo tiến độ seeding
 
-📅 ${dateTimeStr} 기준
+📅 ${dateTimeStr} 기준 / Tính đến
 
-📊 현재 현황
-- 리스트업: ${stats.listup.actual}/${stats.listup.target} (${listupPct}%) ${listupEmoji}
-- 수락: ${stats.acceptance.actual}/${stats.acceptance.target} (${acceptPct}%) ${acceptEmoji}
+📊 현재 현황 / Tình hình hiện tại
+- 리스트업/List-up: ${stats.listup.actual}/${stats.listup.target} (${listupPct}%) ${listupEmoji}
+- 수락/Chấp nhận: ${stats.acceptance.actual}/${stats.acceptance.target} (${acceptPct}%) ${acceptEmoji}
 
-💡 남은 시간 내 달성을 위해 속도를 높여주세요.`;
+💡 남은 시간 내 달성을 위해 속도를 높여주세요.
+💡 Hãy tăng tốc để đạt mục tiêu trong thời gian còn lại.`;
   } else {
     return `🔴 [${brandName}] 시딩 목표 미달 경고
+🔴 [${brandName}] Cảnh báo không đạt mục tiêu seeding
 
-📅 ${dateTimeStr} 기준
+📅 ${dateTimeStr} 기준 / Tính đến
 
-📊 현재 현황
-- 리스트업: ${stats.listup.actual}/${stats.listup.target} (${listupPct}%) ${listupEmoji}
-- 수락: ${stats.acceptance.actual}/${stats.acceptance.target} (${acceptPct}%) ${acceptEmoji}
+📊 현재 현황 / Tình hình hiện tại
+- 리스트업/List-up: ${stats.listup.actual}/${stats.listup.target} (${listupPct}%) ${listupEmoji}
+- 수락/Chấp nhận: ${stats.acceptance.actual}/${stats.acceptance.target} (${acceptPct}%) ${acceptEmoji}
 
-⚠️ 오늘 목표 달성이 어려울 수 있습니다.`;
+⚠️ 오늘 목표 달성이 어려울 수 있습니다.
+⚠️ Có thể khó đạt được mục tiêu hôm nay.`;
   }
 }
 
@@ -194,16 +203,16 @@ async function getAccessToken(
   return data.access_token;
 }
 
-// 메시지 전송
-async function sendNaverWorksMessage(message: string): Promise<void> {
+// 메시지 전송 (브랜드별 채널 지원)
+async function sendNaverWorksMessage(message: string, channelId?: string): Promise<void> {
   const clientId = process.env.NAVER_WORKS_CLIENT_ID;
   const clientSecret = process.env.NAVER_WORKS_CLIENT_SECRET;
   const serviceAccountId = process.env.NAVER_WORKS_SERVICE_ACCOUNT;
   const botId = process.env.NAVER_WORKS_BOT_ID;
-  const channelId = process.env.NAVER_WORKS_CHANNEL_ID;
+  const targetChannelId = channelId || process.env.NAVER_WORKS_CHANNEL_ID;
   let privateKey = process.env.NAVER_WORKS_PRIVATE_KEY;
 
-  if (!clientId || !clientSecret || !serviceAccountId || !privateKey || !botId || !channelId) {
+  if (!clientId || !clientSecret || !serviceAccountId || !privateKey || !botId || !targetChannelId) {
     throw new Error('Missing Naver Works configuration');
   }
 
@@ -220,7 +229,7 @@ async function sendNaverWorksMessage(message: string): Promise<void> {
   const accessToken = await getAccessToken(clientId, clientSecret, serviceAccountId, privateKey);
 
   const response = await fetch(
-    `https://www.worksapis.com/v1.0/bots/${botId}/channels/${channelId}/messages`,
+    `https://www.worksapis.com/v1.0/bots/${botId}/channels/${targetChannelId}/messages`,
     {
       method: 'POST',
       headers: {
@@ -299,11 +308,12 @@ const alertHandler: Handler = async (event) => {
       // 목표 미달 시에만 알림
       if (listupRate < threshold || acceptRate < threshold) {
         const message = formatAlertMessage(alertType, brand, stats, threshold);
+        const brandChannelId = BRAND_CHANNEL_IDS[brand];
 
         if (process.env.NAVER_WORKS_CLIENT_ID) {
-          await sendNaverWorksMessage(message);
+          await sendNaverWorksMessage(message, brandChannelId);
           alertsSent.push(brand);
-          console.log(`[KPI Alert] Alert sent for ${brand}`);
+          console.log(`[KPI Alert] Alert sent for ${brand} to channel ${brandChannelId}`);
         } else {
           console.log(`[KPI Alert] Would send alert for ${brand}:`, message);
         }
