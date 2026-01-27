@@ -69,6 +69,7 @@ interface AppState {
   addEvaluationCriteria: (criteria: Omit<EvaluationCriteria, 'id'>) => Promise<void>;
   updateEvaluationCriteria: (id: string, updates: Partial<EvaluationCriteria>) => Promise<void>;
   deleteEvaluationCriteria: (id: string) => Promise<void>;
+  reorderEvaluationCriteria: (orderedIds: string[]) => Promise<void>;
 
   // 액션 - 알림
   addNotification: (notification: Omit<Notification, 'id' | 'createdAt'>) => void;
@@ -638,6 +639,7 @@ export const useStore = create<AppState>()(
             .from('evaluation_criteria')
             .select('*')
             .eq('user_id', user.id)
+            .order('display_order', { ascending: true })
             .order('category', { ascending: true });
 
           if (!error && data) {
@@ -648,6 +650,7 @@ export const useStore = create<AppState>()(
               category: c.category as any,
               maxScore: c.max_score,
               isActive: c.is_active,
+              displayOrder: c.display_order ?? 0,
             }));
             set({ evaluationCriteria: criteria });
           }
@@ -662,6 +665,10 @@ export const useStore = create<AppState>()(
         if (!user) return;
 
         try {
+          // 현재 최대 displayOrder 값 계산
+          const currentCriteria = get().evaluationCriteria;
+          const maxOrder = currentCriteria.reduce((max, c) => Math.max(max, c.displayOrder || 0), 0);
+
           const { data, error } = await supabase
             .from('evaluation_criteria')
             .insert({
@@ -671,6 +678,7 @@ export const useStore = create<AppState>()(
               category: criteriaData.category,
               max_score: criteriaData.maxScore,
               is_active: criteriaData.isActive,
+              display_order: criteriaData.displayOrder ?? maxOrder + 1,
             })
             .select()
             .single();
@@ -683,6 +691,7 @@ export const useStore = create<AppState>()(
               category: data.category as any,
               maxScore: data.max_score,
               isActive: data.is_active,
+              displayOrder: data.display_order ?? 0,
             };
             set((state) => ({
               evaluationCriteria: [...state.evaluationCriteria, criteria],
@@ -705,6 +714,7 @@ export const useStore = create<AppState>()(
           if (updates.category !== undefined) dbUpdates.category = updates.category;
           if (updates.maxScore !== undefined) dbUpdates.max_score = updates.maxScore;
           if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive;
+          if (updates.displayOrder !== undefined) dbUpdates.display_order = updates.displayOrder;
 
           const { error } = await supabase
             .from('evaluation_criteria')
@@ -743,6 +753,43 @@ export const useStore = create<AppState>()(
           }
         } catch (error) {
           console.error('Delete criteria error:', error);
+        }
+      },
+
+      // 평가 항목 순서 변경
+      reorderEvaluationCriteria: async (orderedIds: string[]) => {
+        const { user } = get();
+        if (!user) return;
+
+        try {
+          // 각 항목의 displayOrder를 업데이트
+          const updates = orderedIds.map((id, index) => ({
+            id,
+            display_order: index + 1,
+          }));
+
+          // 순차적으로 업데이트 (Supabase는 bulk update를 직접 지원하지 않음)
+          for (const update of updates) {
+            await supabase
+              .from('evaluation_criteria')
+              .update({ display_order: update.display_order })
+              .eq('id', update.id)
+              .eq('user_id', user.id);
+          }
+
+          // 로컬 상태 업데이트
+          set((state) => {
+            const reordered = orderedIds
+              .map((id, index) => {
+                const criteria = state.evaluationCriteria.find((c) => c.id === id);
+                return criteria ? { ...criteria, displayOrder: index + 1 } : null;
+              })
+              .filter((c): c is EvaluationCriteria => c !== null);
+
+            return { evaluationCriteria: reordered };
+          });
+        } catch (error) {
+          console.error('Reorder criteria error:', error);
         }
       },
 

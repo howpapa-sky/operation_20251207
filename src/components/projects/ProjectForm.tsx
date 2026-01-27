@@ -93,11 +93,12 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
     }
   }, [project, type, getFieldsForType]);
 
-  // 평가 항목 초기화 (샘플링용)
+  // 평가 항목 초기화 (샘플링용) - displayOrder로 정렬
   useEffect(() => {
     if (type === 'sampling' && ratings.length === 0) {
       const categoryValue = dynamicFieldValues['category'] as string || '크림';
-      const categoryRatings = evaluationCriteria
+      const categoryRatings = [...evaluationCriteria]
+        .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
         .filter((c) => c.category === categoryValue && c.isActive)
         .map((c) => ({
           criteriaId: c.id,
@@ -115,9 +116,10 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
       [fieldKey]: value,
     }));
 
-    // 샘플링에서 카테고리가 변경되면 평가 항목 초기화
+    // 샘플링에서 카테고리가 변경되면 평가 항목 초기화 - displayOrder로 정렬
     if (type === 'sampling' && fieldKey === 'category') {
-      const newRatings = evaluationCriteria
+      const newRatings = [...evaluationCriteria]
+        .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
         .filter((c) => c.category === value && c.isActive)
         .map((c) => ({
           criteriaId: c.id,

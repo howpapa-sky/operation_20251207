@@ -56,6 +56,7 @@ export default function SettingsPage() {
     addEvaluationCriteria,
     updateEvaluationCriteria,
     deleteEvaluationCriteria,
+    reorderEvaluationCriteria,
   } = useStore();
 
   const [activeTab, setActiveTab] = useState<'profile' | 'criteria' | 'project_types' | 'project_fields' | 'api' | 'notifications' | 'user_management'>('profile');
@@ -138,6 +139,10 @@ export default function SettingsPage() {
   const [criteriaMaxScore, setCriteriaMaxScore] = useState(5);
   const [deleteModalId, setDeleteModalId] = useState<string | null>(null);
 
+  // Drag and drop state for criteria reordering
+  const [draggedCriteriaId, setDraggedCriteriaId] = useState<string | null>(null);
+  const [dragOverCriteriaId, setDragOverCriteriaId] = useState<string | null>(null);
+
   // Filter state
   const [filterCategory, setFilterCategory] = useState<ProductCategory | ''>('');
 
@@ -201,12 +206,15 @@ export default function SettingsPage() {
         maxScore: criteriaMaxScore,
       });
     } else {
+      // Calculate next displayOrder
+      const maxOrder = evaluationCriteria.reduce((max, c) => Math.max(max, c.displayOrder || 0), 0);
       addEvaluationCriteria({
         name: criteriaName,
         description: criteriaDescription,
         category: criteriaCategory,
         maxScore: criteriaMaxScore,
         isActive: true,
+        displayOrder: maxOrder + 1,
       });
     }
 
@@ -222,9 +230,12 @@ export default function SettingsPage() {
     setDeleteModalId(null);
   };
 
+  // Sort criteria by displayOrder first
+  const sortedCriteria = [...evaluationCriteria].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+
   const filteredCriteria = filterCategory
-    ? evaluationCriteria.filter((c) => c.category === filterCategory)
-    : evaluationCriteria;
+    ? sortedCriteria.filter((c) => c.category === filterCategory)
+    : sortedCriteria;
 
   const groupedCriteria = filteredCriteria.reduce((acc, criteria) => {
     if (!acc[criteria.category]) {
@@ -233,6 +244,55 @@ export default function SettingsPage() {
     acc[criteria.category].push(criteria);
     return acc;
   }, {} as Record<string, EvaluationCriteria[]>);
+
+  // Criteria drag handlers
+  const handleCriteriaDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedCriteriaId(id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleCriteriaDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (id !== draggedCriteriaId) {
+      setDragOverCriteriaId(id);
+    }
+  };
+
+  const handleCriteriaDragLeave = () => {
+    setDragOverCriteriaId(null);
+  };
+
+  const handleCriteriaDrop = async (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedCriteriaId || draggedCriteriaId === targetId) {
+      setDraggedCriteriaId(null);
+      setDragOverCriteriaId(null);
+      return;
+    }
+
+    // Reorder the criteria list
+    const currentIds = sortedCriteria.map((c) => c.id);
+    const draggedIndex = currentIds.indexOf(draggedCriteriaId);
+    const targetIndex = currentIds.indexOf(targetId);
+
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    // Remove dragged item and insert at target position
+    currentIds.splice(draggedIndex, 1);
+    currentIds.splice(targetIndex, 0, draggedCriteriaId);
+
+    // Update order in database
+    await reorderEvaluationCriteria(currentIds);
+
+    setDraggedCriteriaId(null);
+    setDragOverCriteriaId(null);
+  };
+
+  const handleCriteriaDragEnd = () => {
+    setDraggedCriteriaId(null);
+    setDragOverCriteriaId(null);
+  };
 
   // API handlers
   const openApiModal = (channel: SalesChannel) => {
@@ -559,13 +619,30 @@ export default function SettingsPage() {
                         {items.map((criteria) => (
                           <div
                             key={criteria.id}
-                            className={`flex items-center justify-between p-4 rounded-xl border ${
+                            draggable
+                            onDragStart={(e) => handleCriteriaDragStart(e, criteria.id)}
+                            onDragOver={(e) => handleCriteriaDragOver(e, criteria.id)}
+                            onDragLeave={handleCriteriaDragLeave}
+                            onDrop={(e) => handleCriteriaDrop(e, criteria.id)}
+                            onDragEnd={handleCriteriaDragEnd}
+                            className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
                               criteria.isActive
                                 ? 'bg-white border-gray-200'
                                 : 'bg-gray-50 border-gray-100 opacity-60'
+                            } ${
+                              draggedCriteriaId === criteria.id
+                                ? 'opacity-50 scale-95'
+                                : ''
+                            } ${
+                              dragOverCriteriaId === criteria.id
+                                ? 'border-primary-400 border-2 bg-primary-50'
+                                : ''
                             }`}
                           >
                             <div className="flex items-center gap-4">
+                              <div className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600">
+                                <GripVertical className="w-5 h-5" />
+                              </div>
                               <button
                                 onClick={() => handleToggleCriteria(criteria.id, criteria.isActive)}
                                 className={`w-10 h-6 rounded-full transition-all ${

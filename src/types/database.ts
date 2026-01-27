@@ -78,6 +78,7 @@ export interface Database {
           category: string;
           max_score: number;
           is_active: boolean;
+          display_order: number;
           created_at: string;
         };
         Insert: {
@@ -88,6 +89,7 @@ export interface Database {
           category: string;
           max_score?: number;
           is_active?: boolean;
+          display_order?: number;
           created_at?: string;
         };
         Update: {
@@ -98,6 +100,7 @@ export interface Database {
           category?: string;
           max_score?: number;
           is_active?: boolean;
+          display_order?: number;
           created_at?: string;
         };
         Relationships: [];
