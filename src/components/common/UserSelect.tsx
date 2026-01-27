@@ -72,6 +72,9 @@ export default function UserSelect({
     return true;
   });
 
+  // 디버깅: filteredUsers 확인
+  console.log('[UserSelect] filteredUsers:', filteredUsers.length, 'searchQuery:', searchQuery, 'excludeUserId:', excludeUserId);
+
   const handleSelect = (user: User) => {
     onChange(user.id, user.name);
     setIsOpen(false);
