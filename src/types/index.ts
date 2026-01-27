@@ -188,6 +188,7 @@ export interface EvaluationCriteria {
   category: ProductCategory;
   maxScore: number;
   isActive: boolean;
+  displayOrder: number;  // 표시 순서
 }
 
 // 2. 상세페이지 제작 프로젝트

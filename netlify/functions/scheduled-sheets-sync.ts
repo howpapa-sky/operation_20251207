@@ -1,14 +1,38 @@
 import { Handler, schedule } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
-import { google } from 'googleapis';
+import { google, sheets_v4 } from 'googleapis';
 
 // Supabase 클라이언트 설정
-const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Google Sheets API 설정
-const GOOGLE_CREDENTIALS = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}');
+// Google Sheets API 인증 (Supabase app_secrets에서 가져오기)
+async function getGoogleSheetsClient(): Promise<sheets_v4.Sheets> {
+  const { data: emailData } = await supabase
+    .from('app_secrets')
+    .select('value')
+    .eq('key', 'GOOGLE_SERVICE_ACCOUNT_EMAIL')
+    .single();
+
+  const { data: keyData } = await supabase
+    .from('app_secrets')
+    .select('value')
+    .eq('key', 'GOOGLE_PRIVATE_KEY')
+    .single();
+
+  if (!emailData?.value || !keyData?.value) {
+    throw new Error('Google 서비스 계정 인증 정보가 없습니다. (app_secrets 테이블 확인 필요)');
+  }
+
+  const auth = new google.auth.JWT({
+    email: emailData.value,
+    key: keyData.value.replace(/\\n/g, '\n'),
+    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+  });
+
+  return google.sheets({ version: 'v4', auth });
+}
 
 // 컬럼 매핑 (google-sheets-sync.ts와 동일)
 const columnMapping: Record<string, string> = {
@@ -156,13 +180,8 @@ async function syncProject(project: any) {
   const spreadsheetId = extractSpreadsheetId(project.listup_sheet_url);
   const sheetName = project.listup_sheet_name || 'Sheet1';
 
-  // Google Sheets API 인증
-  const auth = new google.auth.GoogleAuth({
-    credentials: GOOGLE_CREDENTIALS,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-  });
-
-  const sheets = google.sheets({ version: 'v4', auth });
+  // Google Sheets API 클라이언트 가져오기
+  const sheets = await getGoogleSheetsClient();
 
   // 시트 데이터 가져오기
   const response = await sheets.spreadsheets.values.get({
