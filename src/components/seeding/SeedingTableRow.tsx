@@ -148,12 +148,12 @@ export default function SeedingTableRow({
         )}
       </td>
 
-      {/* 수락여부 */}
+      {/* 수락일자 */}
       <td className="px-3 py-3">
         {influencer.status === 'rejected' ? (
           <XCircle className="w-4 h-4 text-red-500" />
-        ) : isAccepted ? (
-          <CheckCircle className="w-4 h-4 text-green-500" />
+        ) : influencer.accepted_at ? (
+          <span className="text-sm text-gray-700">{formatDate(influencer.accepted_at)}</span>
         ) : (
           <span className="text-gray-300">-</span>
         )}
