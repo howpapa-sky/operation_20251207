@@ -87,17 +87,33 @@ const HEADER_MAP: Record<string, string> = {
   '메모': 'notes',
   '비고': 'notes',
 
-  // 발송일자 (upload date 포함)
+  // 발송일자
   'shipped date': 'shipped_at',
   'Shipped Date': 'shipped_at',
-  'upload date': 'shipped_at',
-  'Upload date': 'shipped_at',
-  'Upload Date': 'shipped_at',
-  'upload date (MM/D)': 'shipped_at',
-  'upload date (MM/DD)': 'shipped_at',
   '발송일': 'shipped_at',
   '발송일자': 'shipped_at',
   '배송일': 'shipped_at',
+
+  // 업로드 예정 (posted_at)
+  'upload date': 'posted_at',
+  'Upload date': 'posted_at',
+  'Upload Date': 'posted_at',
+  'upload date (MM/D)': 'posted_at',
+  'upload date (MM/DD)': 'posted_at',
+  '업로드예정': 'posted_at',
+  '업로드 예정': 'posted_at',
+
+  // 완료일자 (completed_at)
+  'completed': 'completed_at',
+  'Completed': 'completed_at',
+  'COMPLETED': 'completed_at',
+  'Upload completed': 'completed_at',
+  'upload completed': 'completed_at',
+  'Upload Completed': 'completed_at',
+  '업로드완료': 'completed_at',
+  '업로드 완료': 'completed_at',
+  '완료일': 'completed_at',
+  '완료일자': 'completed_at',
 
   // 상태 판별용
   'DM sent (Yes/No)': '_dm_sent',
@@ -407,10 +423,33 @@ async function importData(params: ImportParams) {
       const listedAtRaw = get('listed_at') || record['Date'] || record['date'] || record['DATE'] || record['날짜'];
       record.listed_at = listedAtRaw ? parseDate(listedAtRaw) : null;
 
-      // 발송일자 필드 (upload date 포함)
-      const shippedAtRaw = get('shipped_at') || record['shipped date'] || record['Shipped Date'] || record['upload date'] || record['Upload date'] || record['Upload Date'] || record['upload date (MM/D)'] || record['upload date (MM/DD)'] || record['발송일'] || record['발송일자'];
+      // 발송일자 필드
+      const shippedAtRaw = get('shipped_at') || record['shipped date'] || record['Shipped Date'] || record['발송일'] || record['발송일자'] || record['배송일'];
       if (shippedAtRaw) {
         record.shipped_at = parseDate(shippedAtRaw);
+      }
+
+      // 업로드 예정 (posted_at) 필드
+      const postedAtRaw = get('posted_at') || record['upload date'] || record['Upload date'] || record['Upload Date'] || record['upload date (MM/D)'] || record['upload date (MM/DD)'] || record['업로드예정'] || record['업로드 예정'];
+      if (postedAtRaw) {
+        record.posted_at = parseDate(postedAtRaw);
+      }
+
+      // 완료일자 (completed_at) 필드
+      const completedAtRaw = get('completed_at') || record['completed'] || record['Completed'] || record['COMPLETED'] || record['Upload completed'] || record['upload completed'] || record['Upload Completed'] || record['업로드완료'] || record['업로드 완료'] || record['완료일'] || record['완료일자'];
+      if (completedAtRaw) {
+        // 날짜 형식이면 날짜로 파싱, Yes/No 형식이면 현재 날짜 설정
+        const parsedDate = parseDate(completedAtRaw);
+        if (parsedDate) {
+          record.completed_at = parsedDate;
+        } else if (isYes(completedAtRaw)) {
+          // Yes인 경우 현재 날짜를 completed_at으로 설정
+          record.completed_at = new Date().toISOString().split('T')[0];
+        }
+        // completed_at이 있으면 상태를 completed로 변경
+        if (record.completed_at) {
+          record.status = 'completed';
+        }
       }
 
       // 수락일자 필드

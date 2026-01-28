@@ -13,7 +13,7 @@ interface SeedingTableProps {
   isLoading?: boolean;
 }
 
-type SortField = 'listed_at' | 'account_id' | 'follower_count' | 'following_count' | 'email' | 'product_name' | 'product_price' | 'shipped_at' | 'notes';
+type SortField = 'listed_at' | 'account_id' | 'follower_count' | 'following_count' | 'email' | 'product_name' | 'product_price' | 'posted_at' | 'notes';
 type SortDirection = 'asc' | 'desc';
 
 // 스켈레톤 로딩 컴포넌트
@@ -33,6 +33,7 @@ function SkeletonRow() {
       <td className="px-3 py-3"><div className="w-14 h-4 bg-gray-200 rounded" /></td>
       <td className="px-3 py-3"><div className="w-8 h-4 bg-gray-200 rounded" /></td>
       <td className="px-3 py-3"><div className="w-16 h-4 bg-gray-200 rounded" /></td>
+      <td className="px-3 py-3"><div className="w-8 h-4 bg-gray-200 rounded" /></td>
       <td className="px-3 py-3"><div className="w-20 h-4 bg-gray-200 rounded" /></td>
       <td className="w-12 px-3 py-3"><div className="w-6 h-6 bg-gray-200 rounded" /></td>
     </tr>
@@ -81,13 +82,13 @@ export default function SeedingTable({
         case 'product_price':
           comparison = (a.product_price || 0) - (b.product_price || 0);
           break;
-        case 'shipped_at':
-          const aShipped = a.shipping?.shipped_at;
-          const bShipped = b.shipping?.shipped_at;
-          if (!aShipped && !bShipped) comparison = 0;
-          else if (!aShipped) comparison = 1;
-          else if (!bShipped) comparison = -1;
-          else comparison = new Date(aShipped).getTime() - new Date(bShipped).getTime();
+        case 'posted_at':
+          const aPosted = a.posted_at;
+          const bPosted = b.posted_at;
+          if (!aPosted && !bPosted) comparison = 0;
+          else if (!aPosted) comparison = 1;
+          else if (!bPosted) comparison = -1;
+          else comparison = new Date(aPosted).getTime() - new Date(bPosted).getTime();
           break;
         case 'notes':
           comparison = (a.notes || '').localeCompare(b.notes || '');
@@ -274,12 +275,19 @@ export default function SeedingTable({
               {/* 업로드 예정 */}
               <th className="px-3 py-3 text-left">
                 <button
-                  onClick={() => handleSort('shipped_at')}
+                  onClick={() => handleSort('posted_at')}
                   className="flex items-center gap-1 text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
                 >
                   업로드 예정
-                  <SortIcon field="shipped_at" />
+                  <SortIcon field="posted_at" />
                 </button>
+              </th>
+
+              {/* 완료일 */}
+              <th className="px-3 py-3 text-left">
+                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  완료일
+                </span>
               </th>
 
               {/* 비고 */}
