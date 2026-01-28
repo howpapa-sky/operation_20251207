@@ -182,7 +182,7 @@ export default function SeedingTableRow({
         )}
       </td>
 
-      {/* 발송일자 */}
+      {/* 업로드 예정 */}
       <td className="px-3 py-3">
         <span className="text-sm text-gray-700">
           {influencer.shipping?.shipped_at ? formatDate(influencer.shipping.shipped_at) : '-'}

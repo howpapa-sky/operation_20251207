@@ -262,8 +262,8 @@ export default function SeedingListPage() {
     // Create CSV content with all fields
     const headers = [
       '날짜', '계정', '팔로워', '팔로잉', '이메일',
-      'DM발송', '응답', '수락', '제품', '가격',
-      '발송', '발송일자', '비고'
+      'DM발송', '응답', '수락일자', '제품', '가격',
+      '발송', '업로드 예정', '비고'
     ];
 
     const rows = filteredInfluencers.map((inf) => {
@@ -276,7 +276,7 @@ export default function SeedingListPage() {
         inf.email || '',
         flags.dmSent ? 'O' : '',
         flags.responseReceived ? 'O' : '',
-        flags.acceptance ? 'O' : '',
+        inf.accepted_at ? formatDate(inf.accepted_at) : '',
         inf.product_name || '',
         inf.product_price || '',
         flags.shipped ? 'O' : '',
