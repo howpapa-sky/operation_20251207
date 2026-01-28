@@ -528,6 +528,9 @@ export const useSeedingStore = create<SeedingStore>()(
             notes: inf.notes || null,
             assignee_id: inf.assignee_id || null,
             sheet_row_index: inf.sheet_row_index || null,
+            accepted_at: inf.accepted_at ?? null,
+            posted_at: inf.posted_at ?? null,
+            completed_at: inf.completed_at ?? null,
           };
 
           // 첫 번째 레코드 디버깅 로그

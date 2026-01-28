@@ -182,6 +182,38 @@ const columnMapping: Record<string, string> = {
 3. `seedingStore.ts`의 `dbToInfluencer()`, `addInfluencer()`, `addInfluencersBulk()`, `updateInfluencer()` 수정
 4. `src/types/index.ts`의 타입 업데이트
 
+---
+
+## ⚠️ SQL 작업 체크리스트 (필수!)
+
+Claude는 Supabase SQL을 직접 실행할 수 없습니다. DB 관련 작업 시 반드시 아래 체크리스트를 따릅니다.
+
+### SQL 실행이 필요한 작업
+- [ ] 테이블 생성/삭제
+- [ ] 컬럼 추가/삭제/타입 변경
+- [ ] 인덱스 생성/삭제
+- [ ] RLS 정책 추가/수정
+- [ ] 데이터 마이그레이션
+
+### 작업 프로세스
+1. **SQL 제공**: 실행할 SQL 쿼리를 사용자에게 제공
+2. **실행 요청**: "Supabase SQL Editor에서 실행해주세요" 명시
+3. **실행 확인**: 사용자가 실행 완료했는지 확인
+4. **결과 검증**: 변경사항이 제대로 적용되었는지 확인 요청
+
+### 예시
+```
+⚠️ SQL 실행 필요:
+아래 쿼리를 Supabase SQL Editor에서 실행해주세요:
+
+\`\`\`sql
+ALTER TABLE seeding_influencers
+ALTER COLUMN completed_at TYPE date;
+\`\`\`
+
+실행 완료되면 알려주세요.
+```
+
 ### 상태값 (SeedingStatus)
 ```
 listed → 리스트업

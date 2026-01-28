@@ -77,7 +77,10 @@ export default function SeedingStatusTabs({
         {displayStatuses.map((status) => {
           const config = statusConfig[status];
           const Icon = config.icon;
-          const count = stats.by_status[status];
+          // "수락" 카운트는 accepted 이후 상태(shipped, guide_sent, posted, completed)도 포함
+          const count = status === 'accepted'
+            ? stats.by_status.accepted + stats.by_status.shipped + stats.by_status.guide_sent + stats.by_status.posted + stats.by_status.completed
+            : stats.by_status[status];
           const isActive = activeStatus === status;
 
           return (
