@@ -185,8 +185,17 @@ export default function SeedingTableRow({
       {/* 업로드 예정 */}
       <td className="px-3 py-3">
         <span className="text-sm text-gray-700">
-          {influencer.shipping?.shipped_at ? formatDate(influencer.shipping.shipped_at) : '-'}
+          {influencer.posted_at ? formatDate(influencer.posted_at) : '-'}
         </span>
+      </td>
+
+      {/* 완료 */}
+      <td className="px-3 py-3">
+        {influencer.completed_at ? (
+          <CheckCircle className="w-4 h-4 text-green-500" />
+        ) : (
+          <XCircle className="w-4 h-4 text-gray-300" />
+        )}
       </td>
 
       {/* 비고 */}
