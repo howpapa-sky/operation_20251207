@@ -189,13 +189,11 @@ export default function SeedingTableRow({
         </span>
       </td>
 
-      {/* 완료 */}
+      {/* 완료일 */}
       <td className="px-3 py-3">
-        {influencer.completed_at ? (
-          <CheckCircle className="w-4 h-4 text-green-500" />
-        ) : (
-          <XCircle className="w-4 h-4 text-gray-300" />
-        )}
+        <span className="text-sm text-gray-700">
+          {influencer.completed_at ? formatDate(influencer.completed_at) : '-'}
+        </span>
       </td>
 
       {/* 비고 */}

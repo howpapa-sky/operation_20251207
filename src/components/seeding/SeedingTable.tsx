@@ -283,10 +283,10 @@ export default function SeedingTable({
                 </button>
               </th>
 
-              {/* 완료 */}
+              {/* 완료일 */}
               <th className="px-3 py-3 text-left">
                 <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  완료
+                  완료일
                 </span>
               </th>
 
