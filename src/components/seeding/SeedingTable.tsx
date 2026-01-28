@@ -271,13 +271,13 @@ export default function SeedingTable({
                 </span>
               </th>
 
-              {/* 발송일자 */}
+              {/* 업로드 예정 */}
               <th className="px-3 py-3 text-left">
                 <button
                   onClick={() => handleSort('shipped_at')}
                   className="flex items-center gap-1 text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
                 >
-                  발송일자
+                  업로드 예정
                   <SortIcon field="shipped_at" />
                 </button>
               </th>

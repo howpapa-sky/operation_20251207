@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Package,
   Plus,
@@ -15,6 +15,8 @@ import {
   DollarSign,
   BarChart3,
   AlertCircle,
+  FileSpreadsheet,
+  CheckCircle,
 } from 'lucide-react';
 import Card, { CardHeader } from '../components/common/Card';
 import Badge from '../components/common/Badge';
@@ -22,6 +24,45 @@ import Modal from '../components/common/Modal';
 import { useSKUMasterStore } from '../store/skuMasterStore';
 import { SKUMaster, SalesChannel, salesChannelLabels } from '../types/ecommerce';
 import { cn } from '../lib/utils';
+
+// CSV 파싱 유틸리티
+function parseCSV(text: string): string[][] {
+  const lines = text.split('\n');
+  return lines.map(line => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  });
+}
+
+// CSV 생성 유틸리티
+function generateCSV(headers: string[], rows: string[][]): string {
+  const escapeField = (field: string) => {
+    if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+      return `"${field.replace(/"/g, '""')}"`;
+    }
+    return field;
+  };
+
+  const headerLine = headers.map(escapeField).join(',');
+  const dataLines = rows.map(row => row.map(escapeField).join(','));
+
+  return [headerLine, ...dataLines].join('\n');
+}
 
 const brandOptions = [
   { value: 'howpapa', label: '하우파파', color: 'orange' },
@@ -42,6 +83,7 @@ export default function SKUMasterPage() {
     isLoading,
     fetchSKUs,
     addSKU,
+    addSKUsBulk,
     updateSKU,
     deleteSKU,
     updateCostPrice,
@@ -51,6 +93,8 @@ export default function SKUMasterPage() {
     deleteChannelMapping,
     getStats,
   } = useSKUMasterStore();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterBrand, setFilterBrand] = useState<string>('');
@@ -96,9 +140,109 @@ export default function SKUMasterPage() {
     channelOptionId: '',
   });
 
+  // Excel upload state
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadResult, setUploadResult] = useState<{ success: number; failed: number } | null>(null);
+  const [uploadPreview, setUploadPreview] = useState<Omit<SKUMaster, 'id' | 'createdAt' | 'updatedAt'>[]>([]);
+
   useEffect(() => {
     fetchSKUs();
   }, [fetchSKUs]);
+
+  // Excel 다운로드 (템플릿)
+  const handleDownloadTemplate = () => {
+    const headers = ['SKU코드', '제품명', '브랜드', '카테고리', '원가', '판매가', '적용일', '바코드', '공급업체', '최소재고', '현재재고', '활성', '메모'];
+    const sampleRow = ['SKU001', '샘플제품', 'howpapa', '크림', '5000', '15000', '2026-01-27', '', '', '10', '100', 'Y', ''];
+
+    const csv = generateCSV(headers, [sampleRow]);
+    const bom = '\uFEFF';
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'SKU_등록_템플릿.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Excel 다운로드 (현재 데이터)
+  const handleDownloadData = () => {
+    const headers = ['SKU코드', '제품명', '브랜드', '카테고리', '원가', '판매가', '적용일', '바코드', '공급업체', '최소재고', '현재재고', '활성', '메모'];
+    const rows = skus.map(sku => [
+      sku.skuCode,
+      sku.productName,
+      sku.brand,
+      sku.category || '',
+      sku.costPrice.toString(),
+      sku.sellingPrice.toString(),
+      sku.effectiveDate,
+      sku.barcode || '',
+      sku.supplier || '',
+      (sku.minStock || 0).toString(),
+      (sku.currentStock || 0).toString(),
+      sku.isActive ? 'Y' : 'N',
+      sku.notes || '',
+    ]);
+
+    const csv = generateCSV(headers, rows);
+    const bom = '\uFEFF';
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `SKU_마스터_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Excel 파일 읽기
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      const rows = parseCSV(text);
+
+      // 헤더 제외하고 파싱
+      const dataRows = rows.slice(1).filter(row => row[0] && row[0].trim());
+
+      const parsed: Omit<SKUMaster, 'id' | 'createdAt' | 'updatedAt'>[] = dataRows.map(row => ({
+        skuCode: row[0]?.trim() || '',
+        productName: row[1]?.trim() || '',
+        brand: (row[2]?.trim().toLowerCase() === 'nuccio' ? 'nuccio' : 'howpapa') as 'howpapa' | 'nuccio',
+        category: row[3]?.trim() || undefined,
+        costPrice: parseFloat(row[4]) || 0,
+        sellingPrice: parseFloat(row[5]) || 0,
+        effectiveDate: row[6]?.trim() || new Date().toISOString().split('T')[0],
+        barcode: row[7]?.trim() || undefined,
+        supplier: row[8]?.trim() || undefined,
+        minStock: parseInt(row[9]) || 0,
+        currentStock: parseInt(row[10]) || 0,
+        isActive: row[11]?.trim().toUpperCase() !== 'N',
+        notes: row[12]?.trim() || undefined,
+      })).filter(sku => sku.skuCode && sku.productName);
+
+      setUploadPreview(parsed);
+      setShowUploadModal(true);
+      setUploadResult(null);
+    };
+    reader.readAsText(file, 'UTF-8');
+
+    // 파일 입력 초기화
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // 업로드 실행
+  const handleConfirmUpload = async () => {
+    if (uploadPreview.length === 0) return;
+
+    const result = await addSKUsBulk(uploadPreview);
+    setUploadResult(result);
+  };
 
   // Filtered SKUs
   const filteredSKUs = skus.filter((sku) => {
@@ -245,13 +389,54 @@ export default function SKUMasterPage() {
             <p className="text-gray-500">제품별 원가/판매가 관리 및 채널 매핑</p>
           </div>
         </div>
-        <button
-          onClick={() => openSKUModal()}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          SKU 등록
-        </button>
+        <div className="flex items-center gap-2">
+          {/* 엑셀 다운로드 드롭다운 */}
+          <div className="relative group">
+            <button className="btn-secondary flex items-center gap-2">
+              <Download className="w-4 h-4" />
+              다운로드
+            </button>
+            <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+              <button
+                onClick={handleDownloadTemplate}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                템플릿 다운로드
+              </button>
+              <button
+                onClick={handleDownloadData}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                현재 데이터 다운로드
+              </button>
+            </div>
+          </div>
+          {/* 엑셀 업로드 */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <Upload className="w-4 h-4" />
+            엑셀 업로드
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.txt"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          {/* 개별 등록 */}
+          <button
+            onClick={() => openSKUModal()}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            SKU 등록
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -841,6 +1026,109 @@ export default function SKUMasterPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Excel Upload Modal */}
+      <Modal
+        isOpen={showUploadModal}
+        onClose={() => {
+          setShowUploadModal(false);
+          setUploadPreview([]);
+          setUploadResult(null);
+        }}
+        title="엑셀 일괄 업로드"
+        size="lg"
+      >
+        <div>
+          {uploadResult ? (
+            // 결과 화면
+            <div className="text-center py-8">
+              <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-8 h-8 text-green-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">업로드 완료</h3>
+              <p className="text-gray-600 mb-4">
+                성공: <span className="font-bold text-green-600">{uploadResult.success}건</span>
+                {uploadResult.failed > 0 && (
+                  <> / 실패: <span className="font-bold text-red-600">{uploadResult.failed}건</span></>
+                )}
+              </p>
+              <button
+                onClick={() => {
+                  setShowUploadModal(false);
+                  setUploadPreview([]);
+                  setUploadResult(null);
+                }}
+                className="btn-primary"
+              >
+                확인
+              </button>
+            </div>
+          ) : (
+            // 미리보기 화면
+            <>
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  총 <span className="font-bold">{uploadPreview.length}개</span>의 SKU가 업로드됩니다.
+                  동일한 SKU 코드가 있으면 업데이트됩니다.
+                </p>
+              </div>
+
+              <div className="max-h-80 overflow-y-auto border border-gray-200 rounded-lg">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="text-left py-2 px-3 font-medium text-gray-500">SKU코드</th>
+                      <th className="text-left py-2 px-3 font-medium text-gray-500">제품명</th>
+                      <th className="text-left py-2 px-3 font-medium text-gray-500">브랜드</th>
+                      <th className="text-right py-2 px-3 font-medium text-gray-500">원가</th>
+                      <th className="text-right py-2 px-3 font-medium text-gray-500">판매가</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {uploadPreview.slice(0, 50).map((sku, index) => (
+                      <tr key={index} className="border-t border-gray-100">
+                        <td className="py-2 px-3 font-mono text-xs">{sku.skuCode}</td>
+                        <td className="py-2 px-3">{sku.productName}</td>
+                        <td className="py-2 px-3">
+                          <Badge variant={sku.brand === 'howpapa' ? 'warning' : 'success'} size="sm">
+                            {sku.brand === 'howpapa' ? '하우파파' : '누치오'}
+                          </Badge>
+                        </td>
+                        <td className="py-2 px-3 text-right">{formatCurrency(sku.costPrice)}</td>
+                        <td className="py-2 px-3 text-right">{formatCurrency(sku.sellingPrice)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {uploadPreview.length > 50 && (
+                  <div className="text-center py-2 text-sm text-gray-500 bg-gray-50">
+                    외 {uploadPreview.length - 50}개...
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setUploadPreview([]);
+                  }}
+                  className="btn-secondary"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleConfirmUpload}
+                  className="btn-primary flex items-center gap-2"
+                  disabled={isLoading}
+                >
+                  {isLoading ? '업로드 중...' : `${uploadPreview.length}개 업로드`}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </Modal>
     </div>
   );
