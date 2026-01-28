@@ -13,6 +13,9 @@ import {
   CheckCircle2,
   XCircle,
   HelpCircle,
+  Zap,
+  Copy,
+  Clock,
 } from 'lucide-react';
 import { googleSheetsService, PreviewResult, ImportResult } from '../../services/googleSheetsService';
 import { useSeedingStore } from '../../store/seedingStore';
@@ -668,41 +671,76 @@ export default function GoogleSheetsSync({
                   />
                 </div>
 
-                {/* 자동 동기화 설정 */}
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
-                      <Loader2 className="w-5 h-5 text-orange-600" />
-                    </div>
-                    <div>
-                      <div className="font-medium text-sm text-gray-900">
-                        매일 오전 9시 자동 가져오기
+                {/* 동기화 방식 선택 */}
+                <div className="space-y-3">
+                  {/* 실시간 연동 (추천) */}
+                  <div className="p-4 bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-xl">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                        <Zap className="w-5 h-5 text-emerald-600" />
                       </div>
-                      <div className="text-xs text-gray-500">
-                        {project.last_synced_at
-                          ? `마지막 동기화: ${new Date(project.last_synced_at).toLocaleString('ko-KR')}`
-                          : '아직 동기화된 적 없음'}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-sm text-emerald-900">실시간 연동</span>
+                          <span className="px-1.5 py-0.5 bg-emerald-200 text-emerald-700 text-[10px] font-medium rounded">추천</span>
+                        </div>
+                        <div className="text-xs text-emerald-700 mb-3">
+                          시트 수정 시 1-2초 내 자동 반영 (Google Apps Script 설치 필요)
+                        </div>
+                        <button
+                          onClick={() => {
+                            // Apps Script 코드 복사
+                            const scriptUrl = `${window.location.origin}/docs/google-apps-script.js`;
+                            const webhookUrl = `${window.location.origin.replace('localhost:5173', 'YOUR_SITE.netlify.app')}/.netlify/functions/sheets-webhook`;
+                            const message = `실시간 연동 설정 방법:\n\n1. Google Sheets → 확장 프로그램 → Apps Script\n2. docs/google-apps-script.js 코드 붙여넣기\n3. WEBHOOK_URL을 다음으로 변경:\n   ${webhookUrl}\n4. setupTriggers 함수 실행\n\n자세한 내용: docs/REALTIME_SYNC_SETUP.md`;
+                            navigator.clipboard.writeText(webhookUrl);
+                            alert(message);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          설정 방법 보기
+                        </button>
                       </div>
                     </div>
                   </div>
-                  <button
-                    onClick={async () => {
-                      await updateProject(project.id, {
-                        auto_sync_enabled: !project.auto_sync_enabled,
-                        listup_sheet_url: spreadsheetUrl || project.listup_sheet_url,
-                        listup_sheet_name: sheetName || project.listup_sheet_name,
-                      });
-                    }}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      project.auto_sync_enabled ? 'bg-orange-500' : 'bg-gray-300'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        project.auto_sync_enabled ? 'translate-x-6' : 'translate-x-1'
+
+                  {/* 스케줄 동기화 */}
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
+                        <Clock className="w-5 h-5 text-orange-600" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-sm text-gray-900">
+                          매일 오전 9시 자동 가져오기
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {project.last_synced_at
+                            ? `마지막 동기화: ${new Date(project.last_synced_at).toLocaleString('ko-KR')}`
+                            : '아직 동기화된 적 없음'}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        await updateProject(project.id, {
+                          auto_sync_enabled: !project.auto_sync_enabled,
+                          listup_sheet_url: spreadsheetUrl || project.listup_sheet_url,
+                          listup_sheet_name: sheetName || project.listup_sheet_name,
+                        });
+                      }}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        project.auto_sync_enabled ? 'bg-orange-500' : 'bg-gray-300'
                       }`}
-                    />
-                  </button>
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          project.auto_sync_enabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
 
                 {/* 동기화 방향 */}
