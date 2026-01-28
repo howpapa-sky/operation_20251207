@@ -304,7 +304,8 @@ async function preview(params: PreviewParams) {
   const unmappedHeaders: string[] = [];
 
   headers.forEach((h) => {
-    const clean = h.trim().replace(/^["'\n]+|["'\n]+$/g, '');
+    // 따옴표, 줄바꿈, 캐리지리턴, 앞뒤 공백 모두 제거
+    const clean = h.trim().replace(/^["'\s\r\n]+|["'\s\r\n]+$/g, '').replace(/[\r\n]+/g, ' ').trim();
     const field = HEADER_MAP[h] || HEADER_MAP[clean];
     if (field && !field.startsWith('_')) {
       if (!mappedFields.includes(field)) mappedFields.push(field);
@@ -349,7 +350,8 @@ async function importData(params: ImportParams) {
   // 헤더 인덱스 매핑 (대소문자 무시)
   const fieldIndex: Record<string, number> = {};
   headers.forEach((h, i) => {
-    const clean = h.trim().replace(/^["'\n]+|["'\n]+$/g, '');
+    // 따옴표, 줄바꿈, 캐리지리턴, 앞뒤 공백 모두 제거
+    const clean = h.trim().replace(/^["'\s\r\n]+|["'\s\r\n]+$/g, '').replace(/[\r\n]+/g, ' ').trim();
     // 정확한 매칭 시도
     let field = HEADER_MAP[h] || HEADER_MAP[clean];
 
