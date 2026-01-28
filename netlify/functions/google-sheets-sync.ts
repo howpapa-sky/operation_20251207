@@ -301,9 +301,33 @@ async function preview(params: PreviewParams) {
   const unmappedHeaders: string[] = [];
 
   headers.forEach((h) => {
-    // 따옴표, 줄바꿈, 캐리지리턴, 앞뒤 공백 모두 제거
-    const clean = h.trim().replace(/^["'\s\r\n]+|["'\s\r\n]+$/g, '').replace(/[\r\n]+/g, ' ').trim();
-    const field = HEADER_MAP[h] || HEADER_MAP[clean];
+    // 따옴표, 줄바꿈, 캐리지리턴, 앞뒤 공백 모두 제거 + 중간 공백 정규화
+    const clean = h.trim()
+      .replace(/^["'\s\r\n]+|["'\s\r\n]+$/g, '')
+      .replace(/[\r\n]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    let field = HEADER_MAP[h] || HEADER_MAP[clean];
+    // 대소문자 무시
+    if (!field) {
+      const lowerClean = clean.toLowerCase();
+      for (const [key, value] of Object.entries(HEADER_MAP)) {
+        if (key.toLowerCase() === lowerClean) {
+          field = value;
+          break;
+        }
+      }
+    }
+    // 공백 제거 후 재시도
+    if (!field) {
+      const noSpace = clean.replace(/\s+/g, '').toLowerCase();
+      for (const [key, value] of Object.entries(HEADER_MAP)) {
+        if (key.replace(/\s+/g, '').toLowerCase() === noSpace) {
+          field = value;
+          break;
+        }
+      }
+    }
     if (field && !field.startsWith('_')) {
       if (!mappedFields.includes(field)) mappedFields.push(field);
     } else if (!field) {
@@ -347,8 +371,12 @@ async function importData(params: ImportParams) {
   // 헤더 인덱스 매핑 (대소문자 무시)
   const fieldIndex: Record<string, number> = {};
   headers.forEach((h, i) => {
-    // 따옴표, 줄바꿈, 캐리지리턴, 앞뒤 공백 모두 제거
-    const clean = h.trim().replace(/^["'\s\r\n]+|["'\s\r\n]+$/g, '').replace(/[\r\n]+/g, ' ').trim();
+    // 따옴표, 줄바꿈, 캐리지리턴, 앞뒤 공백 모두 제거 + 중간 공백 정규화
+    const clean = h.trim()
+      .replace(/^["'\s\r\n]+|["'\s\r\n]+$/g, '')
+      .replace(/[\r\n]+/g, ' ')
+      .replace(/\s+/g, ' ')  // 연속 공백을 하나로
+      .trim();
     // 정확한 매칭 시도
     let field = HEADER_MAP[h] || HEADER_MAP[clean];
 
@@ -357,6 +385,17 @@ async function importData(params: ImportParams) {
       const lowerClean = clean.toLowerCase();
       for (const [key, value] of Object.entries(HEADER_MAP)) {
         if (key.toLowerCase() === lowerClean) {
+          field = value;
+          break;
+        }
+      }
+    }
+
+    // 공백 제거 후 재시도 (upload date vs uploaddate)
+    if (!field) {
+      const noSpace = clean.replace(/\s+/g, '').toLowerCase();
+      for (const [key, value] of Object.entries(HEADER_MAP)) {
+        if (key.replace(/\s+/g, '').toLowerCase() === noSpace) {
           field = value;
           break;
         }
