@@ -104,6 +104,9 @@ const HEADER_MAP: Record<string, string> = {
   '업로드 예정': 'posted_at',
 
   // 완료일자 (completed_at)
+  'completed': 'completed_at',
+  'Completed': 'completed_at',
+  'COMPLETED': 'completed_at',
   'Upload completed': 'completed_at',
   'upload completed': 'completed_at',
   'Upload Completed': 'completed_at',
@@ -433,7 +436,7 @@ async function importData(params: ImportParams) {
       }
 
       // 완료일자 (completed_at) 필드
-      const completedAtRaw = get('completed_at') || record['Upload completed'] || record['upload completed'] || record['Upload Completed'] || record['업로드완료'] || record['업로드 완료'] || record['완료일'] || record['완료일자'];
+      const completedAtRaw = get('completed_at') || record['completed'] || record['Completed'] || record['COMPLETED'] || record['Upload completed'] || record['upload completed'] || record['Upload Completed'] || record['업로드완료'] || record['업로드 완료'] || record['완료일'] || record['완료일자'];
       if (completedAtRaw) {
         // 날짜 형식이면 날짜로 파싱, Yes/No 형식이면 현재 날짜 설정
         const parsedDate = parseDate(completedAtRaw);
