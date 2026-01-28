@@ -208,6 +208,14 @@ function parseDate(value: any): string | null {
     return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
   }
 
+  // YY-MM-DD 또는 YY/MM/DD (2자리 연도)
+  const yymmdd = str.match(/^(\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})$/);
+  if (yymmdd) {
+    const [, yy, m, d] = yymmdd;
+    const y = parseInt(yy) > 50 ? `19${yy}` : `20${yy}`;  // 50 이상이면 1900년대, 아니면 2000년대
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
   // MM/DD/YYYY
   const mmddyyyy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (mmddyyyy) {
