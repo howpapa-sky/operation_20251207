@@ -29,6 +29,7 @@ function SkeletonRow() {
       <td className="px-3 py-3"><div className="w-8 h-4 bg-gray-200 rounded" /></td>
       <td className="px-3 py-3"><div className="w-8 h-4 bg-gray-200 rounded" /></td>
       <td className="px-3 py-3"><div className="w-8 h-4 bg-gray-200 rounded" /></td>
+      <td className="px-3 py-3"><div className="w-8 h-4 bg-gray-200 rounded" /></td>
       <td className="px-3 py-3"><div className="w-16 h-4 bg-gray-200 rounded" /></td>
       <td className="px-3 py-3"><div className="w-14 h-4 bg-gray-200 rounded" /></td>
       <td className="px-3 py-3"><div className="w-8 h-4 bg-gray-200 rounded" /></td>
@@ -233,6 +234,13 @@ export default function SeedingTable({
               <th className="px-3 py-3 text-left">
                 <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   응답
+                </span>
+              </th>
+
+              {/* 수락여부 */}
+              <th className="px-3 py-3 text-left">
+                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  수락
                 </span>
               </th>
 
