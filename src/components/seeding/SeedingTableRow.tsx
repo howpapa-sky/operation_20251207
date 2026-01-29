@@ -148,15 +148,22 @@ export default function SeedingTableRow({
         )}
       </td>
 
-      {/* 수락일자 */}
+      {/* 수락여부 - accepted_at에 데이터가 있으면 체크 */}
       <td className="px-3 py-3">
         {influencer.status === 'rejected' ? (
           <XCircle className="w-4 h-4 text-red-500" />
         ) : influencer.accepted_at ? (
-          <span className="text-sm text-gray-700">{formatDate(influencer.accepted_at)}</span>
+          <CheckCircle className="w-4 h-4 text-green-500" />
         ) : (
-          <span className="text-gray-300">-</span>
+          <XCircle className="w-4 h-4 text-gray-300" />
         )}
+      </td>
+
+      {/* 수락일자 */}
+      <td className="px-3 py-3">
+        <span className="text-sm text-gray-700">
+          {influencer.accepted_at ? formatDate(influencer.accepted_at) : '-'}
+        </span>
       </td>
 
       {/* 제품 */}
