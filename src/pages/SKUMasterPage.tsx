@@ -160,7 +160,7 @@ export default function SKUMasterPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'SKU_등록_템플릿.csv';
+    link.download = '제품_등록_템플릿.csv';
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -190,7 +190,7 @@ export default function SKUMasterPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `SKU_마스터_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `제품_목록_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -385,7 +385,7 @@ export default function SKUMasterPage() {
             <Package className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">SKU 마스터</h1>
+            <h1 className="text-2xl font-bold text-gray-900">제품 관리</h1>
             <p className="text-gray-500">제품별 원가/판매가 관리 및 채널 매핑</p>
           </div>
         </div>
@@ -434,7 +434,7 @@ export default function SKUMasterPage() {
             className="btn-primary flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            SKU 등록
+            제품 등록
           </button>
         </div>
       </div>
@@ -561,7 +561,7 @@ export default function SKUMasterPage() {
               ) : filteredSKUs.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="text-center py-12 text-gray-500">
-                    등록된 SKU가 없습니다. 새 SKU를 등록해주세요.
+                    등록된 제품이 없습니다. 새 제품을 등록해주세요.
                   </td>
                 </tr>
               ) : (
@@ -662,7 +662,7 @@ export default function SKUMasterPage() {
       <Modal
         isOpen={showSKUModal}
         onClose={() => setShowSKUModal(false)}
-        title={editingSKU ? 'SKU 수정' : '새 SKU 등록'}
+        title={editingSKU ? '제품 수정' : '새 제품 등록'}
         size="lg"
       >
         <div className="space-y-4">
@@ -830,11 +830,11 @@ export default function SKUMasterPage() {
       <Modal
         isOpen={!!showDeleteModal}
         onClose={() => setShowDeleteModal(null)}
-        title="SKU 삭제"
+        title="제품 삭제"
         size="sm"
       >
         <p className="text-gray-600 mb-6">
-          이 SKU를 삭제하시겠습니까? 연결된 채널 매핑과 원가 이력도 함께 삭제됩니다.
+          이 제품을 삭제하시겠습니까? 연결된 채널 매핑과 원가 이력도 함께 삭제됩니다.
         </p>
         <div className="flex justify-end gap-3">
           <button onClick={() => setShowDeleteModal(null)} className="btn-secondary">
