@@ -126,8 +126,16 @@ export default function SeedingListPage() {
         return false;
       }
       // Status filter
-      if (statusFilter !== 'all' && inf.status !== statusFilter) {
-        return false;
+      // "수락" 탭은 accepted 이후 상태(shipped, guide_sent, posted, completed)도 모두 포함
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'accepted') {
+          const acceptedStatuses: SeedingStatus[] = ['accepted', 'shipped', 'guide_sent', 'posted', 'completed'];
+          if (!acceptedStatuses.includes(inf.status)) {
+            return false;
+          }
+        } else if (inf.status !== statusFilter) {
+          return false;
+        }
       }
       // Seeding type filter
       if (seedingTypeFilter !== 'all' && inf.seeding_type !== seedingTypeFilter) {
