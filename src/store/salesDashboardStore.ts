@@ -4,9 +4,8 @@ import {
   DailyChannelStats,
   DailyAdStats,
   SalesChannel,
-  AdChannel,
   SalesDashboardStats,
-  calculateContributionProfit
+  calculateContributionProfit,
 } from '../types/ecommerce';
 
 // Type workaround - 새 테이블들이 아직 타입에 없음
@@ -35,8 +34,6 @@ interface SalesDashboardState {
   setSelectedChannel: (channel: SalesChannel | 'all') => void;
   setSelectedBrand: (brand: 'howpapa' | 'nuccio' | 'all') => void;
 
-  fetchChannelStats: (dateRange?: DateRange) => Promise<void>;
-  fetchAdStats: (dateRange?: DateRange) => Promise<void>;
   fetchDashboardStats: (dateRange?: DateRange) => Promise<void>;
 
   // 통계 계산
@@ -51,41 +48,73 @@ interface SalesDashboardState {
   };
 }
 
-function dbToChannelStats(record: any): DailyChannelStats {
-  return {
-    id: record.id,
-    date: record.date,
-    channel: record.channel,
-    brand: record.brand || undefined,
-    totalOrders: record.total_orders || 0,
-    totalQuantity: record.total_quantity || 0,
-    totalRevenue: parseFloat(record.total_revenue) || 0,
-    totalCost: parseFloat(record.total_cost) || 0,
-    totalShipping: parseFloat(record.total_shipping) || 0,
-    totalFee: parseFloat(record.total_fee) || 0,
-    totalDiscount: parseFloat(record.total_discount) || 0,
-    grossProfit: parseFloat(record.gross_profit) || 0,
-    avgOrderValue: parseFloat(record.avg_order_value) || 0,
-    createdAt: record.created_at,
-    updatedAt: record.updated_at,
-  };
-}
+// orders_raw 레코드를 DailyChannelStats로 집계
+function aggregateOrdersByDateChannel(
+  orders: any[]
+): DailyChannelStats[] {
+  const map = new Map<
+    string,
+    {
+      date: string;
+      channel: SalesChannel;
+      orders: number;
+      quantity: number;
+      revenue: number;
+      cost: number;
+      shipping: number;
+      fee: number;
+      discount: number;
+      profit: number;
+    }
+  >();
 
-function dbToAdStats(record: any): DailyAdStats {
-  return {
-    id: record.id,
-    date: record.date,
-    channel: record.channel || undefined,
-    totalImpressions: record.total_impressions || 0,
-    totalClicks: record.total_clicks || 0,
-    totalCost: parseFloat(record.total_cost) || 0,
-    totalConversions: record.total_conversions || 0,
-    totalConversionValue: parseFloat(record.total_conversion_value) || 0,
-    avgCtr: parseFloat(record.avg_ctr) || 0,
-    avgCpc: parseFloat(record.avg_cpc) || 0,
-    overallRoas: parseFloat(record.overall_roas) || 0,
-    createdAt: record.created_at,
-  };
+  for (const o of orders) {
+    const date = o.order_date;
+    const channel = o.channel as SalesChannel;
+    const key = `${date}::${channel}`;
+
+    const entry = map.get(key) || {
+      date,
+      channel,
+      orders: 0,
+      quantity: 0,
+      revenue: 0,
+      cost: 0,
+      shipping: 0,
+      fee: 0,
+      discount: 0,
+      profit: 0,
+    };
+
+    entry.orders += 1;
+    entry.quantity += Number(o.quantity) || 0;
+    entry.revenue += Number(o.total_price) || 0;
+    entry.cost += (Number(o.cost_price) || 0) * (Number(o.quantity) || 1);
+    entry.shipping += Number(o.shipping_fee) || 0;
+    entry.fee += Number(o.channel_fee) || 0;
+    entry.discount += Number(o.discount_amount) || 0;
+    entry.profit += Number(o.profit) || 0;
+
+    map.set(key, entry);
+  }
+
+  return Array.from(map.values()).map((e, idx) => ({
+    id: `agg-${idx}`,
+    date: e.date,
+    channel: e.channel,
+    brand: undefined,
+    totalOrders: e.orders,
+    totalQuantity: e.quantity,
+    totalRevenue: e.revenue,
+    totalCost: e.cost,
+    totalShipping: e.shipping,
+    totalFee: e.fee,
+    totalDiscount: e.discount,
+    grossProfit: e.profit,
+    avgOrderValue: e.orders > 0 ? e.revenue / e.orders : 0,
+    createdAt: '',
+    updatedAt: '',
+  }));
 }
 
 // 오늘 날짜 기준으로 기본 날짜 범위 (최근 7일)
@@ -109,20 +138,6 @@ function getYesterdayRange(): DateRange {
   return { start: dateStr, end: dateStr };
 }
 
-// 전주 동일 기간
-function getPreviousWeekRange(currentRange: DateRange): DateRange {
-  const startDate = new Date(currentRange.start);
-  const endDate = new Date(currentRange.end);
-
-  startDate.setDate(startDate.getDate() - 7);
-  endDate.setDate(endDate.getDate() - 7);
-
-  return {
-    start: startDate.toISOString().split('T')[0],
-    end: endDate.toISOString().split('T')[0],
-  };
-}
-
 export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => ({
   channelStats: [],
   adStats: [],
@@ -135,7 +150,6 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
 
   setDateRange: (range) => {
     set({ selectedDateRange: range });
-    // 날짜 변경 시 자동 새로고침
     get().fetchDashboardStats(range);
   },
 
@@ -147,83 +161,63 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
     set({ selectedBrand: brand });
   },
 
-  fetchChannelStats: async (dateRange) => {
-    const range = dateRange || get().selectedDateRange;
-
-    try {
-      let query = db
-        .from('daily_channel_stats')
-        .select('*')
-        .gte('date', range.start)
-        .lte('date', range.end)
-        .order('date', { ascending: false });
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      const stats = (data || []).map(dbToChannelStats);
-      set({ channelStats: stats });
-    } catch (error: any) {
-      console.error('Fetch channel stats error:', error);
-      set({ error: error.message });
-    }
-  },
-
-  fetchAdStats: async (dateRange) => {
-    const range = dateRange || get().selectedDateRange;
-
-    try {
-      const { data, error } = await db
-        .from('daily_ad_stats')
-        .select('*')
-        .gte('date', range.start)
-        .lte('date', range.end)
-        .order('date', { ascending: false });
-
-      if (error) throw error;
-
-      const stats = (data || []).map(dbToAdStats);
-      set({ adStats: stats });
-    } catch (error: any) {
-      console.error('Fetch ad stats error:', error);
-      set({ error: error.message });
-    }
-  },
-
   fetchDashboardStats: async (dateRange) => {
     const range = dateRange || get().selectedDateRange;
     set({ isLoading: true, error: null });
 
     try {
-      // 병렬로 데이터 가져오기
-      const [channelResult, adResult] = await Promise.all([
-        db
-          .from('daily_channel_stats')
-          .select('*')
-          .gte('date', range.start)
-          .lte('date', range.end),
-        db
+      // orders_raw에서 직접 주문 데이터 조회
+      const { data: rawOrders, error: ordersError } = await db
+        .from('orders_raw')
+        .select('*')
+        .gte('order_date', range.start)
+        .lte('order_date', range.end)
+        .order('order_date', { ascending: false });
+
+      if (ordersError) throw ordersError;
+
+      const orders = rawOrders || [];
+
+      // 날짜+채널별 집계
+      const channelStats = aggregateOrdersByDateChannel(orders);
+
+      // 광고 데이터 조회 (daily_ad_stats 테이블이 있으면 시도)
+      let adStats: DailyAdStats[] = [];
+      try {
+        const { data: adData } = await db
           .from('daily_ad_stats')
           .select('*')
           .gte('date', range.start)
-          .lte('date', range.end),
-      ]);
+          .lte('date', range.end);
 
-      if (channelResult.error) throw channelResult.error;
-      if (adResult.error) throw adResult.error;
-
-      const channelStats: DailyChannelStats[] = (channelResult.data || []).map(dbToChannelStats);
-      const adStats: DailyAdStats[] = (adResult.data || []).map(dbToAdStats);
+        if (adData && adData.length > 0) {
+          adStats = adData.map((record: any) => ({
+            id: record.id,
+            date: record.date,
+            channel: record.channel || undefined,
+            totalImpressions: record.total_impressions || 0,
+            totalClicks: record.total_clicks || 0,
+            totalCost: parseFloat(record.total_cost) || 0,
+            totalConversions: record.total_conversions || 0,
+            totalConversionValue: parseFloat(record.total_conversion_value) || 0,
+            avgCtr: parseFloat(record.avg_ctr) || 0,
+            avgCpc: parseFloat(record.avg_cpc) || 0,
+            overallRoas: parseFloat(record.overall_roas) || 0,
+            createdAt: record.created_at,
+          }));
+        }
+      } catch {
+        // 광고 데이터 테이블 미존재 또는 오류 - 무시
+      }
 
       // KPI 계산
-      const totalRevenue = channelStats.reduce((sum: number, s: DailyChannelStats) => sum + s.totalRevenue, 0);
-      const totalCost = channelStats.reduce((sum: number, s: DailyChannelStats) => sum + s.totalCost, 0);
-      const totalOrders = channelStats.reduce((sum: number, s: DailyChannelStats) => sum + s.totalOrders, 0);
-      const totalShipping = channelStats.reduce((sum: number, s: DailyChannelStats) => sum + s.totalShipping, 0);
-      const totalFee = channelStats.reduce((sum: number, s: DailyChannelStats) => sum + s.totalFee, 0);
-      const totalAdCost = adStats.reduce((sum: number, s: DailyAdStats) => sum + s.totalCost, 0);
-      const totalConversionValue = adStats.reduce((sum: number, s: DailyAdStats) => sum + s.totalConversionValue, 0);
+      const totalRevenue = channelStats.reduce((sum, s) => sum + s.totalRevenue, 0);
+      const totalCost = channelStats.reduce((sum, s) => sum + s.totalCost, 0);
+      const totalOrders = channelStats.reduce((sum, s) => sum + s.totalOrders, 0);
+      const totalShipping = channelStats.reduce((sum, s) => sum + s.totalShipping, 0);
+      const totalFee = channelStats.reduce((sum, s) => sum + s.totalFee, 0);
+      const totalAdCost = adStats.reduce((sum, s) => sum + s.totalCost, 0);
+      const totalConversionValue = adStats.reduce((sum, s) => sum + s.totalConversionValue, 0);
 
       // 공헌이익 계산
       const contributionProfit = calculateContributionProfit({
@@ -238,21 +232,21 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
       const roas = totalAdCost > 0 ? (totalConversionValue / totalAdCost) * 100 : 0;
       const profitRate = totalRevenue > 0 ? (contributionProfit / totalRevenue) * 100 : 0;
 
-      // 전일 대비 변화 계산 (간단히 어제 데이터와 비교)
+      // 전일 대비 변화 계산
       const yesterdayRange = getYesterdayRange();
       const todayStr = new Date().toISOString().split('T')[0];
 
-      const todayStats = channelStats.filter((s: DailyChannelStats) => s.date === todayStr);
-      const yesterdayStats = channelStats.filter((s: DailyChannelStats) => s.date === yesterdayRange.start);
+      const todayStats = channelStats.filter(s => s.date === todayStr);
+      const yesterdayStats = channelStats.filter(s => s.date === yesterdayRange.start);
 
-      const todayRevenue = todayStats.reduce((sum: number, s: DailyChannelStats) => sum + s.totalRevenue, 0);
-      const yesterdayRevenue = yesterdayStats.reduce((sum: number, s: DailyChannelStats) => sum + s.totalRevenue, 0);
+      const todayRevenue = todayStats.reduce((sum, s) => sum + s.totalRevenue, 0);
+      const yesterdayRevenue = yesterdayStats.reduce((sum, s) => sum + s.totalRevenue, 0);
       const revenueChange = yesterdayRevenue > 0
         ? ((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100
         : 0;
 
-      const todayOrders = todayStats.reduce((sum: number, s: DailyChannelStats) => sum + s.totalOrders, 0);
-      const yesterdayOrders = yesterdayStats.reduce((sum: number, s: DailyChannelStats) => sum + s.totalOrders, 0);
+      const todayOrders = todayStats.reduce((sum, s) => sum + s.totalOrders, 0);
+      const yesterdayOrders = yesterdayStats.reduce((sum, s) => sum + s.totalOrders, 0);
       const ordersChange = yesterdayOrders > 0
         ? ((todayOrders - yesterdayOrders) / yesterdayOrders) * 100
         : 0;
@@ -261,10 +255,10 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
       const overallAdStats: DailyAdStats = {
         id: 'overall',
         date: range.end,
-        totalImpressions: adStats.reduce((sum: number, s: DailyAdStats) => sum + s.totalImpressions, 0),
-        totalClicks: adStats.reduce((sum: number, s: DailyAdStats) => sum + s.totalClicks, 0),
+        totalImpressions: adStats.reduce((sum, s) => sum + s.totalImpressions, 0),
+        totalClicks: adStats.reduce((sum, s) => sum + s.totalClicks, 0),
         totalCost: totalAdCost,
-        totalConversions: adStats.reduce((sum: number, s: DailyAdStats) => sum + s.totalConversions, 0),
+        totalConversions: adStats.reduce((sum, s) => sum + s.totalConversions, 0),
         totalConversionValue,
         avgCtr: 0,
         avgCpc: 0,
@@ -272,7 +266,6 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
         createdAt: new Date().toISOString(),
       };
 
-      // CTR, CPC 평균 계산
       if (overallAdStats.totalImpressions > 0) {
         overallAdStats.avgCtr = (overallAdStats.totalClicks / overallAdStats.totalImpressions) * 100;
       }
@@ -290,7 +283,7 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
         profitRate,
         revenueChange,
         ordersChange,
-        profitChange: 0, // TODO: 계산 추가
+        profitChange: 0,
         byChannel: channelStats,
         adStats: overallAdStats,
       };
@@ -299,7 +292,7 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
         channelStats,
         adStats,
         dashboardStats,
-        isLoading: false
+        isLoading: false,
       });
     } catch (error: any) {
       console.error('Fetch dashboard stats error:', error);
