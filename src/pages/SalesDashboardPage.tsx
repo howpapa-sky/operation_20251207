@@ -28,6 +28,7 @@ import {
   AdChannel,
 } from '@/types/ecommerce';
 import { cn } from '@/lib/utils';
+import OrderSyncPanel from '@/components/sales/OrderSyncPanel';
 
 // 숫자 포맷팅
 function formatCurrency(value: number, showSign = false): string {
@@ -420,6 +421,9 @@ export default function SalesDashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* 주문 동기화 패널 */}
+      <OrderSyncPanel onSyncComplete={() => fetchDashboardStats()} />
 
       {/* 에러 메시지 */}
       {error && (
