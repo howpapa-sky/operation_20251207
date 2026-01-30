@@ -2,12 +2,19 @@
  * Netlify Function - 네이버 스마트스토어 주문 동기화
  *
  * Supabase Edge Function의 대안으로, Netlify 환경에서 직접 실행
- * 환경변수: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ *
+ * 환경변수:
+ *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY - DB 연결
+ *   NAVER_PROXY_URL (선택) - 고정 IP 프록시 서버 URL (예: http://1.2.3.4:3100)
+ *   NAVER_PROXY_API_KEY (선택) - 프록시 서버 인증 키
+ *
+ * 프록시 설정 시: Netlify → 프록시(고정IP) → 네이버 API
+ * 프록시 미설정 시: Netlify → 네이버 API (직접 호출, IP 화이트리스트 필요)
  */
 
 import { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
-import * as crypto from 'crypto';
+import bcryptjs from 'bcryptjs';
 
 interface SyncRequest {
   userId: string;
@@ -40,12 +47,42 @@ const headers = {
   'Content-Type': 'application/json',
 };
 
-// HMAC-SHA256 서명 생성
+// ========== 프록시 경유 방식 ==========
+
+// 프록시를 통해 주문 데이터 조회
+async function fetchOrdersViaProxy(
+  proxyUrl: string,
+  proxyApiKey: string,
+  clientId: string,
+  clientSecret: string,
+  startDate: string,
+  endDate: string
+): Promise<NaverOrder[]> {
+  const response = await fetch(`${proxyUrl}/api/naver/sync`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-proxy-api-key': proxyApiKey,
+    },
+    body: JSON.stringify({ clientId, clientSecret, startDate, endDate }),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(result.message || '프록시 동기화 실패');
+  }
+
+  return result.data?.orders || [];
+}
+
+// ========== 직접 호출 방식 ==========
+
+// bcrypt 서명 생성 (네이버 커머스 API)
 function generateSignature(clientId: string, clientSecret: string, timestamp: number): string {
-  const message = `${clientId}_${timestamp}`;
-  const hmac = crypto.createHmac('sha256', clientSecret);
-  hmac.update(message);
-  return hmac.digest('base64');
+  const password = `${clientId}_${timestamp}`;
+  const hashed = bcryptjs.hashSync(password, clientSecret);
+  return Buffer.from(hashed, 'utf-8').toString('base64');
 }
 
 // 토큰 발급
@@ -190,6 +227,8 @@ async function fetchOrderDetails(
   return orders;
 }
 
+// ========== 핸들러 ==========
+
 const handler: Handler = async (event) => {
   // CORS preflight
   if (event.httpMethod === 'OPTIONS') {
@@ -222,12 +261,25 @@ const handler: Handler = async (event) => {
 
     console.log(`[네이버 동기화] 시작: ${startDate} ~ ${endDate} (user: ${userId})`);
 
-    // 1. 토큰 발급
-    const accessToken = await getAccessToken(clientId, clientSecret);
-    console.log('[네이버 동기화] 토큰 발급 성공');
+    // 프록시 설정 확인
+    const proxyUrl = process.env.NAVER_PROXY_URL;
+    const proxyApiKey = process.env.NAVER_PROXY_API_KEY;
+    const useProxy = !!proxyUrl && !!proxyApiKey;
 
-    // 2. 주문 데이터 조회
-    const orders = await fetchChangedOrders(accessToken, startDate, endDate);
+    let orders: NaverOrder[];
+
+    if (useProxy) {
+      // 프록시 경유: 고정 IP 서버를 통해 네이버 API 호출
+      console.log(`[네이버 동기화] 프록시 경유: ${proxyUrl}`);
+      orders = await fetchOrdersViaProxy(proxyUrl, proxyApiKey, clientId, clientSecret, startDate, endDate);
+    } else {
+      // 직접 호출: Netlify에서 네이버 API 직접 호출
+      console.log('[네이버 동기화] 직접 호출 모드');
+      const accessToken = await getAccessToken(clientId, clientSecret);
+      console.log('[네이버 동기화] 토큰 발급 성공');
+      orders = await fetchChangedOrders(accessToken, startDate, endDate);
+    }
+
     console.log(`[네이버 동기화] 조회된 주문: ${orders.length}건`);
 
     // 3. DB에 저장

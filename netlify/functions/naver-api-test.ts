@@ -2,11 +2,17 @@
  * Netlify Function - 네이버 스마트스토어 API 연결 테스트
  *
  * Supabase Edge Function(api-test)의 Netlify 대안
- * 환경변수 불필요 (클라이언트에서 자격증명을 직접 전달)
+ *
+ * 환경변수 (선택):
+ *   NAVER_PROXY_URL - 고정 IP 프록시 서버 URL
+ *   NAVER_PROXY_API_KEY - 프록시 서버 인증 키
+ *
+ * 프록시 설정 시 네이버 API 테스트는 프록시를 경유합니다.
  */
 
 import { Handler } from '@netlify/functions';
 import * as crypto from 'crypto';
+import bcryptjs from 'bcryptjs';
 
 interface TestRequest {
   channel: 'cafe24' | 'naver_smartstore' | 'coupang';
@@ -29,12 +35,11 @@ const headers = {
   'Content-Type': 'application/json',
 };
 
-// HMAC-SHA256 서명 생성 (네이버 커머스 API)
+// bcrypt 서명 생성 (네이버 커머스 API)
 function generateNaverSignature(clientId: string, clientSecret: string, timestamp: number): string {
-  const message = `${clientId}_${timestamp}`;
-  const hmac = crypto.createHmac('sha256', clientSecret);
-  hmac.update(message);
-  return hmac.digest('base64');
+  const password = `${clientId}_${timestamp}`;
+  const hashed = bcryptjs.hashSync(password, clientSecret);
+  return Buffer.from(hashed, 'utf-8').toString('base64');
 }
 
 // 카페24 API 테스트
@@ -79,6 +84,33 @@ async function testNaver(credentials: TestRequest['credentials']): Promise<{ suc
     return { success: false, message: '필수 자격증명이 누락되었습니다.' };
   }
 
+  // 프록시 설정 확인
+  const proxyUrl = process.env.NAVER_PROXY_URL;
+  const proxyApiKey = process.env.NAVER_PROXY_API_KEY;
+
+  if (proxyUrl && proxyApiKey) {
+    // 프록시 경유 테스트
+    try {
+      const response = await fetch(`${proxyUrl}/api/naver/test`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-proxy-api-key': proxyApiKey,
+        },
+        body: JSON.stringify({
+          clientId: naverClientId,
+          clientSecret: naverClientSecret,
+        }),
+      });
+
+      const result = await response.json();
+      return { success: result.success, message: result.message };
+    } catch (error) {
+      return { success: false, message: `프록시 연결 실패: ${(error as Error).message}` };
+    }
+  }
+
+  // 직접 호출 테스트
   try {
     const timestamp = Date.now();
     const tokenUrl = 'https://api.commerce.naver.com/external/v1/oauth2/token';
