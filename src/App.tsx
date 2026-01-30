@@ -15,7 +15,6 @@ import OtherPage from './pages/OtherPage';
 import StatisticsPage from './pages/StatisticsPage';
 import SettingsPage from './pages/SettingsPage';
 import SalesPage from './pages/SalesPage';
-import ProductMasterPage from './pages/ProductMasterPage';
 import PromotionPage from './pages/PromotionPage';
 import PersonalNotesPage from './pages/PersonalNotesPage';
 import MyTasksPage from './pages/MyTasksPage';
@@ -135,12 +134,9 @@ function App() {
           <Route path="other/:id/edit" element={<OtherPage />} />
           <Route path="dev-requests" element={<DevRequestPage />} />
           <Route path="sales" element={<SalesPage />} />
-          <Route path="sku-master" element={<SKUMasterPage />} />
+          <Route path="products" element={<SKUMasterPage />} />
           <Route path="sales-dashboard" element={<SalesDashboardPage />} />
           <Route path="daily-reports" element={<DailyReportSettingsPage />} />
-          <Route path="product-master" element={<ProductMasterPage />} />
-          <Route path="product-master/:id" element={<ProductMasterPage />} />
-          <Route path="product-master/:id/edit" element={<ProductMasterPage />} />
           <Route path="promotion" element={<PromotionPage />} />
           <Route path="promotion/:id" element={<PromotionPage />} />
           <Route path="promotion/:id/edit" element={<PromotionPage />} />
