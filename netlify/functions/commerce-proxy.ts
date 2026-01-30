@@ -110,7 +110,18 @@ async function testConnection(channel: string) {
         body: JSON.stringify({ clientId, clientSecret }),
       });
 
-      const result = await response.json();
+      const responseText = await response.text();
+      console.log(`[commerce-proxy] test-connection proxy response: status=${response.status}, body=${responseText.substring(0, 300)}`);
+
+      let result: any;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        return {
+          success: false,
+          message: `프록시 응답 파싱 실패 (status ${response.status}): ${responseText.substring(0, 100)}`,
+        };
+      }
       return {
         success: result.success === true,
         message: result.message || (result.success ? "연결 성공" : "연결 실패"),
@@ -299,7 +310,18 @@ async function syncOrders(params: {
         body: JSON.stringify({ clientId, clientSecret, startDate, endDate }),
       });
 
-      const result = await response.json();
+      const responseText = await response.text();
+      console.log(`[commerce-proxy] sync proxy response: status=${response.status}, body=${responseText.substring(0, 500)}`);
+
+      let result: any;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        return {
+          success: false,
+          error: `프록시 응답 파싱 실패 (status ${response.status}): ${responseText.substring(0, 200)}`,
+        };
+      }
 
       if (!response.ok || !result.success) {
         return {
