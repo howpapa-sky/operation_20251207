@@ -1,21 +1,43 @@
-import { Handler, HandlerEvent } from '@netlify/functions';
-import { createClient } from '@supabase/supabase-js';
+import type { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
+import { createClient } from "@supabase/supabase-js";
 
 // ========== 환경변수 ==========
+const PROXY_URL = process.env.NAVER_PROXY_URL || "http://49.50.131.90:3100";
+const PROXY_API_KEY = process.env.NAVER_PROXY_API_KEY || "";
 const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const naverProxyUrl = process.env.NAVER_PROXY_URL;
-const naverProxyApiKey = process.env.NAVER_PROXY_API_KEY;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// ========== 타입 ==========
-interface SyncOrdersParams {
-  channel: string;
-  startDate: string; // YYYY-MM-DD
-  endDate: string;   // YYYY-MM-DD
+// ========== CORS 헤더 ==========
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+// ========== 프록시 요청 타입 ==========
+interface CommerceProxyRequest {
+  action: "naver_token" | "naver_api" | "proxy" | "test-connection" | "sync-orders";
+  // Naver token
+  clientId?: string;
+  clientSecret?: string;
+  // Naver API
+  apiPath?: string;
+  accessToken?: string;
+  method?: string;
+  body?: Record<string, unknown>;
+  query?: Record<string, string>;
+  // Generic proxy
+  url?: string;
+  headers?: Record<string, string>;
+  // Sync orders
+  channel?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
+// ========== 주문 동기화 타입 ==========
 interface NaverOrder {
   orderId: string;
   productOrderId?: string;
@@ -35,19 +57,11 @@ interface NaverOrder {
   rawData?: Record<string, unknown>;
 }
 
-// ========== CORS 헤더 ==========
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Content-Type': 'application/json',
-};
-
 // ========== 유틸 ==========
 function toDateStr(value: string | undefined): string | null {
   if (!value) return null;
   const str = String(value).trim();
-  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.split('T')[0];
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.split("T")[0];
   return null;
 }
 
@@ -57,33 +71,78 @@ function toNumber(value: unknown, defaultVal = 0): number {
   return isNaN(num) ? defaultVal : num;
 }
 
-// ========== 네이버 프록시 호출 ==========
-async function callNaverProxy(path: string, params?: Record<string, string>): Promise<any> {
-  if (!naverProxyUrl || !naverProxyApiKey) {
-    throw new Error('NAVER_PROXY_URL 또는 NAVER_PROXY_API_KEY 환경변수가 설정되지 않았습니다.');
+// ========== 네이버 토큰 발급 ==========
+async function getNaverToken(): Promise<string> {
+  // app_secrets에서 네이버 API 자격증명 조회
+  const { data: clientIdData } = await supabase
+    .from("app_secrets")
+    .select("value")
+    .eq("key", "NAVER_CLIENT_ID")
+    .single();
+
+  const { data: clientSecretData } = await supabase
+    .from("app_secrets")
+    .select("value")
+    .eq("key", "NAVER_CLIENT_SECRET")
+    .single();
+
+  if (!clientIdData?.value || !clientSecretData?.value) {
+    throw new Error("네이버 API 자격증명이 설정되지 않았습니다. 설정 > API 연동에서 등록해주세요.");
   }
 
-  const url = new URL(path, naverProxyUrl);
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      url.searchParams.set(key, value);
-    });
-  }
-
-  console.log(`[commerce-proxy] Calling proxy: ${url.toString()}`);
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
+  const response = await fetch(`${PROXY_URL}/naver/token`, {
+    method: "POST",
     headers: {
-      'x-api-key': naverProxyApiKey,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
+      "x-api-key": PROXY_API_KEY,
     },
+    body: JSON.stringify({
+      clientId: clientIdData.value,
+      clientSecret: clientSecretData.value,
+    }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`[commerce-proxy] Proxy error: ${response.status} ${errorText}`);
-    throw new Error(`프록시 서버 오류: ${response.status} - ${errorText}`);
+    throw new Error(`토큰 발급 실패: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  // 응답 형식: { access_token: "..." } 또는 { token: "..." }
+  const token = data.access_token || data.token;
+  if (!token) {
+    throw new Error("토큰 응답에서 access_token을 찾을 수 없습니다.");
+  }
+
+  return token;
+}
+
+// ========== 네이버 API 호출 ==========
+async function callNaverApi(
+  apiPath: string,
+  accessToken: string,
+  options?: { method?: string; body?: Record<string, unknown>; query?: Record<string, string> }
+): Promise<any> {
+  const queryString = options?.query
+    ? "?" + new URLSearchParams(options.query).toString()
+    : "";
+
+  const response = await fetch(
+    `${PROXY_URL}/naver/api/${apiPath}${queryString}`,
+    {
+      method: options?.method || "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": PROXY_API_KEY,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: options?.body ? JSON.stringify(options.body) : undefined,
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`네이버 API 오류: ${response.status} - ${errorText}`);
   }
 
   return response.json();
@@ -91,13 +150,14 @@ async function callNaverProxy(path: string, params?: Record<string, string>): Pr
 
 // ========== 연결 테스트 ==========
 async function testConnection(channel: string) {
-  if (channel === 'smartstore') {
+  if (channel === "smartstore") {
     try {
-      const result = await callNaverProxy('/api/health');
+      // 토큰 발급 시도로 연결 테스트
+      const token = await getNaverToken();
       return {
         success: true,
-        message: '네이버 스마트스토어 프록시 연결 성공',
-        data: result,
+        message: "네이버 스마트스토어 API 연결 성공",
+        data: { hasToken: !!token },
       };
     } catch (error: any) {
       return {
@@ -114,28 +174,26 @@ async function testConnection(channel: string) {
 }
 
 // ========== SKU 매칭 ==========
-async function matchSKU(channel: string, optionName: string | undefined): Promise<{
-  skuId: string | null;
-  costPrice: number;
-}> {
+async function matchSKU(
+  channel: string,
+  optionName: string | undefined
+): Promise<{ skuId: string | null; costPrice: number }> {
   if (!optionName) return { skuId: null, costPrice: 0 };
 
   try {
-    // channel_option_mapping에서 매칭
     const { data: mapping } = await supabase
-      .from('channel_option_mapping')
-      .select('sku_id')
-      .eq('channel', channel)
-      .eq('option_name', optionName)
-      .eq('is_active', true)
+      .from("channel_option_mapping")
+      .select("sku_id")
+      .eq("channel", channel)
+      .eq("option_name", optionName)
+      .eq("is_active", true)
       .single();
 
     if (mapping?.sku_id) {
-      // SKU 원가 조회
       const { data: sku } = await supabase
-        .from('sku_master')
-        .select('cost_price')
-        .eq('id', mapping.sku_id)
+        .from("sku_master")
+        .select("cost_price")
+        .eq("id", mapping.sku_id)
         .single();
 
       return {
@@ -154,13 +212,12 @@ async function matchSKU(channel: string, optionName: string | undefined): Promis
 async function getChannelFeeRate(channel: string): Promise<number> {
   try {
     const { data } = await supabase
-      .from('sales_channel_settings')
-      .select('fee_rate')
-      .eq('channel', channel)
+      .from("sales_channel_settings")
+      .select("fee_rate")
+      .eq("channel", channel)
       .single();
     return data?.fee_rate ? parseFloat(data.fee_rate) : 0;
   } catch {
-    // 기본 수수료율
     const defaults: Record<string, number> = {
       smartstore: 5.5,
       coupang: 12.0,
@@ -174,24 +231,38 @@ async function getChannelFeeRate(channel: string): Promise<number> {
 
 // ========== 네이버 주문 변환 ==========
 function transformNaverOrder(raw: Record<string, unknown>): NaverOrder {
-  // Naver Commerce API 응답 형식 변환
-  // productOrder 필드가 있는 경우 (상세 조회)
   const po = (raw.productOrder || raw) as Record<string, unknown>;
 
   return {
-    orderId: String(po.orderId || po.order_id || raw.orderId || ''),
+    orderId: String(po.orderId || po.order_id || raw.orderId || ""),
     productOrderId: po.productOrderId ? String(po.productOrderId) : undefined,
-    orderDate: String(po.orderDate || po.order_date || po.paymentDate || ''),
+    orderDate: String(po.orderDate || po.order_date || po.paymentDate || ""),
     orderDatetime: po.orderDatetime ? String(po.orderDatetime) : undefined,
-    productName: po.productName ? String(po.productName) : (po.product_name ? String(po.product_name) : undefined),
-    optionName: po.optionInfo ? String(po.optionInfo) : (po.optionName || po.option_name ? String(po.optionName || po.option_name) : undefined),
+    productName: po.productName
+      ? String(po.productName)
+      : po.product_name
+        ? String(po.product_name)
+        : undefined,
+    optionName: po.optionInfo
+      ? String(po.optionInfo)
+      : po.optionName || po.option_name
+        ? String(po.optionName || po.option_name)
+        : undefined,
     quantity: toNumber(po.quantity, 1),
     unitPrice: toNumber(po.unitPrice || po.unit_price || po.salePrice),
     totalPrice: toNumber(po.totalPaymentAmount || po.totalPrice || po.total_price),
     shippingFee: toNumber(po.deliveryFeeAmount || po.shippingFee || po.shipping_fee),
     discountAmount: toNumber(po.totalDiscountAmount || po.discountAmount || po.discount_amount),
-    orderStatus: po.productOrderStatus ? String(po.productOrderStatus) : (po.orderStatus ? String(po.orderStatus) : undefined),
-    buyerName: po.ordererName ? String(po.ordererName) : (po.buyerName ? String(po.buyerName) : undefined),
+    orderStatus: po.productOrderStatus
+      ? String(po.productOrderStatus)
+      : po.orderStatus
+        ? String(po.orderStatus)
+        : undefined,
+    buyerName: po.ordererName
+      ? String(po.ordererName)
+      : po.buyerName
+        ? String(po.buyerName)
+        : undefined,
     buyerPhone: po.ordererTel ? String(po.ordererTel) : undefined,
     shippingAddress: po.shippingAddress ? String(po.shippingAddress) : undefined,
     rawData: raw,
@@ -227,50 +298,107 @@ function validateOrder(order: NaverOrder, rowIndex: number): string[] {
 }
 
 // ========== 주문 동기화 ==========
-async function syncOrders(params: SyncOrdersParams) {
+async function syncOrders(params: {
+  channel: string;
+  startDate: string;
+  endDate: string;
+}) {
   const { channel, startDate, endDate } = params;
 
-  // 날짜 검증
   if (!startDate || !endDate) {
-    return { success: false, error: '시작일과 종료일을 입력해주세요.' };
+    return { success: false, error: "시작일과 종료일을 입력해주세요." };
   }
 
   const start = new Date(startDate);
   const end = new Date(endDate);
   if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-    return { success: false, error: '날짜 형식이 올바르지 않습니다.' };
+    return { success: false, error: "날짜 형식이 올바르지 않습니다." };
   }
 
   if (start > end) {
-    return { success: false, error: '시작일이 종료일보다 클 수 없습니다.' };
+    return { success: false, error: "시작일이 종료일보다 클 수 없습니다." };
   }
 
   console.log(`[commerce-proxy] Syncing ${channel} orders: ${startDate} ~ ${endDate}`);
 
   let rawOrders: Record<string, unknown>[] = [];
 
-  // 채널별 주문 데이터 가져오기
-  if (channel === 'smartstore') {
+  if (channel === "smartstore") {
     try {
-      const result = await callNaverProxy('/api/orders', {
-        startDate,
-        endDate,
-      });
+      // 1) 토큰 발급
+      const accessToken = await getNaverToken();
 
-      // 프록시 응답 형식: { success, data, total } 또는 배열
+      // 2) 네이버 커머스 API로 주문 조회
+      //    lastChangedFrom/To 파라미터로 변경된 주문 조회
+      const result = await callNaverApi(
+        "v1/pay-order/seller/orders/last-changed-statuses",
+        accessToken,
+        {
+          method: "GET",
+          query: {
+            lastChangedFrom: `${startDate}T00:00:00.000+09:00`,
+            lastChangedTo: `${endDate}T23:59:59.999+09:00`,
+          },
+        }
+      );
+
+      // 응답에서 주문 목록 추출
       if (Array.isArray(result)) {
         rawOrders = result;
       } else if (result.data && Array.isArray(result.data)) {
         rawOrders = result.data;
+      } else if (result.lastChangeStatuses && Array.isArray(result.lastChangeStatuses)) {
+        rawOrders = result.lastChangeStatuses;
       } else if (result.orders && Array.isArray(result.orders)) {
         rawOrders = result.orders;
       } else {
-        console.log('[commerce-proxy] Unexpected response format:', JSON.stringify(result).substring(0, 500));
-        return {
-          success: false,
-          error: '프록시 서버에서 예상치 못한 응답 형식을 받았습니다.',
-          rawResponse: result,
-        };
+        console.log(
+          "[commerce-proxy] Response format:",
+          JSON.stringify(result).substring(0, 500)
+        );
+        // 단일 객체인 경우 키를 확인하여 배열 추출 시도
+        const firstArrayKey = Object.keys(result).find((k) => Array.isArray(result[k]));
+        if (firstArrayKey) {
+          rawOrders = result[firstArrayKey] as Record<string, unknown>[];
+        } else {
+          return {
+            success: false,
+            error: "프록시 서버에서 예상치 못한 응답 형식을 받았습니다.",
+            rawResponse: result,
+          };
+        }
+      }
+
+      // lastChangeStatuses 응답인 경우, productOrderId로 상세 조회 필요할 수 있음
+      if (rawOrders.length > 0 && rawOrders[0].productOrderId && !rawOrders[0].totalPaymentAmount) {
+        console.log(`[commerce-proxy] Fetching details for ${rawOrders.length} product orders`);
+        const productOrderIds = rawOrders.map((o) => String(o.productOrderId));
+
+        // 상세 주문 정보 조회 (50개씩 배치)
+        const detailedOrders: Record<string, unknown>[] = [];
+        for (let i = 0; i < productOrderIds.length; i += 50) {
+          const batch = productOrderIds.slice(i, i + 50);
+          try {
+            const detail = await callNaverApi(
+              "v1/pay-order/seller/product-orders/query",
+              accessToken,
+              {
+                method: "POST",
+                body: { productOrderIds: batch },
+              }
+            );
+            const orders = detail.data || detail.productOrders || detail;
+            if (Array.isArray(orders)) {
+              detailedOrders.push(...orders);
+            }
+          } catch (detailError: any) {
+            console.error(`[commerce-proxy] Detail fetch error:`, detailError.message);
+          }
+        }
+
+        if (detailedOrders.length > 0) {
+          rawOrders = detailedOrders;
+        }
       }
     } catch (error: any) {
       return {
@@ -288,7 +416,7 @@ async function syncOrders(params: SyncOrdersParams) {
   if (rawOrders.length === 0) {
     return {
       success: true,
-      message: '해당 기간에 주문이 없습니다.',
+      message: "해당 기간에 주문이 없습니다.",
       synced: 0,
       skipped: 0,
       errors: [],
@@ -309,7 +437,6 @@ async function syncOrders(params: SyncOrdersParams) {
     const raw = rawOrders[i];
     const order = transformNaverOrder(raw);
 
-    // 검증
     const errors = validateOrder(order, i + 1);
     if (errors.length > 0) {
       allErrors.push(...errors);
@@ -317,25 +444,20 @@ async function syncOrders(params: SyncOrdersParams) {
       continue;
     }
 
-    // 주문번호에 productOrderId를 포함 (중복 방지)
     const uniqueOrderId = order.productOrderId
       ? `${order.orderId}-${order.productOrderId}`
       : order.orderId;
 
-    // SKU 매칭
     const { skuId, costPrice } = await matchSKU(channel, order.optionName);
 
-    // 채널 수수료 계산
-    const totalPrice = order.totalPrice || (order.unitPrice * order.quantity);
+    const totalPrice = order.totalPrice || order.unitPrice * order.quantity;
     const channelFee = Math.round(totalPrice * (feeRate / 100));
     const shippingFee = order.shippingFee || 0;
     const discount = order.discountAmount || 0;
-
-    // 이익 계산
     const totalCost = costPrice * order.quantity;
     const profit = totalPrice - totalCost - channelFee - shippingFee - discount;
 
-    const orderRecord = {
+    validOrders.push({
       channel,
       order_id: uniqueOrderId,
       order_date: toDateStr(order.orderDate),
@@ -355,35 +477,32 @@ async function syncOrders(params: SyncOrdersParams) {
       buyer_name: order.buyerName || null,
       buyer_phone: order.buyerPhone || null,
       shipping_address: order.shippingAddress || null,
-      currency: 'KRW',
+      currency: "KRW",
       exchange_rate: 1,
       raw_data: order.rawData || null,
-    };
-
-    validOrders.push(orderRecord);
+    });
   }
 
   if (validOrders.length === 0) {
     return {
       success: false,
-      error: '유효한 주문 데이터가 없습니다.',
+      error: "유효한 주문 데이터가 없습니다.",
       errors: allErrors,
     };
   }
 
-  // Supabase에 upsert (중복 방지: channel + order_id UNIQUE 제약)
   console.log(`[commerce-proxy] Upserting ${validOrders.length} orders to Supabase`);
 
   const { data, error: dbError } = await supabase
-    .from('orders_raw')
+    .from("orders_raw")
     .upsert(validOrders, {
-      onConflict: 'channel,order_id',
+      onConflict: "channel,order_id",
       ignoreDuplicates: false,
     })
-    .select('id');
+    .select("id");
 
   if (dbError) {
-    console.error('[commerce-proxy] DB error:', dbError);
+    console.error("[commerce-proxy] DB error:", dbError);
     return {
       success: false,
       error: `데이터 저장 오류: ${dbError.message}`,
@@ -393,10 +512,10 @@ async function syncOrders(params: SyncOrdersParams) {
 
   // 동기화 로그 기록
   try {
-    await supabase.from('api_sync_logs').insert({
+    await supabase.from("api_sync_logs").insert({
       channel,
-      sync_type: 'manual',
-      status: 'success',
+      sync_type: "manual",
+      status: "success",
       records_fetched: rawOrders.length,
       records_created: data?.length || validOrders.length,
       records_updated: 0,
@@ -410,12 +529,12 @@ async function syncOrders(params: SyncOrdersParams) {
   // sales_channel_settings 업데이트
   try {
     await supabase
-      .from('sales_channel_settings')
+      .from("sales_channel_settings")
       .update({
         last_sync_at: new Date().toISOString(),
-        sync_status: 'success',
+        sync_status: "success",
       })
-      .eq('channel', channel);
+      .eq("channel", channel);
   } catch {
     // 업데이트 실패는 무시
   }
@@ -431,70 +550,167 @@ async function syncOrders(params: SyncOrdersParams) {
 }
 
 // ========== Handler ==========
-const handler: Handler = async (event: HandlerEvent) => {
-  // CORS preflight
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers: corsHeaders, body: '' };
+const handler: Handler = async (
+  event: HandlerEvent,
+  _context: HandlerContext
+) => {
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers: corsHeaders, body: "" };
   }
 
-  if (event.httpMethod !== 'POST') {
+  if (event.httpMethod !== "POST") {
     return {
       statusCode: 405,
       headers: corsHeaders,
-      body: JSON.stringify({ error: 'Method not allowed' }),
+      body: JSON.stringify({ error: "Method not allowed" }),
     };
   }
 
   try {
-    // 환경변수 확인
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return {
-        statusCode: 500,
-        headers: corsHeaders,
-        body: JSON.stringify({
-          error: 'SUPABASE_URL 또는 SUPABASE_SERVICE_ROLE_KEY 환경변수가 설정되지 않았습니다.',
-        }),
-      };
-    }
+    const request: CommerceProxyRequest = JSON.parse(event.body || "{}");
 
-    const body = JSON.parse(event.body || '{}');
-    const { action, ...params } = body;
+    let proxyResponse;
 
-    let result;
+    switch (request.action) {
+      // ===== 프록시 패스스루 =====
+      case "naver_token": {
+        if (!request.clientId || !request.clientSecret) {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({
+              success: false,
+              error: "clientId and clientSecret are required",
+            }),
+          };
+        }
 
-    switch (action) {
-      case 'test-connection':
-        result = await testConnection(params.channel || 'smartstore');
-        break;
-
-      case 'sync-orders':
-        result = await syncOrders({
-          channel: params.channel || 'smartstore',
-          startDate: params.startDate,
-          endDate: params.endDate,
+        proxyResponse = await fetch(`${PROXY_URL}/naver/token`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": PROXY_API_KEY,
+          },
+          body: JSON.stringify({
+            clientId: request.clientId,
+            clientSecret: request.clientSecret,
+          }),
         });
-        break;
+
+        const tokenData = await proxyResponse.json();
+        return {
+          statusCode: proxyResponse.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify(tokenData),
+        };
+      }
+
+      case "naver_api": {
+        if (!request.apiPath || !request.accessToken) {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({
+              success: false,
+              error: "apiPath and accessToken are required",
+            }),
+          };
+        }
+
+        const queryString = request.query
+          ? "?" + new URLSearchParams(request.query).toString()
+          : "";
+
+        proxyResponse = await fetch(
+          `${PROXY_URL}/naver/api/${request.apiPath}${queryString}`,
+          {
+            method: request.method || "GET",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": PROXY_API_KEY,
+              Authorization: `Bearer ${request.accessToken}`,
+            },
+            body: request.body ? JSON.stringify(request.body) : undefined,
+          }
+        );
+
+        const apiData = await proxyResponse.json();
+        return {
+          statusCode: proxyResponse.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify(apiData),
+        };
+      }
+
+      case "proxy": {
+        if (!request.url) {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({ success: false, error: "url is required" }),
+          };
+        }
+
+        proxyResponse = await fetch(`${PROXY_URL}/proxy`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": PROXY_API_KEY,
+          },
+          body: JSON.stringify({
+            url: request.url,
+            method: request.method || "GET",
+            headers: request.headers || {},
+            body: request.body,
+          }),
+        });
+
+        const proxyData = await proxyResponse.json();
+        return {
+          statusCode: proxyResponse.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify(proxyData),
+        };
+      }
+
+      // ===== 주문 동기화 =====
+      case "test-connection": {
+        const result = await testConnection(request.channel || "smartstore");
+        return {
+          statusCode: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify(result),
+        };
+      }
+
+      case "sync-orders": {
+        const result = await syncOrders({
+          channel: request.channel || "smartstore",
+          startDate: request.startDate || "",
+          endDate: request.endDate || "",
+        });
+        return {
+          statusCode: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify(result),
+        };
+      }
 
       default:
         return {
           statusCode: 400,
           headers: corsHeaders,
-          body: JSON.stringify({ error: `알 수 없는 action: ${action}` }),
+          body: JSON.stringify({ success: false, error: "Invalid action" }),
         };
     }
-
-    return {
-      statusCode: 200,
-      headers: corsHeaders,
-      body: JSON.stringify(result),
-    };
-  } catch (error: any) {
-    console.error('[commerce-proxy] Error:', error);
+  } catch (error) {
+    console.error("[Commerce Proxy Error]", error);
     return {
       statusCode: 500,
       headers: corsHeaders,
       body: JSON.stringify({
-        error: error.message || '서버 내부 오류가 발생했습니다.',
+        success: false,
+        error: error instanceof Error ? error.message : "Internal server error",
       }),
     };
   }
