@@ -89,7 +89,7 @@ async function fetchChangedOrders(accessToken, startDate, endDate) {
 
   for (let i = 0; i < chunks.length; i++) {
     if (i > 0) {
-      await delay(1000); // 청크 간 1초 딜레이 (429 방지)
+      await delay(300); // 청크 간 300ms 딜레이 (429 방지, Netlify 10초 타임아웃 대응)
     }
     const chunkOrders = await fetchChangedOrdersChunk(accessToken, chunks[i].from, chunks[i].to);
     allOrders.push(...chunkOrders);
@@ -144,9 +144,9 @@ async function fetchChangedOrdersChunk(accessToken, lastChangedFrom, lastChanged
     });
 
     if (response.status === 429) {
-      // Rate limit: 2초 대기 후 재시도
-      console.log('[프록시] 429 Rate Limit - 2초 대기 후 재시도');
-      await delay(2000);
+      // Rate limit: 1초 대기 후 재시도
+      console.log('[프록시] 429 Rate Limit - 1초 대기 후 재시도');
+      await delay(1000);
       continue;
     }
 
