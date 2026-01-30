@@ -71,9 +71,8 @@ function toNumber(value: unknown, defaultVal = 0): number {
   return isNaN(num) ? defaultVal : num;
 }
 
-// ========== 네이버 토큰 발급 ==========
-async function getNaverToken(): Promise<string> {
-  // app_secrets에서 네이버 API 자격증명 조회
+// ========== 네이버 자격증명 조회 ==========
+async function getNaverCredentials(): Promise<{ clientId: string; clientSecret: string }> {
   const { data: clientIdData } = await supabase
     .from("app_secrets")
     .select("value")
@@ -87,77 +86,34 @@ async function getNaverToken(): Promise<string> {
     .single();
 
   if (!clientIdData?.value || !clientSecretData?.value) {
-    throw new Error("네이버 API 자격증명이 설정되지 않았습니다. 설정 > API 연동에서 등록해주세요.");
+    throw new Error("네이버 API 자격증명이 설정되지 않았습니다. app_secrets에 NAVER_CLIENT_ID, NAVER_CLIENT_SECRET을 등록해주세요.");
   }
 
-  const response = await fetch(`${PROXY_URL}/naver/token`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": PROXY_API_KEY,
-    },
-    body: JSON.stringify({
-      clientId: clientIdData.value,
-      clientSecret: clientSecretData.value,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`토큰 발급 실패: ${response.status} - ${errorText}`);
-  }
-
-  const data = await response.json();
-  // 응답 형식: { access_token: "..." } 또는 { token: "..." }
-  const token = data.access_token || data.token;
-  if (!token) {
-    throw new Error("토큰 응답에서 access_token을 찾을 수 없습니다.");
-  }
-
-  return token;
-}
-
-// ========== 네이버 API 호출 ==========
-async function callNaverApi(
-  apiPath: string,
-  accessToken: string,
-  options?: { method?: string; body?: Record<string, unknown>; query?: Record<string, string> }
-): Promise<any> {
-  const queryString = options?.query
-    ? "?" + new URLSearchParams(options.query).toString()
-    : "";
-
-  const response = await fetch(
-    `${PROXY_URL}/naver/api/${apiPath}${queryString}`,
-    {
-      method: options?.method || "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": PROXY_API_KEY,
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: options?.body ? JSON.stringify(options.body) : undefined,
-    }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`네이버 API 오류: ${response.status} - ${errorText}`);
-  }
-
-  return response.json();
+  return {
+    clientId: clientIdData.value,
+    clientSecret: clientSecretData.value,
+  };
 }
 
 // ========== 연결 테스트 ==========
 async function testConnection(channel: string) {
   if (channel === "smartstore") {
     try {
-      // 토큰 발급 시도로 연결 테스트
-      const token = await getNaverToken();
+      const { clientId, clientSecret } = await getNaverCredentials();
+
+      const response = await fetch(`${PROXY_URL}/api/naver/test`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-proxy-api-key": PROXY_API_KEY,
+        },
+        body: JSON.stringify({ clientId, clientSecret }),
+      });
+
+      const result = await response.json();
       return {
-        success: true,
-        message: "네이버 스마트스토어 API 연결 성공",
-        data: { hasToken: !!token },
+        success: result.success === true,
+        message: result.message || (result.success ? "연결 성공" : "연결 실패"),
       };
     } catch (error: any) {
       return {
@@ -230,24 +186,28 @@ async function getChannelFeeRate(channel: string): Promise<number> {
 }
 
 // ========== 네이버 주문 변환 ==========
+// 프록시 서버 응답 형식:
+// { orderId, orderDate, productOrder: { productOrderId, productName, productOption, quantity, unitPrice, totalPaymentAmount, productOrderStatus } }
 function transformNaverOrder(raw: Record<string, unknown>): NaverOrder {
   const po = (raw.productOrder || raw) as Record<string, unknown>;
 
   return {
-    orderId: String(po.orderId || po.order_id || raw.orderId || ""),
+    orderId: String(raw.orderId || po.orderId || po.order_id || ""),
     productOrderId: po.productOrderId ? String(po.productOrderId) : undefined,
-    orderDate: String(po.orderDate || po.order_date || po.paymentDate || ""),
-    orderDatetime: po.orderDatetime ? String(po.orderDatetime) : undefined,
+    orderDate: String(raw.orderDate || po.orderDate || po.order_date || po.paymentDate || ""),
+    orderDatetime: (raw.orderDate || po.orderDatetime) ? String(raw.orderDate || po.orderDatetime) : undefined,
     productName: po.productName
       ? String(po.productName)
       : po.product_name
         ? String(po.product_name)
         : undefined,
-    optionName: po.optionInfo
-      ? String(po.optionInfo)
-      : po.optionName || po.option_name
-        ? String(po.optionName || po.option_name)
-        : undefined,
+    optionName: po.productOption
+      ? String(po.productOption)
+      : po.optionInfo
+        ? String(po.optionInfo)
+        : po.optionName || po.option_name
+          ? String(po.optionName || po.option_name)
+          : undefined,
     quantity: toNumber(po.quantity, 1),
     unitPrice: toNumber(po.unitPrice || po.unit_price || po.salePrice),
     totalPrice: toNumber(po.totalPaymentAmount || po.totalPrice || po.total_price),
@@ -325,81 +285,32 @@ async function syncOrders(params: {
 
   if (channel === "smartstore") {
     try {
-      // 1) 토큰 발급
-      const accessToken = await getNaverToken();
+      // app_secrets에서 자격증명 읽기
+      const { clientId, clientSecret } = await getNaverCredentials();
 
-      // 2) 네이버 커머스 API로 주문 조회
-      //    lastChangedFrom/To 파라미터로 변경된 주문 조회
-      const result = await callNaverApi(
-        "v1/pay-order/seller/orders/last-changed-statuses",
-        accessToken,
-        {
-          method: "GET",
-          query: {
-            lastChangedFrom: `${startDate}T00:00:00.000+09:00`,
-            lastChangedTo: `${endDate}T23:59:59.999+09:00`,
-          },
-        }
-      );
+      // 프록시 서버의 /api/naver/sync 엔드포인트 호출
+      // 프록시가 토큰 발급 + 주문 조회를 일괄 처리
+      const response = await fetch(`${PROXY_URL}/api/naver/sync`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-proxy-api-key": PROXY_API_KEY,
+        },
+        body: JSON.stringify({ clientId, clientSecret, startDate, endDate }),
+      });
 
-      // 응답에서 주문 목록 추출
-      if (Array.isArray(result)) {
-        rawOrders = result;
-      } else if (result.data && Array.isArray(result.data)) {
-        rawOrders = result.data;
-      } else if (result.lastChangeStatuses && Array.isArray(result.lastChangeStatuses)) {
-        rawOrders = result.lastChangeStatuses;
-      } else if (result.orders && Array.isArray(result.orders)) {
-        rawOrders = result.orders;
-      } else {
-        console.log(
-          "[commerce-proxy] Response format:",
-          JSON.stringify(result).substring(0, 500)
-        );
-        // 단일 객체인 경우 키를 확인하여 배열 추출 시도
-        const firstArrayKey = Object.keys(result).find((k) => Array.isArray(result[k]));
-        if (firstArrayKey) {
-          rawOrders = result[firstArrayKey] as Record<string, unknown>[];
-        } else {
-          return {
-            success: false,
-            error: "프록시 서버에서 예상치 못한 응답 형식을 받았습니다.",
-            rawResponse: result,
-          };
-        }
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        return {
+          success: false,
+          error: result.message || "프록시 동기화 실패",
+        };
       }
 
-      // lastChangeStatuses 응답인 경우, productOrderId로 상세 조회 필요할 수 있음
-      if (rawOrders.length > 0 && rawOrders[0].productOrderId && !rawOrders[0].totalPaymentAmount) {
-        console.log(`[commerce-proxy] Fetching details for ${rawOrders.length} product orders`);
-        const productOrderIds = rawOrders.map((o) => String(o.productOrderId));
-
-        // 상세 주문 정보 조회 (50개씩 배치)
-        const detailedOrders: Record<string, unknown>[] = [];
-        for (let i = 0; i < productOrderIds.length; i += 50) {
-          const batch = productOrderIds.slice(i, i + 50);
-          try {
-            const detail = await callNaverApi(
-              "v1/pay-order/seller/product-orders/query",
-              accessToken,
-              {
-                method: "POST",
-                body: { productOrderIds: batch },
-              }
-            );
-            const orders = detail.data || detail.productOrders || detail;
-            if (Array.isArray(orders)) {
-              detailedOrders.push(...orders);
-            }
-          } catch (detailError: any) {
-            console.error(`[commerce-proxy] Detail fetch error:`, detailError.message);
-          }
-        }
-
-        if (detailedOrders.length > 0) {
-          rawOrders = detailedOrders;
-        }
-      }
+      // 프록시 서버가 반환한 주문 목록
+      const orders = result.data?.orders || [];
+      rawOrders = orders;
     } catch (error: any) {
       return {
         success: false,
@@ -585,11 +496,12 @@ const handler: Handler = async (
           };
         }
 
-        proxyResponse = await fetch(`${PROXY_URL}/naver/token`, {
+        // 프록시 서버의 /api/naver/test로 연결 테스트 (토큰 발급 검증)
+        proxyResponse = await fetch(`${PROXY_URL}/api/naver/test`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-api-key": PROXY_API_KEY,
+            "x-proxy-api-key": PROXY_API_KEY,
           },
           body: JSON.stringify({
             clientId: request.clientId,
@@ -621,13 +533,13 @@ const handler: Handler = async (
           ? "?" + new URLSearchParams(request.query).toString()
           : "";
 
+        // 네이버 커머스 API 직접 호출 (프록시를 통하지 않음)
         proxyResponse = await fetch(
-          `${PROXY_URL}/naver/api/${request.apiPath}${queryString}`,
+          `https://api.commerce.naver.com/external/${request.apiPath}${queryString}`,
           {
             method: request.method || "GET",
             headers: {
               "Content-Type": "application/json",
-              "x-api-key": PROXY_API_KEY,
               Authorization: `Bearer ${request.accessToken}`,
             },
             body: request.body ? JSON.stringify(request.body) : undefined,
@@ -655,7 +567,7 @@ const handler: Handler = async (
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-api-key": PROXY_API_KEY,
+            "x-proxy-api-key": PROXY_API_KEY,
           },
           body: JSON.stringify({
             url: request.url,
