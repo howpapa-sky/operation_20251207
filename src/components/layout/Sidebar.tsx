@@ -14,7 +14,6 @@ import {
   ChevronRight,
   ChevronDown,
   Sparkles,
-  DollarSign,
   LucideIcon,
   StickyNote,
   CheckSquare,
@@ -27,7 +26,6 @@ import {
   MessageSquareText,
   BookOpen,
   FileText,
-  Tags,
   TrendingUp,
   BellRing,
 } from 'lucide-react';
@@ -55,7 +53,6 @@ const allMenuItems: MenuItem[] = [
   { icon: TrendingUp, label: '매출 대시보드', path: '/sales-dashboard' },
   { icon: BellRing, label: '일일 리포트', path: '/daily-reports' },
   { icon: Gift, label: '프로모션 관리', path: '/promotion' },
-  { icon: DollarSign, label: '매출 관리', path: '/sales' },
   { icon: BarChart3, label: '통계', path: '/statistics' },
   { icon: Settings, label: '설정', path: '/settings' },
 ];

@@ -14,7 +14,6 @@ import GroupPurchasePage from './pages/GroupPurchasePage';
 import OtherPage from './pages/OtherPage';
 import StatisticsPage from './pages/StatisticsPage';
 import SettingsPage from './pages/SettingsPage';
-import SalesPage from './pages/SalesPage';
 import PromotionPage from './pages/PromotionPage';
 import PersonalNotesPage from './pages/PersonalNotesPage';
 import MyTasksPage from './pages/MyTasksPage';
@@ -133,7 +132,7 @@ function App() {
           <Route path="other/:id" element={<OtherPage />} />
           <Route path="other/:id/edit" element={<OtherPage />} />
           <Route path="dev-requests" element={<DevRequestPage />} />
-          <Route path="sales" element={<SalesPage />} />
+          <Route path="sales" element={<Navigate to="/sales-dashboard" replace />} />
           <Route path="products" element={<SKUMasterPage />} />
           <Route path="sales-dashboard" element={<SalesDashboardPage />} />
           <Route path="daily-reports" element={<DailyReportSettingsPage />} />
