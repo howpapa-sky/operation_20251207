@@ -424,11 +424,25 @@ async function syncOrders(params: {
     };
   }
 
-  console.log(`[commerce-proxy] Upserting ${validOrders.length} orders to Supabase`);
+  // 동일 channel+order_id 중복 제거 (마지막 항목 유지)
+  const deduped = new Map<string, (typeof validOrders)[number]>();
+  for (const order of validOrders) {
+    const key = `${order.channel}::${order.order_id}`;
+    deduped.set(key, order);
+  }
+  const uniqueOrders = Array.from(deduped.values());
+  const duplicateCount = validOrders.length - uniqueOrders.length;
+
+  if (duplicateCount > 0) {
+    console.log(`[commerce-proxy] Removed ${duplicateCount} duplicate orders`);
+  }
+
+  // Supabase에 upsert (중복 방지: channel + order_id UNIQUE 제약)
+  console.log(`[commerce-proxy] Upserting ${uniqueOrders.length} orders to Supabase`);
 
   const { data, error: dbError } = await supabase
     .from("orders_raw")
-    .upsert(validOrders, {
+    .upsert(uniqueOrders, {
       onConflict: "channel,order_id",
       ignoreDuplicates: false,
     })
@@ -450,7 +464,7 @@ async function syncOrders(params: {
       sync_type: "manual",
       status: "success",
       records_fetched: rawOrders.length,
-      records_created: data?.length || validOrders.length,
+      records_created: data?.length || uniqueOrders.length,
       records_updated: 0,
       started_at: new Date().toISOString(),
       completed_at: new Date().toISOString(),
@@ -474,9 +488,10 @@ async function syncOrders(params: {
 
   return {
     success: true,
-    message: `${validOrders.length}건의 주문이 동기화되었습니다.`,
-    synced: data?.length || validOrders.length,
+    message: `${uniqueOrders.length}건의 주문이 동기화되었습니다.${duplicateCount > 0 ? ` (중복 ${duplicateCount}건 제거)` : ''}`,
+    synced: data?.length || uniqueOrders.length,
     skipped: skippedCount,
+    duplicates: duplicateCount,
     total: rawOrders.length,
     errors: allErrors,
   };
