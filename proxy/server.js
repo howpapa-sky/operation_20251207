@@ -74,12 +74,46 @@ async function getAccessToken(clientId, clientSecret) {
   return data.access_token;
 }
 
-// 변경된 주문 목록 조회
+// 변경된 주문 목록 조회 (최대 24시간 단위로 분할 조회)
 async function fetchChangedOrders(accessToken, startDate, endDate) {
   const allOrders = [];
-  const lastChangedFrom = `${startDate}T00:00:00.000+09:00`;
-  const lastChangedTo = `${endDate}T23:59:59.999+09:00`;
 
+  // 날짜 범위를 24시간 단위로 분할
+  const chunks = splitDateRange(startDate, endDate);
+
+  for (const chunk of chunks) {
+    const chunkOrders = await fetchChangedOrdersChunk(accessToken, chunk.from, chunk.to);
+    allOrders.push(...chunkOrders);
+  }
+
+  return allOrders;
+}
+
+// 날짜 범위를 24시간 단위 청크로 분할
+function splitDateRange(startDate, endDate) {
+  const chunks = [];
+  const start = new Date(`${startDate}T00:00:00.000+09:00`);
+  const end = new Date(`${endDate}T23:59:59.999+09:00`);
+
+  let chunkStart = new Date(start);
+  while (chunkStart < end) {
+    const chunkEnd = new Date(chunkStart.getTime() + 24 * 60 * 60 * 1000 - 1);
+    const actualEnd = chunkEnd > end ? end : chunkEnd;
+
+    chunks.push({
+      from: chunkStart.toISOString().replace('Z', '+09:00'),
+      to: actualEnd.toISOString().replace('Z', '+09:00'),
+    });
+
+    chunkStart = new Date(chunkEnd.getTime() + 1);
+  }
+
+  return chunks;
+}
+
+// 단일 24시간 청크 내 변경 주문 조회
+async function fetchChangedOrdersChunk(accessToken, lastChangedFrom, lastChangedTo) {
+  const orders = [];
   let moreSequence = null;
   let hasMore = true;
 
@@ -89,7 +123,7 @@ async function fetchChangedOrders(accessToken, startDate, endDate) {
       params.set('moreSequence', moreSequence);
     }
 
-    const url = `https://api.commerce.naver.com/external/v1/pay-order/seller/orders/last-changed-statuses?${params.toString()}`;
+    const url = `https://api.commerce.naver.com/external/v1/pay-order/seller/product-orders/last-changed-statuses?${params.toString()}`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -116,14 +150,14 @@ async function fetchChangedOrders(accessToken, startDate, endDate) {
 
     if (productOrderIds.length > 0) {
       const detailOrders = await fetchOrderDetails(accessToken, productOrderIds);
-      allOrders.push(...detailOrders);
+      orders.push(...detailOrders);
     }
 
     moreSequence = data.data?.moreSequence || null;
     hasMore = !!moreSequence;
   }
 
-  return allOrders;
+  return orders;
 }
 
 // 상품주문 상세 조회
