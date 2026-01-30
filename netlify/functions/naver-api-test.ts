@@ -12,6 +12,7 @@
 
 import { Handler } from '@netlify/functions';
 import * as crypto from 'crypto';
+import bcryptjs from 'bcryptjs';
 
 interface TestRequest {
   channel: 'cafe24' | 'naver_smartstore' | 'coupang';
@@ -34,12 +35,11 @@ const headers = {
   'Content-Type': 'application/json',
 };
 
-// HMAC-SHA256 서명 생성 (네이버 커머스 API)
+// bcrypt 서명 생성 (네이버 커머스 API)
 function generateNaverSignature(clientId: string, clientSecret: string, timestamp: number): string {
-  const message = `${clientId}_${timestamp}`;
-  const hmac = crypto.createHmac('sha256', clientSecret);
-  hmac.update(message);
-  return hmac.digest('base64');
+  const password = `${clientId}_${timestamp}`;
+  const hashed = bcryptjs.hashSync(password, clientSecret);
+  return Buffer.from(hashed, 'utf-8').toString('base64');
 }
 
 // 카페24 API 테스트

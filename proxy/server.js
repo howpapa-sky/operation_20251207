@@ -14,7 +14,7 @@
  */
 
 const express = require('express');
-const crypto = require('crypto');
+const bcryptjs = require('bcryptjs');
 const cors = require('cors');
 
 const app = express();
@@ -38,12 +38,11 @@ function authenticate(req, res, next) {
   next();
 }
 
-// HMAC-SHA256 서명 생성
+// bcrypt 서명 생성 (네이버 커머스 API)
 function generateSignature(clientId, clientSecret, timestamp) {
-  const message = `${clientId}_${timestamp}`;
-  const hmac = crypto.createHmac('sha256', clientSecret);
-  hmac.update(message);
-  return hmac.digest('base64');
+  const password = `${clientId}_${timestamp}`;
+  const hashed = bcryptjs.hashSync(password, clientSecret);
+  return Buffer.from(hashed, 'utf-8').toString('base64');
 }
 
 // 네이버 토큰 발급

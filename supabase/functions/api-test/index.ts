@@ -3,6 +3,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import bcryptjs from 'https://esm.sh/bcryptjs@2.4.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -61,36 +62,18 @@ async function testCafe24(credentials: TestRequest['credentials']): Promise<{ su
   }
 }
 
-// HMAC-SHA256 서명 생성 (네이버 커머스 API용)
-async function generateNaverSignature(clientId: string, clientSecret: string, timestamp: number): Promise<string> {
-  const message = `${clientId}_${timestamp}`;
-  const encoder = new TextEncoder();
-  const keyData = encoder.encode(clientSecret);
-  const msgData = encoder.encode(message);
-
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    keyData,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-
-  const signature = await crypto.subtle.sign('HMAC', cryptoKey, msgData);
-  // Base64 인코딩
-  const bytes = new Uint8Array(signature);
-  let binary = '';
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
+// bcrypt 서명 생성 (네이버 커머스 API용)
+function generateNaverSignature(clientId: string, clientSecret: string, timestamp: number): string {
+  const password = `${clientId}_${timestamp}`;
+  const hashed = bcryptjs.hashSync(password, clientSecret);
+  return btoa(hashed);
 }
 
 // 네이버 스마트스토어 API 토큰 발급
 async function getNaverToken(clientId: string, clientSecret: string): Promise<{ access_token: string; expires_in: number } | null> {
   const timestamp = Date.now();
   const tokenUrl = 'https://api.commerce.naver.com/external/v1/oauth2/token';
-  const clientSecretSign = await generateNaverSignature(clientId, clientSecret, timestamp);
+  const clientSecretSign = generateNaverSignature(clientId, clientSecret, timestamp);
 
   const response = await fetch(tokenUrl, {
     method: 'POST',
@@ -123,7 +106,7 @@ async function testNaver(credentials: TestRequest['credentials']): Promise<{ suc
   }
 
   try {
-    // HMAC-SHA256으로 서명 생성 후 토큰 발급 시도
+    // bcrypt 서명 생성 후 토큰 발급 시도
     const tokenResult = await getNaverToken(naverClientId, naverClientSecret);
 
     if (tokenResult) {

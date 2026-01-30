@@ -14,7 +14,7 @@
 
 import { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
-import * as crypto from 'crypto';
+import bcryptjs from 'bcryptjs';
 
 interface SyncRequest {
   userId: string;
@@ -78,12 +78,11 @@ async function fetchOrdersViaProxy(
 
 // ========== 직접 호출 방식 ==========
 
-// HMAC-SHA256 서명 생성
+// bcrypt 서명 생성 (네이버 커머스 API)
 function generateSignature(clientId: string, clientSecret: string, timestamp: number): string {
-  const message = `${clientId}_${timestamp}`;
-  const hmac = crypto.createHmac('sha256', clientSecret);
-  hmac.update(message);
-  return hmac.digest('base64');
+  const password = `${clientId}_${timestamp}`;
+  const hashed = bcryptjs.hashSync(password, clientSecret);
+  return Buffer.from(hashed, 'utf-8').toString('base64');
 }
 
 // 토큰 발급
