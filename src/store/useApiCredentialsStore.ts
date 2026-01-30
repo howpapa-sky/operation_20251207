@@ -2,11 +2,22 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { ApiCredential, SalesChannel, SyncStatus } from '../types';
 
+interface SyncResult {
+  success: boolean;
+  message: string;
+  data?: {
+    totalOrders: number;
+    created: number;
+    updated: number;
+  };
+}
+
 interface ApiCredentialsState {
   credentials: ApiCredential[];
   isLoading: boolean;
   error: string | null;
   testingChannel: SalesChannel | null;
+  syncingChannel: SalesChannel | null;
 
   // CRUD
   fetchCredentials: () => Promise<void>;
@@ -16,6 +27,7 @@ interface ApiCredentialsState {
 
   // 동기화
   updateSyncStatus: (channel: SalesChannel, status: SyncStatus, error?: string) => Promise<void>;
+  syncOrders: (channel: SalesChannel, startDate: string, endDate: string) => Promise<SyncResult>;
 
   // 연결 테스트
   testConnection: (channel: SalesChannel) => Promise<{ success: boolean; message: string }>;
@@ -29,6 +41,7 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
   isLoading: false,
   error: null,
   testingChannel: null,
+  syncingChannel: null,
 
   fetchCredentials: async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -249,7 +262,57 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
         return { success: false, message: errorMsg };
       }
 
-      // Edge Function 호출 시도
+      // 네이버 스마트스토어: Netlify Function (고정 IP 프록시 경유)
+      if (channel === 'naver_smartstore') {
+        try {
+          const response = await fetch('/.netlify/functions/commerce-proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'test-connection',
+              channel: 'smartstore',
+            }),
+          });
+
+          const result = await response.json();
+          if (result.success) {
+            await get().updateSyncStatus(channel, 'success');
+            return { success: true, message: result.message || '네이버 스마트스토어 API 연결 성공!' };
+          } else {
+            const errorMsg = result.message || result.error || '네이버 인증 실패';
+            await get().updateSyncStatus(channel, 'failed', errorMsg);
+            return { success: false, message: errorMsg };
+          }
+        } catch (proxyError) {
+          const errorMsg = '프록시 서버 연결 실패. 서버 상태를 확인해주세요.';
+          await get().updateSyncStatus(channel, 'failed', errorMsg);
+          return { success: false, message: errorMsg };
+        }
+      }
+
+      // 카페24, 쿠팡: Netlify Function → Supabase Edge Function 순서로 시도
+      try {
+        const netlifyResponse = await fetch('/.netlify/functions/naver-api-test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel, credentials }),
+        });
+
+        if (netlifyResponse.ok) {
+          const result = await netlifyResponse.json();
+          if (result.success) {
+            await get().updateSyncStatus(channel, 'success');
+            return { success: true, message: result.message };
+          } else {
+            await get().updateSyncStatus(channel, 'failed', result.message);
+            return { success: false, message: result.message };
+          }
+        }
+      } catch (netlifyError) {
+        console.log('Netlify Function not available, trying Supabase Edge Function');
+      }
+
+      // Supabase Edge Function 폴백
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
@@ -275,18 +338,17 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
             }
           }
         } catch (edgeFunctionError) {
-          // Edge Function이 없는 경우 로컬 검증으로 폴백
           console.log('Edge Function not available, using local validation');
         }
       }
 
-      // Edge Function이 없거나 실패한 경우 로컬 검증
+      // 3차: 로컬 검증 폴백
       await new Promise((resolve) => setTimeout(resolve, 1000));
       await get().updateSyncStatus(channel, 'success');
 
       return {
         success: true,
-        message: '자격증명이 확인되었습니다. (Edge Function 배포 후 실제 API 테스트 가능)'
+        message: '자격증명이 확인되었습니다. (서버 함수 배포 후 실제 API 테스트 가능)'
       };
     } catch (err) {
       const errorMsg = '연결 테스트 중 오류가 발생했습니다.';
@@ -294,6 +356,61 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
       return { success: false, message: errorMsg };
     } finally {
       set({ testingChannel: null });
+    }
+  },
+
+  syncOrders: async (channel, startDate, endDate) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, message: '로그인이 필요합니다.' };
+    }
+
+    if (channel !== 'naver_smartstore') {
+      return { success: false, message: '현재 네이버 스마트스토어만 동기화를 지원합니다.' };
+    }
+
+    set({ syncingChannel: channel });
+    await get().updateSyncStatus(channel, 'syncing');
+
+    try {
+      // commerce-proxy의 sync-orders 액션 호출
+      // 자격증명은 서버 사이드(app_secrets)에서 읽으므로 클라이언트에서 전송 불필요
+      const response = await fetch('/.netlify/functions/commerce-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'sync-orders',
+          channel: 'smartstore',
+          startDate,
+          endDate,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        await get().updateSyncStatus(channel, 'success');
+        await get().fetchCredentials();
+        return {
+          success: true,
+          message: result.message || '동기화 완료',
+          data: {
+            totalOrders: result.total || result.synced || 0,
+            created: result.synced || 0,
+            updated: 0,
+          },
+        };
+      } else {
+        const errorMsg = result.error || result.message || '동기화 실패';
+        await get().updateSyncStatus(channel, 'failed', errorMsg);
+        return { success: false, message: errorMsg };
+      }
+    } catch (err) {
+      const errorMsg = `동기화 중 오류: ${(err as Error).message}`;
+      await get().updateSyncStatus(channel, 'failed', errorMsg);
+      return { success: false, message: errorMsg };
+    } finally {
+      set({ syncingChannel: null });
     }
   },
 

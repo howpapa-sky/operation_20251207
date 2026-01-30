@@ -3,6 +3,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import bcryptjs from 'https://esm.sh/bcryptjs@2.4.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -61,6 +62,41 @@ async function testCafe24(credentials: TestRequest['credentials']): Promise<{ su
   }
 }
 
+// bcrypt 서명 생성 (네이버 커머스 API용)
+function generateNaverSignature(clientId: string, clientSecret: string, timestamp: number): string {
+  const password = `${clientId}_${timestamp}`;
+  const hashed = bcryptjs.hashSync(password, clientSecret);
+  return btoa(hashed);
+}
+
+// 네이버 스마트스토어 API 토큰 발급
+async function getNaverToken(clientId: string, clientSecret: string): Promise<{ access_token: string; expires_in: number } | null> {
+  const timestamp = Date.now();
+  const tokenUrl = 'https://api.commerce.naver.com/external/v1/oauth2/token';
+  const clientSecretSign = generateNaverSignature(clientId, clientSecret, timestamp);
+
+  const response = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: clientId,
+      timestamp: timestamp.toString(),
+      client_secret_sign: clientSecretSign,
+      grant_type: 'client_credentials',
+      type: 'SELF',
+    }),
+  });
+
+  const data = await response.json();
+
+  if (response.ok && data.access_token) {
+    return { access_token: data.access_token, expires_in: data.expires_in };
+  }
+  return null;
+}
+
 // 네이버 스마트스토어 API 테스트
 async function testNaver(credentials: TestRequest['credentials']): Promise<{ success: boolean; message: string }> {
   const { naverClientId, naverClientSecret } = credentials;
@@ -70,33 +106,13 @@ async function testNaver(credentials: TestRequest['credentials']): Promise<{ suc
   }
 
   try {
-    // 네이버 커머스 API 토큰 발급
-    const timestamp = Date.now();
-    const tokenUrl = 'https://api.commerce.naver.com/external/v1/oauth2/token';
+    // bcrypt 서명 생성 후 토큰 발급 시도
+    const tokenResult = await getNaverToken(naverClientId, naverClientSecret);
 
-    // BCrypt 해싱이 필요하지만, 간단한 연결 테스트로 대체
-    const signature = btoa(`${naverClientId}_${timestamp}`);
-
-    const response = await fetch(tokenUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        client_id: naverClientId,
-        timestamp: timestamp.toString(),
-        client_secret_sign: signature,
-        grant_type: 'client_credentials',
-        type: 'SELF',
-      }),
-    });
-
-    const data = await response.json();
-
-    if (response.ok && data.access_token) {
+    if (tokenResult) {
       return { success: true, message: '네이버 스마트스토어 API 연결 성공!' };
     } else {
-      return { success: false, message: `네이버 인증 실패: ${data.message || data.error || '알 수 없는 오류'}` };
+      return { success: false, message: '네이버 인증 실패: Client ID 또는 Client Secret이 올바르지 않습니다.' };
     }
   } catch (error) {
     return { success: false, message: `네이버 연결 오류: ${error.message}` };

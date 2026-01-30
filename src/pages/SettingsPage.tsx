@@ -151,17 +151,26 @@ export default function SettingsPage() {
     credentials,
     isLoading: apiLoading,
     testingChannel,
+    syncingChannel,
     fetchCredentials,
     saveCredential,
     deleteCredential,
     toggleActive,
     testConnection,
+    syncOrders,
   } = useApiCredentialsStore();
 
   const [showApiModal, setShowApiModal] = useState(false);
   const [editingChannel, setEditingChannel] = useState<SalesChannel | null>(null);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [testResult, setTestResult] = useState<{ channel: SalesChannel; success: boolean; message: string } | null>(null);
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [syncChannel, setSyncChannel] = useState<SalesChannel | null>(null);
+  const [syncDateRange, setSyncDateRange] = useState({
+    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
+  });
+  const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // API Form state
   const [apiFormData, setApiFormData] = useState({
@@ -354,10 +363,27 @@ export default function SettingsPage() {
     const result = await testConnection(channel);
     setTestResult({ channel, ...result });
 
-    // 3초 후 결과 메시지 숨김
+    // 5초 후 결과 메시지 숨김
     setTimeout(() => {
       setTestResult(null);
     }, 5000);
+  };
+
+  const openSyncModal = (channel: SalesChannel) => {
+    setSyncChannel(channel);
+    setSyncResult(null);
+    setSyncDateRange({
+      startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      endDate: new Date().toISOString().split('T')[0],
+    });
+    setShowSyncModal(true);
+  };
+
+  const handleSyncOrders = async () => {
+    if (!syncChannel) return;
+    setSyncResult(null);
+    const result = await syncOrders(syncChannel, syncDateRange.startDate, syncDateRange.endDate);
+    setSyncResult({ success: result.success, message: result.message });
   };
 
   const getSyncStatusBadge = (status: SyncStatus) => {
@@ -863,14 +889,15 @@ export default function SettingsPage() {
               />
               <div className="space-y-4">
                 {/* 안내 메시지 */}
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                   <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <div className="text-sm text-amber-800">
-                      <p className="font-medium mb-1">API 연동 준비 중</p>
+                    <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-blue-800">
+                      <p className="font-medium mb-1">API 연동 안내</p>
                       <p>
-                        현재 API 자격증명 설정 기능만 제공됩니다.
-                        실제 데이터 동기화는 서버 측 구현(Edge Functions) 완료 후 사용 가능합니다.
+                        네이버 스마트스토어 주문 동기화를 지원합니다.
+                        자격증명을 설정한 후 '연결 테스트'로 연결을 확인하고 '주문 동기화'로 데이터를 가져오세요.
+                        카페24, 쿠팡은 순차적으로 지원 예정입니다.
                       </p>
                     </div>
                   </div>
@@ -932,6 +959,25 @@ export default function SettingsPage() {
                                 </>
                               ) : (
                                 '연결 테스트'
+                              )}
+                            </button>
+                          )}
+                          {isConfigured && channel === 'naver_smartstore' && (
+                            <button
+                              onClick={() => openSyncModal(channel)}
+                              disabled={syncingChannel === channel}
+                              className="btn-primary flex items-center gap-2"
+                            >
+                              {syncingChannel === channel ? (
+                                <>
+                                  <RefreshCw className="w-4 h-4 animate-spin" />
+                                  동기화 중...
+                                </>
+                              ) : (
+                                <>
+                                  <RefreshCw className="w-4 h-4" />
+                                  주문 동기화
+                                </>
                               )}
                             </button>
                           )}
@@ -1923,6 +1969,92 @@ export default function SettingsPage() {
           >
             삭제
           </button>
+        </div>
+      </Modal>
+
+      {/* 주문 동기화 모달 */}
+      <Modal
+        isOpen={showSyncModal}
+        onClose={() => {
+          setShowSyncModal(false);
+          setSyncChannel(null);
+          setSyncResult(null);
+        }}
+        title={`${syncChannel ? channelInfo[syncChannel].name : ''} 주문 동기화`}
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            지정한 기간의 주문 데이터를 가져옵니다. 기존 데이터는 자동으로 업데이트됩니다.
+          </p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">시작일</label>
+              <input
+                type="date"
+                value={syncDateRange.startDate}
+                onChange={(e) => setSyncDateRange((prev) => ({ ...prev, startDate: e.target.value }))}
+                className="input w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">종료일</label>
+              <input
+                type="date"
+                value={syncDateRange.endDate}
+                onChange={(e) => setSyncDateRange((prev) => ({ ...prev, endDate: e.target.value }))}
+                className="input w-full"
+              />
+            </div>
+          </div>
+
+          {syncResult && (
+            <div className={`p-3 rounded-lg text-sm ${
+              syncResult.success
+                ? 'bg-green-50 text-green-700 border border-green-200'
+                : 'bg-red-50 text-red-700 border border-red-200'
+            }`}>
+              <div className="flex items-center gap-2">
+                {syncResult.success ? (
+                  <CheckCircle className="w-4 h-4" />
+                ) : (
+                  <XCircle className="w-4 h-4" />
+                )}
+                {syncResult.message}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              onClick={() => {
+                setShowSyncModal(false);
+                setSyncChannel(null);
+                setSyncResult(null);
+              }}
+              className="btn-secondary"
+            >
+              닫기
+            </button>
+            <button
+              onClick={handleSyncOrders}
+              disabled={syncingChannel !== null}
+              className="btn-primary flex items-center gap-2"
+            >
+              {syncingChannel ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  동기화 중...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4" />
+                  동기화 시작
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </Modal>
     </div>
