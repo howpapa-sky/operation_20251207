@@ -1,5 +1,9 @@
 // Supabase Edge Function - 네이버 스마트스토어 주문 동기화
 // 배포: supabase functions deploy naver-smartstore-sync
+//
+// 환경변수 (선택):
+//   NAVER_PROXY_URL - 고정 IP 프록시 서버 URL
+//   NAVER_PROXY_API_KEY - 프록시 서버 인증 키
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -260,6 +264,33 @@ async function saveOrdersToDb(
   return { created, updated };
 }
 
+// 프록시를 통해 주문 데이터 조회
+async function fetchOrdersViaProxy(
+  proxyUrl: string,
+  proxyApiKey: string,
+  clientId: string,
+  clientSecret: string,
+  startDate: string,
+  endDate: string
+): Promise<NaverOrder[]> {
+  const response = await fetch(`${proxyUrl}/api/naver/sync`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-proxy-api-key': proxyApiKey,
+    },
+    body: JSON.stringify({ clientId, clientSecret, startDate, endDate }),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok || !result.success) {
+    throw new Error(result.message || '프록시 동기화 실패');
+  }
+
+  return result.data?.orders || [];
+}
+
 serve(async (req) => {
   // CORS preflight
   if (req.method === 'OPTIONS') {
@@ -285,12 +316,23 @@ serve(async (req) => {
 
     console.log(`[네이버 동기화] 시작: ${startDate} ~ ${endDate} (user: ${userId})`);
 
-    // 1. 토큰 발급
-    const accessToken = await getAccessToken(clientId, clientSecret);
-    console.log('[네이버 동기화] 토큰 발급 성공');
+    // 프록시 설정 확인
+    const proxyUrl = Deno.env.get('NAVER_PROXY_URL');
+    const proxyApiKey = Deno.env.get('NAVER_PROXY_API_KEY');
+    const useProxy = !!proxyUrl && !!proxyApiKey;
 
-    // 2. 주문 데이터 조회
-    const orders = await fetchChangedOrders(accessToken, startDate, endDate);
+    let orders: NaverOrder[];
+
+    if (useProxy) {
+      console.log(`[네이버 동기화] 프록시 경유: ${proxyUrl}`);
+      orders = await fetchOrdersViaProxy(proxyUrl, proxyApiKey, clientId, clientSecret, startDate, endDate);
+    } else {
+      console.log('[네이버 동기화] 직접 호출 모드');
+      const accessToken = await getAccessToken(clientId, clientSecret);
+      console.log('[네이버 동기화] 토큰 발급 성공');
+      orders = await fetchChangedOrders(accessToken, startDate, endDate);
+    }
+
     console.log(`[네이버 동기화] 조회된 주문: ${orders.length}건`);
 
     // 3. DB에 저장
