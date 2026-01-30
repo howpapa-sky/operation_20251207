@@ -74,16 +74,26 @@ async function getAccessToken(clientId, clientSecret) {
   return data.access_token;
 }
 
+// 딜레이 유틸리티
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // 변경된 주문 목록 조회 (최대 24시간 단위로 분할 조회)
 async function fetchChangedOrders(accessToken, startDate, endDate) {
   const allOrders = [];
 
   // 날짜 범위를 24시간 단위로 분할
   const chunks = splitDateRange(startDate, endDate);
+  console.log(`[프록시] ${chunks.length}개 청크로 분할 조회`);
 
-  for (const chunk of chunks) {
-    const chunkOrders = await fetchChangedOrdersChunk(accessToken, chunk.from, chunk.to);
+  for (let i = 0; i < chunks.length; i++) {
+    if (i > 0) {
+      await delay(1000); // 청크 간 1초 딜레이 (429 방지)
+    }
+    const chunkOrders = await fetchChangedOrdersChunk(accessToken, chunks[i].from, chunks[i].to);
     allOrders.push(...chunkOrders);
+    console.log(`[프록시] 청크 ${i + 1}/${chunks.length}: ${chunkOrders.length}건`);
   }
 
   return allOrders;
@@ -132,6 +142,13 @@ async function fetchChangedOrdersChunk(accessToken, lastChangedFrom, lastChanged
         'Content-Type': 'application/json',
       },
     });
+
+    if (response.status === 429) {
+      // Rate limit: 2초 대기 후 재시도
+      console.log('[프록시] 429 Rate Limit - 2초 대기 후 재시도');
+      await delay(2000);
+      continue;
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
