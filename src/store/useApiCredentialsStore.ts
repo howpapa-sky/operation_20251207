@@ -262,7 +262,36 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
         return { success: false, message: errorMsg };
       }
 
-      // 1차: Netlify Function 호출 시도
+      // 네이버 스마트스토어: Netlify Function (고정 IP 프록시 경유)
+      if (channel === 'naver_smartstore') {
+        try {
+          const response = await fetch('/.netlify/functions/commerce-proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'naver_token',
+              clientId: credentials.naverClientId,
+              clientSecret: credentials.naverClientSecret,
+            }),
+          });
+
+          const result = await response.json();
+          if (result.success && result.access_token) {
+            await get().updateSyncStatus(channel, 'success');
+            return { success: true, message: '네이버 스마트스토어 API 연결 성공!' };
+          } else {
+            const errorMsg = result.error || '네이버 인증 실패';
+            await get().updateSyncStatus(channel, 'failed', errorMsg);
+            return { success: false, message: errorMsg };
+          }
+        } catch (proxyError) {
+          const errorMsg = '프록시 서버 연결 실패. 서버 상태를 확인해주세요.';
+          await get().updateSyncStatus(channel, 'failed', errorMsg);
+          return { success: false, message: errorMsg };
+        }
+      }
+
+      // 카페24, 쿠팡: Netlify Function → Supabase Edge Function 순서로 시도
       try {
         const netlifyResponse = await fetch('/.netlify/functions/naver-api-test', {
           method: 'POST',
@@ -284,7 +313,7 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
         console.log('Netlify Function not available, trying Supabase Edge Function');
       }
 
-      // 2차: Supabase Edge Function 호출 시도
+      // Supabase Edge Function 폴백
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
