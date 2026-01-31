@@ -21,7 +21,7 @@ interface CommerceProxyRequest {
   action:
     | "naver_token" | "naver_api" | "proxy"
     | "test-connection" | "sync-orders"
-    | "cafe24-auth-url" | "cafe24-exchange-token";
+    | "cafe24-auth-url" | "cafe24-exchange-token" | "cafe24-init-oauth";
   // Naver token
   clientId?: string;
   clientSecret?: string;
@@ -1074,6 +1074,33 @@ const handler: Handler = async (
       }
 
       // ===== Cafe24 OAuth =====
+      case "cafe24-init-oauth": {
+        // DB에서 자격증명을 읽어 OAuth URL 생성 (테스트 실행 등에서 사용)
+        const redirectUri = request.redirectUri;
+        if (!redirectUri) {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({ success: false, error: "redirectUri is required" }),
+          };
+        }
+        try {
+          const creds = await getCafe24Credentials();
+          const authUrl = getCafe24AuthUrl(creds.mallId, creds.clientId, redirectUri);
+          return {
+            statusCode: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ success: true, authUrl }),
+          };
+        } catch (error: any) {
+          return {
+            statusCode: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ success: false, error: error.message }),
+          };
+        }
+      }
+
       case "cafe24-auth-url": {
         if (!request.mallId || !request.clientId || !request.redirectUri) {
           return {

@@ -1559,19 +1559,28 @@ export default function SettingsPage() {
           {editingChannel === 'cafe24' && (
             <>
               {/* 앱 등록 안내 */}
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-                <p className="font-medium mb-1">Cafe24 앱 등록이 필요합니다</p>
-                <p className="text-xs text-amber-700">
-                  <a
-                    href="https://developers.cafe24.com/app/front/app/develop/register"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline font-medium"
-                  >
-                    Cafe24 개발자센터
-                  </a>
-                  에서 앱을 등록하면 Client ID와 Client Secret이 발급됩니다.
-                  몰 ID와 Client ID는 서로 다른 값입니다.
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800 space-y-2">
+                <p className="font-medium">Cafe24 개발자센터 설정 필수 사항</p>
+                <ol className="text-xs text-amber-700 list-decimal list-inside space-y-1">
+                  <li>
+                    <a
+                      href="https://developers.cafe24.com/app/front/app/develop/register"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline font-medium"
+                    >
+                      개발자센터
+                    </a>
+                    {' '}앱 등록 후 Client ID/Secret 확인
+                  </li>
+                  <li>App URL: <code className="bg-amber-100 px-1 rounded">{window.location.origin}</code></li>
+                  <li>Redirect URI: <code className="bg-amber-100 px-1 rounded">{window.location.origin}</code></li>
+                  <li className="font-semibold text-red-700">
+                    권한관리에서 반드시 추가: 주문(Orders) Read, 상품(Products) Read, 쇼핑몰(Store) Read
+                  </li>
+                </ol>
+                <p className="text-xs text-amber-600">
+                  ※ 몰 ID와 Client ID는 서로 다른 값입니다. 권한 미등록 시 OAuth 오류가 발생합니다.
                 </p>
               </div>
 
@@ -1656,33 +1665,26 @@ export default function SettingsPage() {
                     </p>
                     <button
                       type="button"
-                      onClick={async () => {
+                      onClick={() => {
                         const { mallId, clientId } = apiFormData.cafe24;
                         if (!mallId || !clientId) {
                           alert('몰 ID와 Client ID를 먼저 입력해주세요.');
                           return;
                         }
-                        try {
-                          const redirectUri = window.location.origin;
-                          const res = await fetch('/.netlify/functions/commerce-proxy', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              action: 'cafe24-auth-url',
-                              mallId,
-                              clientId,
-                              redirectUri,
-                            }),
-                          });
-                          const data = await res.json();
-                          if (data.success && data.authUrl) {
-                            window.location.href = data.authUrl;
-                          } else {
-                            alert(data.error || 'OAuth URL 생성에 실패했습니다.');
-                          }
-                        } catch {
-                          alert('서버 연결에 실패했습니다.');
-                        }
+                        const redirectUri = window.location.origin;
+                        // Cafe24 개발자센터 권한관리에 등록된 scope만 요청 가능
+                        // 주문/상품/쇼핑몰 Read 권한을 개발자센터에서 추가해야 주문 동기화 가능
+                        const scope = 'mall.read_order,mall.read_product,mall.read_store';
+                        const authUrl = `https://${mallId}.cafe24api.com/api/v2/oauth/authorize`
+                          + `?response_type=code`
+                          + `&client_id=${clientId}`
+                          + `&state=cafe24auth`
+                          + `&redirect_uri=${encodeURIComponent(redirectUri)}`
+                          + `&scope=${scope}`;
+                        console.log('[Cafe24 OAuth] Auth URL:', authUrl);
+                        console.log('[Cafe24 OAuth] redirect_uri:', redirectUri);
+                        console.log('[Cafe24 OAuth] scope:', scope);
+                        window.location.href = authUrl;
                       }}
                       className="w-full bg-blue-600 text-white text-sm font-medium py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
                     >

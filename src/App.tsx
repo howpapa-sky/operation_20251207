@@ -76,17 +76,49 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Cafe24 OAuth 콜백을 루트 URL에서 감지하여 /auth/cafe24로 전달
+// Cafe24 OAuth: 앱 실행(테스트 실행) 감지 → 자동 OAuth 시작, 콜백 감지 → 토큰 교환 라우팅
 function Cafe24OAuthInterceptor() {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Case 1: OAuth 콜백 - Cafe24에서 인증 코드를 받아 돌아온 경우
     const code = searchParams.get('code');
     const state = searchParams.get('state');
     if (code && state === 'cafe24auth' && location.pathname !== '/auth/cafe24') {
       navigate(`/auth/cafe24?code=${code}`, { replace: true });
+      return;
+    }
+
+    // Case 2: Cafe24 앱 실행 - 개발자센터 테스트 실행 등에서 mall_id+hmac으로 들어온 경우
+    const mallId = searchParams.get('mall_id');
+    const hmac = searchParams.get('hmac');
+    if (mallId && hmac) {
+      console.log('[Cafe24] App launch detected, initiating OAuth...', { mallId });
+      fetch('/.netlify/functions/commerce-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'cafe24-init-oauth',
+          redirectUri: window.location.origin,
+        }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.authUrl) {
+            console.log('[Cafe24] Redirecting to OAuth:', data.authUrl);
+            window.location.href = data.authUrl;
+          } else {
+            console.error('[Cafe24] OAuth init failed:', data.error);
+            alert('Cafe24 OAuth 시작 실패: ' + (data.error || '자격증명을 먼저 설정해주세요.'));
+            navigate('/settings', { replace: true });
+          }
+        })
+        .catch(err => {
+          console.error('[Cafe24] OAuth init error:', err);
+          navigate('/settings', { replace: true });
+        });
     }
   }, [searchParams, location.pathname, navigate]);
 
