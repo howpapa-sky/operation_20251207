@@ -717,7 +717,7 @@ async function fetchCafe24Orders(
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
-        "X-Cafe24-Api-Version": "2024-06-01",
+        "X-Cafe24-Api-Version": "2025-12-01",
       },
     });
   }
@@ -1272,7 +1272,7 @@ const handler: Handler = async (
                 headers: {
                   Authorization: `Bearer ${token}`,
                   "Content-Type": "application/json",
-                  "X-Cafe24-Api-Version": "2024-06-01",
+                  "X-Cafe24-Api-Version": "2025-12-01",
                 },
               }
             );
