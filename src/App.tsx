@@ -208,15 +208,8 @@ function App() {
           <Route path="seeding/reports" element={<SeedingReportsPage />} />
         </Route>
 
-        {/* Cafe24 OAuth Callback */}
-        <Route
-          path="/auth/cafe24"
-          element={
-            <ProtectedRoute>
-              <Cafe24CallbackPage />
-            </ProtectedRoute>
-          }
-        />
+        {/* Cafe24 OAuth Callback (로그인 불필요 - 서버에서 자격증명 처리) */}
+        <Route path="/auth/cafe24" element={<Cafe24CallbackPage />} />
 
         {/* Public Guide Page (no auth required) */}
         <Route path="/g/:slug" element={<ProductGuidePublicPage />} />
