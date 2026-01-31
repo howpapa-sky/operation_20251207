@@ -21,6 +21,9 @@ import StatusUpdatesPage from './pages/StatusUpdatesPage';
 import DevRequestPage from './pages/DevRequestPage';
 import SKUMasterPage from './pages/SKUMasterPage';
 import SalesDashboardPage from './pages/SalesDashboardPage';
+import SalesCostInputPage from './pages/SalesCostInputPage';
+import SalesChannelSettingsPage from './pages/SalesChannelSettingsPage';
+import SalesProfitSettingsPage from './pages/SalesProfitSettingsPage';
 import DailyReportSettingsPage from './pages/DailyReportSettingsPage';
 import Cafe24CallbackPage from './pages/Cafe24CallbackPage';
 
@@ -186,6 +189,9 @@ function App() {
           <Route path="sales" element={<Navigate to="/sales-dashboard" replace />} />
           <Route path="products" element={<SKUMasterPage />} />
           <Route path="sales-dashboard" element={<SalesDashboardPage />} />
+          <Route path="sales/costs" element={<SalesCostInputPage />} />
+          <Route path="sales/channels" element={<SalesChannelSettingsPage />} />
+          <Route path="sales/profit-settings" element={<SalesProfitSettingsPage />} />
           <Route path="daily-reports" element={<DailyReportSettingsPage />} />
           <Route path="promotion" element={<PromotionPage />} />
           <Route path="promotion/:id" element={<PromotionPage />} />
