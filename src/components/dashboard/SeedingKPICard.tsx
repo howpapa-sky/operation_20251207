@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
 interface SeedingKPICardProps {
@@ -55,6 +56,7 @@ export default function SeedingKPICard({
   actualListup,
   actualAcceptance,
 }: SeedingKPICardProps) {
+  const navigate = useNavigate();
   const isHowpapa = brand === 'howpapa';
   const brandName = isHowpapa ? 'HOWPAPA' : 'NUCCIO';
   const brandEmoji = isHowpapa ? '🧡' : '💚';
@@ -63,7 +65,10 @@ export default function SeedingKPICard({
   const brandTextColor = isHowpapa ? 'text-orange-600' : 'text-green-600';
 
   return (
-    <div className={cn('rounded-xl border-2 p-4', brandColor, brandBgColor)}>
+    <div
+      className={cn('rounded-xl border-2 p-4 cursor-pointer transition-shadow hover:shadow-md', brandColor, brandBgColor)}
+      onClick={() => navigate('/seeding')}
+    >
       {/* Header */}
       <div className="flex items-center gap-2 mb-4">
         <span className="text-lg">{brandEmoji}</span>

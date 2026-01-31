@@ -43,9 +43,15 @@ export default function SeedingTableRow({
   };
 
   const formatDate = (dateString?: string) => {
-    if (!dateString) return '-';
+    if (!dateString || dateString === 'null') return '-';
     const date = new Date(dateString);
     return date.toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' });
+  };
+
+  // null/undefined/'null' 문자열을 빈 값으로 처리
+  const displayText = (value?: string | null) => {
+    if (!value || value === 'null' || value === 'undefined') return '-';
+    return value;
   };
 
   // 프로필 URL 생성
@@ -126,7 +132,7 @@ export default function SeedingTableRow({
       {/* 이메일 */}
       <td className="px-3 py-3">
         <span className="text-sm text-gray-700 truncate max-w-[150px] block">
-          {influencer.email || '-'}
+          {displayText(influencer.email)}
         </span>
       </td>
 
@@ -169,7 +175,7 @@ export default function SeedingTableRow({
       {/* 제품 */}
       <td className="px-3 py-3">
         <span className="text-sm text-gray-700 truncate max-w-[100px] block">
-          {influencer.product_name || '-'}
+          {displayText(influencer.product_name)}
         </span>
       </td>
 
@@ -205,8 +211,8 @@ export default function SeedingTableRow({
 
       {/* 비고 */}
       <td className="px-3 py-3">
-        <span className="text-sm text-gray-700 truncate max-w-[120px] block" title={influencer.notes}>
-          {influencer.notes || '-'}
+        <span className="text-sm text-gray-700 truncate max-w-[120px] block" title={displayText(influencer.notes)}>
+          {displayText(influencer.notes)}
         </span>
       </td>
 
