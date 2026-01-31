@@ -697,37 +697,75 @@ async function ensureCafe24Token(creds: {
   return newTokens.accessToken;
 }
 
-// Cafe24 주문 조회 - NCP 프록시 서버 경유 (타임아웃 없음)
+// Cafe24 주문 조회 - Netlify에서 직접 호출 (IP 제한 없음)
 async function fetchCafe24Orders(
   mallId: string,
   accessToken: string,
   startDate: string,
   endDate: string
 ): Promise<Record<string, unknown>[]> {
-  console.log(`[cafe24] Fetching orders via proxy: ${startDate} ~ ${endDate}`);
+  console.log(`[cafe24] Fetching orders: ${startDate} ~ ${endDate}`);
 
-  const proxyRes = await fetch(`${PROXY_URL}/cafe24/orders`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": PROXY_API_KEY,
-    },
-    body: JSON.stringify({ mallId, accessToken, startDate, endDate }),
-  });
+  const allOrders: Record<string, unknown>[] = [];
+  let offset = 0;
+  const limit = 100;
+  let useEmbed = true;
 
-  if (!proxyRes.ok) {
-    const errText = await proxyRes.text();
-    throw new Error(`프록시 서버 오류: ${proxyRes.status} - ${errText}`);
+  while (true) {
+    const params = new URLSearchParams({
+      start_date: startDate,
+      end_date: endDate,
+      limit: String(limit),
+      offset: String(offset),
+    });
+    if (useEmbed) params.set("embed", "items");
+
+    const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders?${params}`;
+
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "X-Cafe24-Api-Version": "2025-12-01",
+      },
+    });
+
+    // embed=items로 400이면 embed 제거 후 재시도
+    if (response.status === 400 && useEmbed && offset === 0) {
+      const errBody = await response.text();
+      console.warn(`[cafe24] 400 with embed=items, retrying without. Error: ${errBody}`);
+      useEmbed = false;
+      continue;
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let detail = "";
+      try {
+        const errJson = JSON.parse(errorText);
+        detail = errJson.error?.message || errJson.error?.code || errJson.message || errorText;
+      } catch {
+        detail = errorText.substring(0, 300);
+      }
+      throw new Error(`Cafe24 API 오류: ${response.status} - ${detail}`);
+    }
+
+    const data = await response.json();
+    const orders = (data.orders || []) as Record<string, unknown>[];
+
+    if (orders.length === 0) break;
+
+    allOrders.push(...orders);
+    offset += limit;
+
+    console.log(`[cafe24] page offset=${offset}, got=${orders.length}, total=${allOrders.length}`);
+
+    // 안전 장치: Netlify 타임아웃 방지 (최대 500건)
+    if (offset >= 500) break;
   }
 
-  const result = await proxyRes.json();
-
-  if (!result.success) {
-    throw new Error(result.error || "Cafe24 주문 조회 실패");
-  }
-
-  console.log(`[cafe24] Proxy returned ${result.count} orders`);
-  return result.orders || [];
+  console.log(`[cafe24] Complete: ${allOrders.length} orders`);
+  return allOrders;
 }
 
 // Cafe24 주문 → orders_raw 변환
@@ -1194,20 +1232,29 @@ const handler: Handler = async (
           try {
             const creds = await getCafe24Credentials();
             const token = await ensureCafe24Token(creds);
-            // NCP 프록시 서버 경유 연결 테스트
-            const testRes = await fetch(`${PROXY_URL}/cafe24/test`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "x-api-key": PROXY_API_KEY,
-              },
-              body: JSON.stringify({ mallId: creds.mallId, accessToken: token }),
-            });
-            const testData = await testRes.json();
+            // Cafe24 API 직접 호출 (IP 제한 없음)
+            const testRes = await fetch(
+              `https://${creds.mallId}.cafe24api.com/api/v2/admin/store`,
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                  "X-Cafe24-Api-Version": "2025-12-01",
+                },
+              }
+            );
+            if (testRes.ok) {
+              return {
+                statusCode: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                body: JSON.stringify({ success: true, message: "Cafe24 API 연결 성공!" }),
+              };
+            }
+            const errText = await testRes.text();
             return {
               statusCode: 200,
               headers: { ...corsHeaders, "Content-Type": "application/json" },
-              body: JSON.stringify(testData),
+              body: JSON.stringify({ success: false, message: `Cafe24 API 응답 오류 (${testRes.status})` }),
             };
           } catch (error: any) {
             return {
