@@ -129,7 +129,135 @@ app.all('/naver/api/*', authenticate, async (req, res) => {
 });
 
 // ==========================================
-// Generic proxy endpoint (Cafe24, Coupang, etc.)
+// Cafe24 API endpoints
+// ==========================================
+
+// Cafe24 주문 조회 (페이지네이션 전체 처리, 타임아웃 없음)
+app.post('/cafe24/orders', authenticate, async (req, res) => {
+  try {
+    const { mallId, accessToken, startDate, endDate } = req.body;
+
+    if (!mallId || !accessToken || !startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        error: 'mallId, accessToken, startDate, endDate are required',
+      });
+    }
+
+    console.log(`[cafe24] Fetching orders: ${mallId} ${startDate} ~ ${endDate}`);
+
+    const allOrders = [];
+    let offset = 0;
+    const limit = 100;
+    let useEmbed = true;
+
+    while (true) {
+      const params = new URLSearchParams({
+        start_date: startDate,
+        end_date: endDate,
+        limit: String(limit),
+        offset: String(offset),
+      });
+      if (useEmbed) params.set('embed', 'items');
+
+      const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders?${params}`;
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'X-Cafe24-Api-Version': '2025-12-01',
+        },
+      });
+
+      // embed=items로 400이면 embed 제거 후 재시도
+      if (response.status === 400 && useEmbed && offset === 0) {
+        const errBody = await response.text();
+        console.warn(`[cafe24] 400 with embed=items, retrying without. Error: ${errBody}`);
+        useEmbed = false;
+        continue;
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[cafe24] API error: ${response.status} ${errorText}`);
+        let detail = '';
+        try {
+          const errJson = JSON.parse(errorText);
+          detail = errJson.error?.message || errJson.error?.code || errJson.message || errorText;
+        } catch {
+          detail = errorText.substring(0, 300);
+        }
+        return res.status(200).json({
+          success: false,
+          error: `Cafe24 API 오류: ${response.status} - ${detail}`,
+        });
+      }
+
+      const data = await response.json();
+      const orders = data.orders || [];
+
+      if (orders.length === 0) break;
+
+      allOrders.push(...orders);
+      offset += limit;
+
+      console.log(`[cafe24] Fetched page: offset=${offset}, orders=${orders.length}, total=${allOrders.length}`);
+
+      // 안전 장치: 최대 10000건
+      if (offset >= 10000) break;
+    }
+
+    console.log(`[cafe24] Complete: ${allOrders.length} orders`);
+
+    res.json({
+      success: true,
+      orders: allOrders,
+      count: allOrders.length,
+    });
+  } catch (error) {
+    console.error('[Cafe24 Orders Error]', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Cafe24 연결 테스트
+app.post('/cafe24/test', authenticate, async (req, res) => {
+  try {
+    const { mallId, accessToken } = req.body;
+
+    if (!mallId || !accessToken) {
+      return res.status(400).json({ success: false, error: 'mallId and accessToken are required' });
+    }
+
+    const response = await fetch(
+      `https://${mallId}.cafe24api.com/api/v2/admin/store`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'X-Cafe24-Api-Version': '2025-12-01',
+        },
+      }
+    );
+
+    if (response.ok) {
+      return res.json({ success: true, message: 'Cafe24 API 연결 성공!' });
+    }
+
+    const errText = await response.text();
+    res.json({
+      success: false,
+      message: `Cafe24 API 응답 오류 (${response.status})`,
+    });
+  } catch (error) {
+    console.error('[Cafe24 Test Error]', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
+// Generic proxy endpoint (Coupang, etc.)
 // ==========================================
 
 app.post('/proxy', authenticate, async (req, res) => {

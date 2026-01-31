@@ -697,107 +697,74 @@ async function ensureCafe24Token(creds: {
   return newTokens.accessToken;
 }
 
-// Cafe24 주문 조회 (페이지네이션 포함)
+// Cafe24 주문 조회 - Netlify에서 직접 호출 (IP 제한 없음)
 async function fetchCafe24Orders(
   mallId: string,
   accessToken: string,
   startDate: string,
   endDate: string
 ): Promise<Record<string, unknown>[]> {
+  console.log(`[cafe24] Fetching orders: ${startDate} ~ ${endDate}`);
+
   const allOrders: Record<string, unknown>[] = [];
   let offset = 0;
   const limit = 100;
+  let useEmbed = true;
 
-  // Cafe24 주문 API 호출 헬퍼
-  async function callOrdersApi(params: Record<string, string>): Promise<Response> {
-    const qs = new URLSearchParams(params).toString();
-    const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders?${qs}`;
-    console.log(`[cafe24] Fetching orders: ${url}`);
-    return fetch(url, {
+  while (true) {
+    const params = new URLSearchParams({
+      start_date: startDate,
+      end_date: endDate,
+      limit: String(limit),
+      offset: String(offset),
+    });
+    if (useEmbed) params.set("embed", "items");
+
+    const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders?${params}`;
+
+    const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         "X-Cafe24-Api-Version": "2025-12-01",
       },
     });
-  }
 
-  // 첫 요청으로 파라미터 검증 (embed=items 포함)
-  const firstParams: Record<string, string> = {
-    start_date: startDate,
-    end_date: endDate,
-    limit: String(limit),
-    offset: "0",
-    embed: "items",
-  };
-
-  let response = await callOrdersApi(firstParams);
-
-  // embed=items로 400 에러 시 embed 제거 후 재시도
-  if (response.status === 400) {
-    const errBody = await response.text();
-    console.warn(`[cafe24] Orders API 400 with embed=items, retrying without embed. Error: ${errBody}`);
-    delete firstParams.embed;
-    response = await callOrdersApi(firstParams);
-  }
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[cafe24] API error: ${response.status} ${errorText}`);
-    // 에러 상세를 파싱하여 클라이언트에 전달
-    let detail = "";
-    try {
-      const errJson = JSON.parse(errorText);
-      detail = errJson.error?.message || errJson.error?.code || errJson.message || errorText;
-    } catch {
-      detail = errorText.substring(0, 200);
+    // embed=items로 400이면 embed 제거 후 재시도
+    if (response.status === 400 && useEmbed && offset === 0) {
+      const errBody = await response.text();
+      console.warn(`[cafe24] 400 with embed=items, retrying without. Error: ${errBody}`);
+      useEmbed = false;
+      continue;
     }
-    throw new Error(`Cafe24 API 오류: ${response.status} - ${detail}`);
-  }
 
-  const firstData = await response.json();
-  const firstOrders = firstData.orders || [];
-  const useEmbed = "embed" in firstParams; // embed 사용 가능 여부 기록
-
-  if (firstOrders.length === 0) return [];
-
-  allOrders.push(...firstOrders);
-  offset += limit;
-
-  // 나머지 페이지 조회
-  while (offset < 5000) {
-    const params: Record<string, string> = {
-      start_date: startDate,
-      end_date: endDate,
-      limit: String(limit),
-      offset: String(offset),
-    };
-    if (useEmbed) params.embed = "items";
-
-    const pageResponse = await callOrdersApi(params);
-
-    if (!pageResponse.ok) {
-      const errorText = await pageResponse.text();
-      console.error(`[cafe24] API error at offset ${offset}: ${pageResponse.status} ${errorText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
       let detail = "";
       try {
         const errJson = JSON.parse(errorText);
         detail = errJson.error?.message || errJson.error?.code || errJson.message || errorText;
       } catch {
-        detail = errorText.substring(0, 200);
+        detail = errorText.substring(0, 300);
       }
-      throw new Error(`Cafe24 API 오류: ${pageResponse.status} - ${detail}`);
+      throw new Error(`Cafe24 API 오류: ${response.status} - ${detail}`);
     }
 
-    const data = await pageResponse.json();
-    const orders = data.orders || [];
+    const data = await response.json();
+    const orders = (data.orders || []) as Record<string, unknown>[];
 
     if (orders.length === 0) break;
 
     allOrders.push(...orders);
     offset += limit;
+
+    console.log(`[cafe24] page offset=${offset}, got=${orders.length}, total=${allOrders.length}`);
+
+    // 안전 장치: Netlify 타임아웃 방지 (최대 500건)
+    if (offset >= 500) break;
   }
 
+  console.log(`[cafe24] Complete: ${allOrders.length} orders`);
   return allOrders;
 }
 
@@ -1265,7 +1232,7 @@ const handler: Handler = async (
           try {
             const creds = await getCafe24Credentials();
             const token = await ensureCafe24Token(creds);
-            // 실제 API 호출로 연결 + 권한 검증 (쇼핑몰 정보 조회)
+            // Cafe24 API 직접 호출 (IP 제한 없음)
             const testRes = await fetch(
               `https://${creds.mallId}.cafe24api.com/api/v2/admin/store`,
               {
@@ -1284,14 +1251,10 @@ const handler: Handler = async (
               };
             }
             const errText = await testRes.text();
-            console.error(`[cafe24] test-connection API error: ${testRes.status} ${errText}`);
             return {
               statusCode: 200,
               headers: { ...corsHeaders, "Content-Type": "application/json" },
-              body: JSON.stringify({
-                success: false,
-                message: `Cafe24 API 응답 오류 (${testRes.status}). 토큰 갱신이 필요할 수 있습니다.`,
-              }),
+              body: JSON.stringify({ success: false, message: `Cafe24 API 응답 오류 (${testRes.status})` }),
             };
           } catch (error: any) {
             return {
