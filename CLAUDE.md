@@ -8,7 +8,8 @@
 - **스타일링**: Tailwind CSS + shadcn/ui
 - **상태관리**: Zustand
 - **백엔드**: Supabase (PostgreSQL + Auth + RLS)
-- **배포**: Netlify (Functions 포함)
+- **배포**: Netlify (프론트엔드) + NCP 서버 (API 프록시)
+- **API 프록시**: NCP Express 서버 (주문/광고 API 연동)
 - **아이콘**: Lucide React
 
 ## 브랜드 테마
@@ -225,4 +226,97 @@ guide_sent → 가이드발송
 posted → 포스팅완료
 completed → 완료
 ```
+
+---
+
+## NCP 프록시 서버 (API 연동 백엔드)
+
+### 서버 정보
+| 항목 | 값 |
+|------|-----|
+| 플랫폼 | Naver Cloud Platform (NCP) |
+| 서버 이름 | howpapaop (127178290) |
+| OS | Ubuntu 24.04 |
+| 스펙 | m1-g3 (vCPU 1EA, Memory 1GB) |
+| 공인 IP | 49.50.131.90 |
+| 관리자 | root |
+| 인증키 | howpapa-key |
+| 서비스 포트 | 3100 |
+
+### 서버 접속
+```bash
+ssh root@49.50.131.90
+# 비밀번호는 사용자에게 확인
+```
+
+### 프록시 구조
+```
+프론트엔드 (Netlify)
+    ↓ fetch
+Netlify Functions (commerce-proxy.ts)
+    ↓ fetch
+NCP 프록시 서버 (49.50.131.90:3100)
+    ↓ fetch
+외부 API (Naver, Cafe24, Coupang 등)
+```
+
+### 주요 파일
+| 위치 | 설명 |
+|------|------|
+| `naver-proxy/server.js` | 프록시 서버 코드 (Express.js) |
+| `naver-proxy/package.json` | 의존성 |
+| `naver-proxy/setup.sh` | 서버 최초 셋업 스크립트 |
+
+### 서버 배포 경로
+- 앱 디렉토리: `/opt/naver-proxy/`
+- 환경변수: `/opt/naver-proxy/.env`
+- systemd 서비스: `naver-proxy.service`
+
+### 엔드포인트
+| 메서드 | 경로 | 인증 | 용도 |
+|--------|------|------|------|
+| GET | `/health` | 불필요 | 헬스체크 |
+| POST | `/naver/token` | API Key | Naver Commerce 토큰 발급 |
+| ALL | `/naver/api/*` | API Key | Naver Commerce API 프록시 |
+| POST | `/cafe24/orders` | API Key | Cafe24 주문 조회 (페이지네이션 전체 처리) |
+| POST | `/cafe24/test` | API Key | Cafe24 연결 테스트 |
+| POST | `/proxy` | API Key | 범용 프록시 (Coupang 등) |
+
+### 인증
+- 헤더: `x-api-key`
+- 키: 환경변수 `PROXY_API_KEY` (`.env`에 설정)
+- Netlify 환경변수: `NAVER_PROXY_API_KEY`
+
+### 서버 배포 방법
+```bash
+# NCP 서버에 SSH 접속 후:
+cd /opt/naver-proxy
+# GitHub에서 최신 server.js 다운로드
+curl -o server.js "https://raw.githubusercontent.com/howpapa-sky/operation_20251207/main/naver-proxy/server.js"
+# 서비스 재시작
+systemctl restart naver-proxy
+# 상태 확인
+systemctl status naver-proxy
+journalctl -u naver-proxy --no-pager -n 20
+```
+
+### 서버 관리 명령어
+```bash
+systemctl status naver-proxy     # 상태 확인
+systemctl restart naver-proxy    # 재시작
+systemctl stop naver-proxy       # 중지
+journalctl -u naver-proxy -f     # 실시간 로그
+```
+
+### 주의사항
+1. **ACG(방화벽)**: NCP ACG에서 포트 3100 인바운드 허용 필요
+2. **Claude는 SSH 직접 접속 불가**: ACG가 Claude 실행 환경 IP를 차단하므로, 서버 배포는 사용자가 직접 실행
+3. **server.js 수정 후**: 반드시 NCP 서버에 배포 + `systemctl restart naver-proxy` 필요
+4. **환경변수 변경**: `/opt/naver-proxy/.env` 수정 후 서비스 재시작
+
+### Cafe24 API 참고
+- API 버전: `2025-12-01` (X-Cafe24-Api-Version 헤더)
+- 주문 조회 최대 범위: 6개월 (프론트엔드에서 30일 단위로 분할)
+- 주문 페이지네이션: offset 기반, limit 최대 100
+- OAuth scope: `mall.read_application,mall.write_application,mall.read_category,mall.read_product,mall.read_personal,mall.read_order,mall.read_community,mall.read_store,mall.read_salesreport,mall.read_shipping,mall.read_analytics`
 
