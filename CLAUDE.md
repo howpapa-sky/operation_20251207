@@ -141,26 +141,43 @@ npx shadcn@latest add [name]       # shadcn 컴포넌트 추가
 | `src/components/seeding/GoogleSheetsSync.tsx` | Sheets 동기화 UI |
 
 ### Google Sheets 컬럼 매핑
-시트 가져오기 시 헤더명 → DB 필드 매핑:
+시트 동기화 시 헤더명 → DB 필드 매핑:
 
 ```
 Date → listed_at
 Follower → follower_count
+Following → following_count
 E-mail → email
 URL(youtube, instagram) → profile_url (account_id 자동 추출)
-DM sent (Yes/No) → status 판별용
-Response received (Yes/No) → status 판별용
-acceptance (Yes/No) → status 판별용
-Product → product_name (가격 파싱: "제품명 (15,000원)" → product_name + product_price)
-Product Shipment (Yes/No) → status=shipped
-NOTE → notes
-Cost → product_price
+DM sent (Yes/No) → status 판별용 (dm발송)
+Response received (Yes/No) → status 판별용 (응답)
+acceptance (Yes/No) → status 판별용 (수락)
+acceptance date → accepted_at (수락일자)
+Product → product_name
+price → product_price (가격)
+Product Shipment (Yes/No) → status=shipped (발송)
+upload date → posted_at (업로드 예정)
+Upload completed date → completed_at (완료일)
+NOTE → notes (비고)
+Cost → product_price (fallback, price 필드 없을 때)
 ```
 
+### 상단 탭 (SeedingStatusTabs) 매핑
+- 연락완료 → DM발송 수 (contacted + accepted + rejected + shipped + guide_sent + posted + completed)
+- 수락 → 응답 수 (accepted + shipped + guide_sent + posted + completed)
+- 제품발송 → 발송 수 (shipped + guide_sent + posted + completed)
+- 가이드발송 → 삭제됨
+- 포스팅완료 → 삭제됨
+- 완료 → completed 수
+
+### Google Sheets 동기화 UI
+- **실시간 연동만 지원** (가져오기/내보내기/자동가져오기 제거)
+- GoogleSheetsSync 모달: URL + 시트명 → 미리보기 → 동기화 실행
+
 ### 컬럼 매핑 추가 방법
-`netlify/functions/google-sheets-sync.ts`의 `columnMapping` 객체에 추가:
+`netlify/functions/google-sheets-sync.ts`의 `HEADER_MAP` 객체에 추가:
 ```ts
-const columnMapping: Record<string, string> = {
+const HEADER_MAP: Record<string, string> = {
   '새컬럼명': 'db_field_name',
   'New Column': 'db_field_name',
   // ...
@@ -172,10 +189,11 @@ const columnMapping: Record<string, string> = {
 - 계산식: `수량 × (인플루언서별 product_price || 프로젝트 cost_price)`
 - 위치: `seedingStore.ts` → `getProjectStats()`, `getOverallStats()`
 
-### 시트 가져오기 플로우
-1. 기존 데이터 삭제 (deleteInfluencersBulk)
+### 시트 동기화 플로우
+1. 기존 데이터 삭제 (deleteInfluencersByProject)
 2. Netlify Function으로 시트 데이터 파싱
-3. DB에 새 데이터 추가 (addInfluencersBulk)
+3. 프론트엔드에서 필드 매핑 + 정규화
+4. DB에 새 데이터 추가 (addInfluencersBulk)
 
 ### DB 스키마 변경 시
 1. `supabase/migrations/`에 SQL 파일 추가

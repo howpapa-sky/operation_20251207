@@ -110,18 +110,30 @@ const HEADER_MAP: Record<string, string> = {
   'Upload completed': 'completed_at',
   'upload completed': 'completed_at',
   'Upload Completed': 'completed_at',
+  'Upload completed date': 'completed_at',
+  'upload completed date': 'completed_at',
+  'Upload Completed Date': 'completed_at',
+  'Upload completed da': 'completed_at',
   '업로드완료': 'completed_at',
   '업로드 완료': 'completed_at',
+  '업로드 완료일': 'completed_at',
   '완료일': 'completed_at',
   '완료일자': 'completed_at',
 
   // 상태 판별용
   'DM sent (Yes/No)': '_dm_sent',
   'DM sent': '_dm_sent',
+  'dm sent': '_dm_sent',
   'Response received (Yes/No)': '_response_received',
+  'Response received': '_response_received',
+  'response received': '_response_received',
+  'response received (Yes/No)': '_response_received',
   'acceptance (Yes/No)': '_acceptance',
+  'acceptance': '_acceptance',
+  'Acceptance': '_acceptance',
   'Product Shipment (Yes/No)': '_shipped',
   'Product Shipment': '_shipped',
+  'product shipment': '_shipped',
   '발송': '_shipped',
   '발송여부': '_shipped',
 
@@ -485,7 +497,7 @@ async function importData(params: ImportParams) {
       }
 
       // 완료일자 (completed_at) 필드
-      const completedAtRaw = get('completed_at') || record['completed'] || record['Completed'] || record['COMPLETED'] || record['Upload completed'] || record['upload completed'] || record['Upload Completed'] || record['업로드완료'] || record['업로드 완료'] || record['완료일'] || record['완료일자'];
+      const completedAtRaw = get('completed_at') || record['completed'] || record['Completed'] || record['COMPLETED'] || record['Upload completed'] || record['upload completed'] || record['Upload Completed'] || record['Upload completed date'] || record['upload completed date'] || record['Upload Completed Date'] || record['업로드완료'] || record['업로드 완료'] || record['완료일'] || record['완료일자'];
       if (completedAtRaw) {
         // 날짜 형식이면 날짜로 파싱, Yes/No 형식이면 현재 날짜 설정
         const parsedDate = parseDate(completedAtRaw);
@@ -518,8 +530,8 @@ async function importData(params: ImportParams) {
       const followingRaw = get('following_count') || record['Following'] || record['following'] || record['FOLLOWING'] || record['팔로잉'];
       record.following_count = followingRaw ? parseNum(followingRaw) : 0;
 
-      // 가격 - 매핑 실패 시 원본 헤더에서 직접 가져오기 (Cost는 무시)
-      const priceRaw = get('product_price') || record['price'] || record['Price'] || record['가격'];
+      // 가격 - 매핑 실패 시 원본 헤더에서 직접 가져오기 (Cost도 fallback으로 포함)
+      const priceRaw = get('product_price') || record['price'] || record['Price'] || record['가격'] || record['Cost'] || record['cost'];
       if (priceRaw !== undefined && priceRaw !== null && priceRaw !== '') {
         const price = parseNum(priceRaw);
         if (price > 0) record.product_price = price;

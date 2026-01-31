@@ -3,19 +3,16 @@ import {
   X,
   FileSpreadsheet,
   Download,
-  Upload,
   Eye,
   Check,
   AlertCircle,
   Loader2,
-  ArrowRight,
   ExternalLink,
   CheckCircle2,
   XCircle,
   HelpCircle,
   Zap,
   Copy,
-  Clock,
 } from 'lucide-react';
 import { googleSheetsService, PreviewResult, ImportResult } from '../../services/googleSheetsService';
 import { useSeedingStore } from '../../store/seedingStore';
@@ -376,7 +373,6 @@ interface GoogleSheetsSyncProps {
   onSyncComplete?: () => void;
 }
 
-type SyncDirection = 'import' | 'export';
 type SyncStep = 'config' | 'preview' | 'syncing' | 'result';
 
 export default function GoogleSheetsSync({
@@ -388,7 +384,6 @@ export default function GoogleSheetsSync({
   // 폼 상태
   const [spreadsheetUrl, setSpreadsheetUrl] = useState('');
   const [sheetName, setSheetName] = useState('Sheet1');
-  const [direction, setDirection] = useState<SyncDirection>('import');
   const [step, setStep] = useState<SyncStep>('config');
 
   // 미리보기 상태
@@ -409,7 +404,7 @@ export default function GoogleSheetsSync({
   const [error, setError] = useState<string | null>(null);
 
   // 스토어
-  const { addInfluencersBulk, deleteInfluencersByProject, getInfluencersByProject, updateProject } = useSeedingStore();
+  const { addInfluencersBulk, deleteInfluencersByProject, updateProject } = useSeedingStore();
 
   // 모달 열릴 때 초기화 및 저장된 URL 로드
   useEffect(() => {
@@ -454,7 +449,7 @@ export default function GoogleSheetsSync({
     }
   };
 
-  // 동기화 실행
+  // 동기화 실행 (시트 → DB)
   const handleSync = async () => {
     setStep('syncing');
     setIsSyncing(true);
@@ -462,108 +457,45 @@ export default function GoogleSheetsSync({
     setSyncProgress(0);
 
     try {
-      if (direction === 'import') {
-        // 가져오기
-        setSyncProgress(10);
+      setSyncProgress(10);
 
-        // 기존 데이터 삭제 (중복 방지)
-        await deleteInfluencersByProject(project.id);
+      // 기존 데이터 삭제 (중복 방지)
+      await deleteInfluencersByProject(project.id);
 
-        setSyncProgress(30);
+      setSyncProgress(30);
 
-        const result = await googleSheetsService.importFromSheets({
-          spreadsheetId: spreadsheetUrl,
-          sheetName,
-          projectId: project.id,
-        });
+      const result = await googleSheetsService.importFromSheets({
+        spreadsheetId: spreadsheetUrl,
+        sheetName,
+        projectId: project.id,
+      });
 
-        setSyncProgress(60);
+      setSyncProgress(60);
 
-        // 디버깅: Netlify Function 응답 전체 확인
-        console.log('========== [DEBUG] Netlify Function Response ==========');
-        const debugInfo = (result as any).debug;
-        console.log('[DEBUG] result.debug:', debugInfo);
-        if (debugInfo) {
-          console.log('[DEBUG] 시트 헤더:', debugInfo.headers);
-          console.log('[DEBUG] 필드 매핑:', debugInfo.fieldIndex);
-          console.log('[DEBUG] 첫 행 원본:', debugInfo.firstRow);
-          console.log('[DEBUG] 첫 레코드:', debugInfo.firstRecord);
-        }
-        console.log('=======================================================');
+      if (result.data && result.data.length > 0) {
+        // 명시적 필드 매핑: 시트 헤더명 → DB 필드명 변환
+        const mappedData = result.data.map((item: any) => ({
+          ...item,
+          listed_at: item.listed_at || item.Date || item.date || item['날짜'] || item['등록일'],
+          following_count: item.following_count ?? item.Following ?? item.following ?? item['팔로잉'],
+          follower_count: item.follower_count ?? item.Follower ?? item.follower ?? item['팔로워'],
+          product_price: item.product_price ?? item.Cost ?? item.cost ?? item.Price ?? item.price ?? item['가격'] ?? item['단가'],
+        }));
 
-        if (result.data && result.data.length > 0) {
-          // 디버깅: Netlify Function에서 반환된 데이터 확인
-          console.log('[handleSync] First record from Netlify:', JSON.stringify(result.data[0], null, 2));
-          console.log('[handleSync] Keys:', Object.keys(result.data[0]));
+        // 프론트엔드에서 데이터 정규화 (날짜/숫자 형식 보정)
+        const normalizedData = normalizeInfluencerData(mappedData);
 
-          // ========== 핵심 수정: 명시적 필드 매핑 ==========
-          // 미리보기 필드명(Date, Following) → DB 필드명(listed_at, following_count) 변환
-          const mappedData = result.data.map((item: any) => ({
-            ...item,
-            // 날짜 매핑
-            listed_at: item.listed_at || item.Date || item.date || item['날짜'] || item['등록일'],
-            // 팔로잉 매핑
-            following_count: item.following_count ?? item.Following ?? item.following ?? item['팔로잉'],
-            // 팔로워 매핑
-            follower_count: item.follower_count ?? item.Follower ?? item.follower ?? item['팔로워'],
-            // 제품 가격 매핑
-            product_price: item.product_price ?? item.Cost ?? item.cost ?? item.Price ?? item.price ?? item['가격'] ?? item['단가'],
-          }));
-
-          console.log('[handleSync] After field mapping:', {
-            listed_at: mappedData[0]?.listed_at,
-            following_count: mappedData[0]?.following_count,
-            follower_count: mappedData[0]?.follower_count,
-            product_price: mappedData[0]?.product_price,
-          });
-
-          // 프론트엔드에서 데이터 정규화 (날짜/숫자 형식 보정)
-          const normalizedData = normalizeInfluencerData(mappedData);
-
-          // 디버깅: 저장 직전 데이터 확인
-          console.log('[GoogleSheetsSync] 저장할 데이터 샘플:', {
-            첫번째: normalizedData[0],
-            listed_at: normalizedData[0]?.listed_at,
-            following_count: normalizedData[0]?.following_count,
-            follower_count: normalizedData[0]?.follower_count,
-            product_price: normalizedData[0]?.product_price,
-          });
-
-          await addInfluencersBulk(normalizedData);
-        }
-
-        setSyncProgress(100);
-
-        setSyncResult({
-          success: true,
-          added: result.added,
-          updated: result.updated,
-          errors: result.errors,
-        });
-      } else {
-        // 내보내기
-        setSyncProgress(20);
-
-        const influencers = getInfluencersByProject(project.id);
-
-        setSyncProgress(40);
-
-        await googleSheetsService.exportToSheets({
-          spreadsheetId: spreadsheetUrl,
-          sheetName,
-          projectId: project.id,
-          data: influencers,
-        });
-
-        setSyncProgress(100);
-
-        setSyncResult({
-          success: true,
-          added: 0,
-          updated: influencers.length,
-          errors: [],
-        });
+        await addInfluencersBulk(normalizedData);
       }
+
+      setSyncProgress(100);
+
+      setSyncResult({
+        success: true,
+        added: result.added,
+        updated: result.updated,
+        errors: result.errors,
+      });
 
       // 시트 URL 저장 (다음에 자동으로 불러오기 위해)
       await updateProject(project.id, {
@@ -671,137 +603,25 @@ export default function GoogleSheetsSync({
                   />
                 </div>
 
-                {/* 동기화 방식 선택 */}
-                <div className="space-y-3">
-                  {/* 실시간 연동 (추천) */}
-                  <div className="p-4 bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-xl">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                        <Zap className="w-5 h-5 text-emerald-600" />
+                {/* 실시간 연동 안내 */}
+                <div className="p-4 bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                      <Zap className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-sm text-emerald-900">실시간 연동</span>
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-sm text-emerald-900">실시간 연동</span>
-                          <span className="px-1.5 py-0.5 bg-emerald-200 text-emerald-700 text-[10px] font-medium rounded">추천</span>
-                        </div>
-                        <div className="text-xs text-emerald-700 mb-3">
-                          시트 수정 시 1-2초 내 자동 반영 (Google Apps Script 설치 필요)
-                        </div>
-                        <button
-                          onClick={() => {
-                            // Apps Script 코드 복사
-                            const scriptUrl = `${window.location.origin}/docs/google-apps-script.js`;
-                            const webhookUrl = `${window.location.origin.replace('localhost:5173', 'YOUR_SITE.netlify.app')}/.netlify/functions/sheets-webhook`;
-                            const message = `실시간 연동 설정 방법:\n\n1. Google Sheets → 확장 프로그램 → Apps Script\n2. docs/google-apps-script.js 코드 붙여넣기\n3. WEBHOOK_URL을 다음으로 변경:\n   ${webhookUrl}\n4. setupTriggers 함수 실행\n\n자세한 내용: docs/REALTIME_SYNC_SETUP.md`;
-                            navigator.clipboard.writeText(webhookUrl);
-                            alert(message);
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-xs font-medium rounded-lg hover:bg-emerald-700 transition-colors"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                          설정 방법 보기
-                        </button>
+                      <div className="text-xs text-emerald-700">
+                        Google Sheets의 모든 데이터를 동기화합니다.
+                        {project.last_synced_at && (
+                          <span className="block mt-1 text-emerald-600">
+                            마지막 동기화: {new Date(project.last_synced_at).toLocaleString('ko-KR')}
+                          </span>
+                        )}
                       </div>
                     </div>
-                  </div>
-
-                  {/* 스케줄 동기화 */}
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
-                        <Clock className="w-5 h-5 text-orange-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium text-sm text-gray-900">
-                          매일 오전 9시 자동 가져오기
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {project.last_synced_at
-                            ? `마지막 동기화: ${new Date(project.last_synced_at).toLocaleString('ko-KR')}`
-                            : '아직 동기화된 적 없음'}
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        await updateProject(project.id, {
-                          auto_sync_enabled: !project.auto_sync_enabled,
-                          listup_sheet_url: spreadsheetUrl || project.listup_sheet_url,
-                          listup_sheet_name: sheetName || project.listup_sheet_name,
-                        });
-                      }}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        project.auto_sync_enabled ? 'bg-orange-500' : 'bg-gray-300'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          project.auto_sync_enabled ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
-
-                {/* 동기화 방향 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    동기화 유형
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setDirection('import')}
-                      className={`flex flex-col items-center gap-2 p-4 border-2 rounded-xl transition-all ${
-                        direction === 'import'
-                          ? 'border-primary-500 bg-primary-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        direction === 'import' ? 'bg-primary-100' : 'bg-gray-100'
-                      }`}>
-                        <Download className={`w-5 h-5 ${
-                          direction === 'import' ? 'text-primary-600' : 'text-gray-500'
-                        }`} />
-                      </div>
-                      <div className="text-center">
-                        <div className={`font-medium text-sm ${
-                          direction === 'import' ? 'text-primary-900' : 'text-gray-700'
-                        }`}>
-                          리스트 가져오기
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Sheets → DB
-                        </div>
-                      </div>
-                    </button>
-
-                    <button
-                      onClick={() => setDirection('export')}
-                      className={`flex flex-col items-center gap-2 p-4 border-2 rounded-xl transition-all ${
-                        direction === 'export'
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        direction === 'export' ? 'bg-blue-100' : 'bg-gray-100'
-                      }`}>
-                        <Upload className={`w-5 h-5 ${
-                          direction === 'export' ? 'text-blue-600' : 'text-gray-500'
-                        }`} />
-                      </div>
-                      <div className="text-center">
-                        <div className={`font-medium text-sm ${
-                          direction === 'export' ? 'text-blue-900' : 'text-gray-700'
-                        }`}>
-                          내보내기
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          DB → Sheets
-                        </div>
-                      </div>
-                    </button>
                   </div>
                 </div>
 
@@ -933,9 +753,7 @@ export default function GoogleSheetsSync({
               <div className="py-8 text-center">
                 <Loader2 className="w-12 h-12 text-primary-600 animate-spin mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  {direction === 'import'
-                    ? '데이터 가져오는 중...'
-                    : '데이터 내보내는 중...'}
+                  데이터 동기화 중...
                 </h3>
                 <p className="text-sm text-gray-500 mb-6">잠시만 기다려주세요</p>
 
@@ -962,9 +780,7 @@ export default function GoogleSheetsSync({
                       동기화 완료!
                     </h3>
                     <p className="text-sm text-gray-500">
-                      {direction === 'import'
-                        ? '스프레드시트에서 데이터를 가져왔습니다.'
-                        : '스프레드시트로 데이터를 내보냈습니다.'}
+                      스프레드시트에서 데이터를 동기화했습니다.
                     </p>
                   </div>
                 ) : (
@@ -984,35 +800,24 @@ export default function GoogleSheetsSync({
                 {/* 결과 요약 */}
                 {syncResult.success && (
                   <div className="grid grid-cols-3 gap-4 mb-6">
-                    {direction === 'import' ? (
-                      <>
-                        <div className="text-center p-4 bg-green-50 rounded-xl">
-                          <div className="text-2xl font-bold text-green-600">
-                            {syncResult.added}
-                          </div>
-                          <div className="text-sm text-green-700">추가됨</div>
-                        </div>
-                        <div className="text-center p-4 bg-blue-50 rounded-xl">
-                          <div className="text-2xl font-bold text-blue-600">
-                            {syncResult.updated}
-                          </div>
-                          <div className="text-sm text-blue-700">수정됨</div>
-                        </div>
-                        <div className="text-center p-4 bg-amber-50 rounded-xl">
-                          <div className="text-2xl font-bold text-amber-600">
-                            {syncResult.errors.length}
-                          </div>
-                          <div className="text-sm text-amber-700">오류</div>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="col-span-3 text-center p-4 bg-blue-50 rounded-xl">
-                        <div className="text-2xl font-bold text-blue-600">
-                          {syncResult.updated}
-                        </div>
-                        <div className="text-sm text-blue-700">행 내보내기 완료</div>
+                    <div className="text-center p-4 bg-green-50 rounded-xl">
+                      <div className="text-2xl font-bold text-green-600">
+                        {syncResult.added}
                       </div>
-                    )}
+                      <div className="text-sm text-green-700">동기화됨</div>
+                    </div>
+                    <div className="text-center p-4 bg-blue-50 rounded-xl">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {syncResult.updated}
+                      </div>
+                      <div className="text-sm text-blue-700">수정됨</div>
+                    </div>
+                    <div className="text-center p-4 bg-amber-50 rounded-xl">
+                      <div className="text-2xl font-bold text-amber-600">
+                        {syncResult.errors.length}
+                      </div>
+                      <div className="text-sm text-amber-700">오류</div>
+                    </div>
                   </div>
                 )}
 
@@ -1079,17 +884,8 @@ export default function GoogleSheetsSync({
                   onClick={handleSync}
                   className="flex items-center gap-2 px-6 py-2.5 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 transition-colors"
                 >
-                  {direction === 'import' ? (
-                    <>
-                      <Download className="w-4 h-4" />
-                      가져오기 실행
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4" />
-                      내보내기 실행
-                    </>
-                  )}
+                  <Download className="w-4 h-4" />
+                  동기화 실행
                 </button>
               </>
             ) : step === 'result' ? (
