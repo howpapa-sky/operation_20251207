@@ -708,34 +708,94 @@ async function fetchCafe24Orders(
   let offset = 0;
   const limit = 100;
 
-  while (true) {
-    const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders?start_date=${startDate}&end_date=${endDate}&limit=${limit}&offset=${offset}&embed=items`;
-    console.log(`[cafe24] Fetching orders: offset=${offset}`);
-
-    const response = await fetch(url, {
+  // Cafe24 주문 API 호출 헬퍼
+  async function callOrdersApi(params: Record<string, string>): Promise<Response> {
+    const qs = new URLSearchParams(params).toString();
+    const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders?${qs}`;
+    console.log(`[cafe24] Fetching orders: ${url}`);
+    return fetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         "X-Cafe24-Api-Version": "2024-06-01",
       },
     });
+  }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[cafe24] API error: ${response.status} ${errorText}`);
-      throw new Error(`Cafe24 API 오류: ${response.status}`);
+  // 첫 요청으로 파라미터 검증 (embed=items 포함)
+  const firstParams: Record<string, string> = {
+    start_date: startDate,
+    end_date: endDate,
+    limit: String(limit),
+    offset: "0",
+    embed: "items",
+  };
+
+  let response = await callOrdersApi(firstParams);
+
+  // embed=items로 400 에러 시 embed 제거 후 재시도
+  if (response.status === 400) {
+    const errBody = await response.text();
+    console.warn(`[cafe24] Orders API 400 with embed=items, retrying without embed. Error: ${errBody}`);
+    delete firstParams.embed;
+    response = await callOrdersApi(firstParams);
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[cafe24] API error: ${response.status} ${errorText}`);
+    // 에러 상세를 파싱하여 클라이언트에 전달
+    let detail = "";
+    try {
+      const errJson = JSON.parse(errorText);
+      detail = errJson.error?.message || errJson.error?.code || errJson.message || errorText;
+    } catch {
+      detail = errorText.substring(0, 200);
+    }
+    throw new Error(`Cafe24 API 오류: ${response.status} - ${detail}`);
+  }
+
+  const firstData = await response.json();
+  const firstOrders = firstData.orders || [];
+  const useEmbed = "embed" in firstParams; // embed 사용 가능 여부 기록
+
+  if (firstOrders.length === 0) return [];
+
+  allOrders.push(...firstOrders);
+  offset += limit;
+
+  // 나머지 페이지 조회
+  while (offset < 5000) {
+    const params: Record<string, string> = {
+      start_date: startDate,
+      end_date: endDate,
+      limit: String(limit),
+      offset: String(offset),
+    };
+    if (useEmbed) params.embed = "items";
+
+    const pageResponse = await callOrdersApi(params);
+
+    if (!pageResponse.ok) {
+      const errorText = await pageResponse.text();
+      console.error(`[cafe24] API error at offset ${offset}: ${pageResponse.status} ${errorText}`);
+      let detail = "";
+      try {
+        const errJson = JSON.parse(errorText);
+        detail = errJson.error?.message || errJson.error?.code || errJson.message || errorText;
+      } catch {
+        detail = errorText.substring(0, 200);
+      }
+      throw new Error(`Cafe24 API 오류: ${pageResponse.status} - ${detail}`);
     }
 
-    const data = await response.json();
+    const data = await pageResponse.json();
     const orders = data.orders || [];
 
     if (orders.length === 0) break;
 
     allOrders.push(...orders);
     offset += limit;
-
-    // 안전 장치: 최대 50페이지 (5000건)
-    if (offset >= 5000) break;
   }
 
   return allOrders;
@@ -1205,13 +1265,34 @@ const handler: Handler = async (
           try {
             const creds = await getCafe24Credentials();
             const token = await ensureCafe24Token(creds);
-            if (token) {
+            // 실제 API 호출로 연결 + 권한 검증 (쇼핑몰 정보 조회)
+            const testRes = await fetch(
+              `https://${creds.mallId}.cafe24api.com/api/v2/admin/store`,
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                  "X-Cafe24-Api-Version": "2024-06-01",
+                },
+              }
+            );
+            if (testRes.ok) {
               return {
                 statusCode: 200,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
                 body: JSON.stringify({ success: true, message: "Cafe24 API 연결 성공!" }),
               };
             }
+            const errText = await testRes.text();
+            console.error(`[cafe24] test-connection API error: ${testRes.status} ${errText}`);
+            return {
+              statusCode: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                success: false,
+                message: `Cafe24 API 응답 오류 (${testRes.status}). 토큰 갱신이 필요할 수 있습니다.`,
+              }),
+            };
           } catch (error: any) {
             return {
               statusCode: 200,
