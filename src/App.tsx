@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useStore } from './store/useStore';
 import Layout from './components/layout/Layout';
@@ -76,6 +76,23 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Cafe24 OAuth 콜백을 루트 URL에서 감지하여 /auth/cafe24로 전달
+function Cafe24OAuthInterceptor() {
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const code = searchParams.get('code');
+    const state = searchParams.get('state');
+    if (code && state === 'cafe24auth' && location.pathname !== '/auth/cafe24') {
+      navigate(`/auth/cafe24?code=${code}`, { replace: true });
+    }
+  }, [searchParams, location.pathname, navigate]);
+
+  return null;
+}
+
 function App() {
   const { checkAuth } = useStore();
 
@@ -85,6 +102,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <Cafe24OAuthInterceptor />
       <Routes>
         {/* Public Routes */}
         <Route
