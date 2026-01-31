@@ -24,6 +24,7 @@ import SalesDashboardPage from './pages/SalesDashboardPage';
 import SalesCostInputPage from './pages/SalesCostInputPage';
 import SalesChannelSettingsPage from './pages/SalesChannelSettingsPage';
 import SalesProfitSettingsPage from './pages/SalesProfitSettingsPage';
+import OrdersListPage from './pages/OrdersListPage';
 import DailyReportSettingsPage from './pages/DailyReportSettingsPage';
 import Cafe24CallbackPage from './pages/Cafe24CallbackPage';
 
@@ -192,6 +193,7 @@ function App() {
           <Route path="sales/costs" element={<SalesCostInputPage />} />
           <Route path="sales/channels" element={<SalesChannelSettingsPage />} />
           <Route path="sales/profit-settings" element={<SalesProfitSettingsPage />} />
+          <Route path="sales/orders" element={<OrdersListPage />} />
           <Route path="daily-reports" element={<DailyReportSettingsPage />} />
           <Route path="promotion" element={<PromotionPage />} />
           <Route path="promotion/:id" element={<PromotionPage />} />
