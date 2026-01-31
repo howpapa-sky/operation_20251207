@@ -1672,9 +1672,13 @@ export default function SettingsPage() {
                           return;
                         }
                         const redirectUri = window.location.origin;
-                        // Cafe24 개발자센터 권한관리에 기본 등록된 scope만 우선 요청
-                        // 주문 동기화를 위해서는 개발자센터에서 주문/상품/쇼핑몰 Read 권한 추가 후 재인증 필요
-                        const scope = 'mall.read_application,mall.write_application';
+                        // 개발자센터 권한관리에 등록된 전체 scope 요청
+                        const scope = [
+                          'mall.read_application', 'mall.write_application',
+                          'mall.read_category', 'mall.read_product', 'mall.read_personal',
+                          'mall.read_order', 'mall.read_community', 'mall.read_store',
+                          'mall.read_salesreport', 'mall.read_shipping', 'mall.read_analytics',
+                        ].join(',');
                         const authUrl = `https://${mallId}.cafe24api.com/api/v2/oauth/authorize`
                           + `?response_type=code`
                           + `&client_id=${clientId}`
