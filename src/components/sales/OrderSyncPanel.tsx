@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils';
 const CHANNELS = [
   { value: 'smartstore', label: '네이버 스마트스토어' },
   { value: 'coupang', label: '쿠팡 (준비중)', disabled: true },
-  { value: 'cafe24', label: 'Cafe24 (준비중)', disabled: true },
+  { value: 'cafe24', label: 'Cafe24' },
 ];
 
 function formatRelativeTime(isoStr: string): string {
