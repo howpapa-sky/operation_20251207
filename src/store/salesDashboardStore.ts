@@ -5,8 +5,13 @@ import {
   DailyAdStats,
   SalesChannel,
   SalesDashboardStats,
+  ProfitBreakdown,
+  ChannelSummaryWithComparison,
   calculateContributionProfit,
+  calculateProfitBreakdown,
+  salesChannelLabels,
 } from '../types/ecommerce';
+import { useProfitSettingsStore } from './profitSettingsStore';
 
 // Type workaround - 새 테이블들이 아직 타입에 없음
 const db = supabase as any;
@@ -21,6 +26,11 @@ interface SalesDashboardState {
   channelStats: DailyChannelStats[];
   adStats: DailyAdStats[];
   dashboardStats: SalesDashboardStats | null;
+  profitBreakdown: ProfitBreakdown | null;
+  channelSummaries: ChannelSummaryWithComparison[];
+
+  // Raw orders (for brand derivation)
+  rawOrders: Record<string, unknown>[];
 
   // UI State
   isLoading: boolean;
@@ -48,15 +58,26 @@ interface SalesDashboardState {
   };
 }
 
+// 브랜드 추정 (product_name 패턴 매칭)
+function deriveBrand(productName: string | undefined): 'howpapa' | 'nuccio' | undefined {
+  if (!productName) return undefined;
+  const lower = productName.toLowerCase();
+  if (lower.includes('하우파파') || lower.includes('howpapa')) return 'howpapa';
+  if (lower.includes('누치오') || lower.includes('누씨오') || lower.includes('nuccio')) return 'nuccio';
+  return undefined;
+}
+
 // orders_raw 레코드를 DailyChannelStats로 집계
 function aggregateOrdersByDateChannel(
-  orders: any[]
+  orders: Record<string, unknown>[],
+  brandFilter?: 'howpapa' | 'nuccio' | 'all'
 ): DailyChannelStats[] {
   const map = new Map<
     string,
     {
       date: string;
       channel: SalesChannel;
+      brand?: 'howpapa' | 'nuccio';
       orders: number;
       quantity: number;
       revenue: number;
@@ -69,13 +90,19 @@ function aggregateOrdersByDateChannel(
   >();
 
   for (const o of orders) {
-    const date = o.order_date;
+    const brand = deriveBrand(o.product_name as string);
+
+    // 브랜드 필터
+    if (brandFilter && brandFilter !== 'all' && brand !== brandFilter) continue;
+
+    const date = o.order_date as string;
     const channel = o.channel as SalesChannel;
     const key = `${date}::${channel}`;
 
     const entry = map.get(key) || {
       date,
       channel,
+      brand,
       orders: 0,
       quantity: 0,
       revenue: 0,
@@ -102,7 +129,7 @@ function aggregateOrdersByDateChannel(
     id: `agg-${idx}`,
     date: e.date,
     channel: e.channel,
-    brand: undefined,
+    brand: e.brand,
     totalOrders: e.orders,
     totalQuantity: e.quantity,
     totalRevenue: e.revenue,
@@ -115,6 +142,99 @@ function aggregateOrdersByDateChannel(
     createdAt: '',
     updatedAt: '',
   }));
+}
+
+// 채널별 요약 + 이전 기간 비교 계산
+function buildChannelSummaries(
+  currentOrders: Record<string, unknown>[],
+  previousOrders: Record<string, unknown>[],
+  brandFilter?: 'howpapa' | 'nuccio' | 'all'
+): ChannelSummaryWithComparison[] {
+  const aggregate = (orders: Record<string, unknown>[]) => {
+    const map = new Map<SalesChannel, {
+      revenue: number;
+      orders: number;
+      fee: number;
+      cost: number;
+    }>();
+
+    for (const o of orders) {
+      const brand = deriveBrand(o.product_name as string);
+      if (brandFilter && brandFilter !== 'all' && brand !== brandFilter) continue;
+
+      const channel = o.channel as SalesChannel;
+      const entry = map.get(channel) || { revenue: 0, orders: 0, fee: 0, cost: 0 };
+      entry.revenue += Number(o.total_price) || 0;
+      entry.orders += 1;
+      entry.fee += Number(o.channel_fee) || 0;
+      entry.cost += (Number(o.cost_price) || 0) * (Number(o.quantity) || 1);
+      map.set(channel, entry);
+    }
+
+    return map;
+  };
+
+  const currentMap = aggregate(currentOrders);
+  const previousMap = aggregate(previousOrders);
+
+  const allChannels = new Set<SalesChannel>([...currentMap.keys(), ...previousMap.keys()]);
+
+  return Array.from(allChannels).map((channel) => {
+    const cur = currentMap.get(channel) || { revenue: 0, orders: 0, fee: 0, cost: 0 };
+    const prev = previousMap.get(channel) || { revenue: 0, orders: 0, fee: 0, cost: 0 };
+
+    const curGrossProfit = cur.revenue - cur.cost;
+    const prevGrossProfit = prev.revenue - prev.cost;
+
+    const pctChange = (current: number, previous: number) =>
+      previous > 0 ? ((current - previous) / previous) * 100 : current > 0 ? 100 : 0;
+
+    return {
+      channel,
+      channelName: salesChannelLabels[channel] || channel,
+      current: {
+        revenue: cur.revenue,
+        orders: cur.orders,
+        avgOrderValue: cur.orders > 0 ? cur.revenue / cur.orders : 0,
+        channelFee: cur.fee,
+        grossProfit: curGrossProfit,
+        grossProfitRate: cur.revenue > 0 ? (curGrossProfit / cur.revenue) * 100 : 0,
+      },
+      previous: {
+        revenue: prev.revenue,
+        orders: prev.orders,
+        avgOrderValue: prev.orders > 0 ? prev.revenue / prev.orders : 0,
+        channelFee: prev.fee,
+        grossProfit: prevGrossProfit,
+        grossProfitRate: prev.revenue > 0 ? (prevGrossProfit / prev.revenue) * 100 : 0,
+      },
+      changes: {
+        revenue: pctChange(cur.revenue, prev.revenue),
+        orders: pctChange(cur.orders, prev.orders),
+        avgOrderValue: pctChange(
+          cur.orders > 0 ? cur.revenue / cur.orders : 0,
+          prev.orders > 0 ? prev.revenue / prev.orders : 0
+        ),
+        channelFee: pctChange(cur.fee, prev.fee),
+        grossProfit: pctChange(curGrossProfit, prevGrossProfit),
+      },
+    };
+  }).sort((a, b) => b.current.revenue - a.current.revenue);
+}
+
+// 이전 기간 날짜 범위 계산
+function getPreviousPeriod(range: DateRange): DateRange {
+  const start = new Date(range.start + 'T00:00:00');
+  const end = new Date(range.end + 'T00:00:00');
+  const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+
+  const prevEnd = new Date(start.getTime() - 86400000);
+  const prevStart = new Date(prevEnd.getTime() - (days - 1) * 86400000);
+
+  return {
+    start: prevStart.toISOString().split('T')[0],
+    end: prevEnd.toISOString().split('T')[0],
+  };
 }
 
 // 오늘 날짜 기준으로 기본 날짜 범위 (최근 7일)
@@ -142,6 +262,9 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
   channelStats: [],
   adStats: [],
   dashboardStats: null,
+  profitBreakdown: null,
+  channelSummaries: [],
+  rawOrders: [],
   isLoading: false,
   error: null,
   selectedDateRange: getDefaultDateRange(),
@@ -159,14 +282,23 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
 
   setSelectedBrand: (brand) => {
     set({ selectedBrand: brand });
+    // Re-calculate with new brand filter
+    const { rawOrders, selectedDateRange } = get();
+    if (rawOrders.length > 0) {
+      const channelStats = aggregateOrdersByDateChannel(rawOrders, brand);
+      set({ channelStats });
+    }
   },
 
   fetchDashboardStats: async (dateRange) => {
     const range = dateRange || get().selectedDateRange;
+    const prevRange = getPreviousPeriod(range);
+    const brandFilter = get().selectedBrand;
+
     set({ isLoading: true, error: null });
 
     try {
-      // orders_raw에서 직접 주문 데이터 조회
+      // 현재 기간 주문 데이터 조회
       const { data: rawOrders, error: ordersError } = await db
         .from('orders_raw')
         .select('*')
@@ -178,10 +310,22 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
 
       const orders = rawOrders || [];
 
-      // 날짜+채널별 집계
-      const channelStats = aggregateOrdersByDateChannel(orders);
+      // 이전 기간 주문 데이터 조회
+      const { data: prevRawOrders } = await db
+        .from('orders_raw')
+        .select('*')
+        .gte('order_date', prevRange.start)
+        .lte('order_date', prevRange.end);
 
-      // 광고 데이터 조회 (daily_ad_stats 테이블이 있으면 시도)
+      const prevOrders = prevRawOrders || [];
+
+      // 날짜+채널별 집계
+      const channelStats = aggregateOrdersByDateChannel(orders, brandFilter);
+
+      // 채널별 요약 + 이전 기간 비교
+      const channelSummaries = buildChannelSummaries(orders, prevOrders, brandFilter);
+
+      // 광고 데이터 조회
       let adStats: DailyAdStats[] = [];
       try {
         const { data: adData } = await db
@@ -207,7 +351,7 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
           }));
         }
       } catch {
-        // 광고 데이터 테이블 미존재 또는 오류 - 무시
+        // 광고 데이터 테이블 미존재 - 무시
       }
 
       // KPI 계산
@@ -219,7 +363,24 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
       const totalAdCost = adStats.reduce((sum, s) => sum + s.totalCost, 0);
       const totalConversionValue = adStats.reduce((sum, s) => sum + s.totalConversionValue, 0);
 
-      // 공헌이익 계산
+      // 3단계 이익 계산
+      const profitSettings = useProfitSettingsStore.getState().settings;
+      const startDate = new Date(range.start + 'T00:00:00');
+      const endDate = new Date(range.end + 'T00:00:00');
+      const periodDays = Math.round((endDate.getTime() - startDate.getTime()) / 86400000) + 1;
+
+      const profitBreakdown = calculateProfitBreakdown({
+        revenue: totalRevenue,
+        costOfGoods: totalCost,
+        shippingFee: totalShipping,
+        channelFee: totalFee,
+        adCost: totalAdCost,
+        settings: profitSettings,
+        orderCount: totalOrders,
+        periodDays,
+      });
+
+      // 공헌이익 계산 (기존 호환)
       const contributionProfit = calculateContributionProfit({
         revenue: totalRevenue,
         cost: totalCost,
@@ -292,6 +453,9 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
         channelStats,
         adStats,
         dashboardStats,
+        profitBreakdown,
+        channelSummaries,
+        rawOrders: orders,
         isLoading: false,
       });
     } catch (error: any) {

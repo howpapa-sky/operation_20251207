@@ -28,6 +28,9 @@ import {
   FileText,
   TrendingUp,
   BellRing,
+  DollarSign,
+  Store,
+  Percent,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useProjectSettingsStore } from '../../store/useProjectSettingsStore';
@@ -50,11 +53,18 @@ const allMenuItems: MenuItem[] = [
   { icon: FolderOpen, label: '기타 프로젝트', path: '/other', projectType: 'other' },
   { icon: FileText, label: '개발 요청서', path: '/dev-requests' },
   { icon: Box, label: '제품 관리', path: '/products' },
-  { icon: TrendingUp, label: '매출 대시보드', path: '/sales-dashboard' },
   { icon: BellRing, label: '일일 리포트', path: '/daily-reports' },
   { icon: Gift, label: '프로모션 관리', path: '/promotion' },
   { icon: BarChart3, label: '통계', path: '/statistics' },
   { icon: Settings, label: '설정', path: '/settings' },
+];
+
+// 매출 관리 메뉴 아이템
+const salesMenuItems: MenuItem[] = [
+  { icon: TrendingUp, label: '매출 대시보드', path: '/sales-dashboard' },
+  { icon: DollarSign, label: '원가 입력', path: '/sales/costs' },
+  { icon: Store, label: '채널 수수료', path: '/sales/channels' },
+  { icon: Percent, label: '이익 설정', path: '/sales/profit-settings' },
 ];
 
 const personalMenuItems: MenuItem[] = [
@@ -79,9 +89,11 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const { projectTypeSettings, fetchProjectTypeSettings, isProjectTypeVisible } = useProjectSettingsStore();
   const [seedingSectionOpen, setSeedingSectionOpen] = useState(true);
+  const [salesSectionOpen, setSalesSectionOpen] = useState(true);
 
-  // 시딩 섹션 활성화 여부 확인
+  // 섹션 활성화 여부 확인
   const isSeedingSectionActive = location.pathname.startsWith('/seeding');
+  const isSalesSectionActive = location.pathname.startsWith('/sales') || location.pathname === '/sales-dashboard';
 
   useEffect(() => {
     if (projectTypeSettings.length === 0) {
@@ -171,6 +183,44 @@ export default function Sidebar() {
             return renderMenuItem(item, isActive);
           })}
         </ul>
+
+        {/* Sales Section Divider */}
+        <div className="my-4 border-t border-gray-200" />
+
+        {/* Sales Section Header */}
+        {(!sidebarCollapsed || mobileMenuOpen) ? (
+          <button
+            onClick={() => setSalesSectionOpen(!salesSectionOpen)}
+            className={`w-full px-3 mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wider transition-colors ${
+              isSalesSectionActive ? 'text-primary-600' : 'text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" />
+              매출 관리
+            </div>
+            <ChevronDown
+              className={`w-4 h-4 transition-transform duration-200 ${
+                salesSectionOpen ? 'rotate-0' : '-rotate-90'
+              }`}
+            />
+          </button>
+        ) : (
+          <div className="flex justify-center mb-2" title="매출 관리">
+            <TrendingUp className={`w-4 h-4 ${isSalesSectionActive ? 'text-primary-600' : 'text-gray-400'}`} />
+          </div>
+        )}
+
+        {/* Sales Menu Items */}
+        {(salesSectionOpen || sidebarCollapsed) && (
+          <ul className="space-y-1">
+            {salesMenuItems.map((item) => {
+              const isActive = location.pathname === item.path ||
+                (item.path !== '/sales-dashboard' && location.pathname.startsWith(item.path));
+              return renderMenuItem(item, isActive);
+            })}
+          </ul>
+        )}
 
         {/* Seeding Section Divider */}
         <div className="my-4 border-t border-gray-200" />

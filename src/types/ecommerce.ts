@@ -305,6 +305,100 @@ export interface SalesDashboardStats {
 }
 
 // =====================================================
+// 3단계 이익 분석 (씨그로 방식)
+// =====================================================
+
+/** 3단계 이익 분석 결과 */
+export interface ProfitBreakdown {
+  // 매출총이익 (Gross Profit)
+  revenue: number;           // 결제금액
+  costOfGoods: number;       // 매출원가 (원가)
+  vat: number;               // 부가세
+  grossProfit: number;       // 매출총이익 = 결제금액 - 매출원가 - VAT
+  grossProfitRate: number;   // 매출총이익률 (%)
+
+  // 공헌이익 (Contribution Margin)
+  shippingFee: number;       // 배송비
+  channelFee: number;        // 채널 수수료
+  adCost: number;            // 광고비
+  variableCost: number;      // 변동판관비 합계
+  contributionProfit: number;  // 공헌이익 = 매출총이익 - 배송비 - 수수료 - 광고비 - 변동판관비
+  contributionProfitRate: number;  // 공헌이익률 (%)
+
+  // 순이익 (Net Profit)
+  fixedCost: number;         // 고정판관비 합계
+  fixedCostVat: number;      // 고정비 VAT
+  netProfit: number;         // 순이익 = 공헌이익 - 고정판관비 - 고정비VAT
+  netProfitRate: number;     // 순이익률 (%)
+}
+
+/** 이익 설정 (localStorage 저장) */
+export interface ProfitSettings {
+  // VAT 설정
+  vatEnabled: boolean;
+  vatRate: number;  // 기본 10%
+
+  // 변동판관비 항목
+  variableCosts: VariableCostItem[];
+
+  // 고정판관비 항목
+  fixedCosts: FixedCostItem[];
+
+  // 고정비 VAT 적용 여부
+  fixedCostVatEnabled: boolean;
+}
+
+export interface VariableCostItem {
+  id: string;
+  name: string;
+  type: 'rate' | 'fixed_per_order';  // 매출 비율 or 건당 고정금액
+  value: number;  // rate이면 %, fixed_per_order이면 원
+  isActive: boolean;
+}
+
+export interface FixedCostItem {
+  id: string;
+  name: string;
+  monthlyAmount: number;  // 월 고정금액
+  isActive: boolean;
+}
+
+/** 채널별 요약 + 이전 기간 비교 */
+export interface ChannelSummaryWithComparison {
+  channel: SalesChannel;
+  channelName: string;
+
+  // 현재 기간
+  current: {
+    revenue: number;
+    orders: number;
+    avgOrderValue: number;
+    channelFee: number;
+    grossProfit: number;
+    grossProfitRate: number;
+  };
+
+  // 이전 기간
+  previous: {
+    revenue: number;
+    orders: number;
+    avgOrderValue: number;
+    channelFee: number;
+    grossProfit: number;
+    grossProfitRate: number;
+  };
+
+  // 변화율 (%)
+  changes: {
+    revenue: number;
+    orders: number;
+    avgOrderValue: number;
+    channelFee: number;
+    grossProfit: number;
+  };
+}
+
+// =====================================================
 // 공헌이익 계산 (씨그로 방식)
 // =====================================================
 export function calculateContributionProfit(params: {
@@ -318,4 +412,62 @@ export function calculateContributionProfit(params: {
 }): number {
   const { revenue, cost, shippingFee, channelFee, adCost, discount = 0, vat = 0 } = params;
   return revenue - cost - shippingFee - channelFee - adCost - discount - vat;
+}
+
+/** 3단계 이익 계산 */
+export function calculateProfitBreakdown(params: {
+  revenue: number;
+  costOfGoods: number;
+  shippingFee: number;
+  channelFee: number;
+  adCost: number;
+  settings: ProfitSettings;
+  orderCount: number;
+  periodDays: number;
+}): ProfitBreakdown {
+  const { revenue, costOfGoods, shippingFee, channelFee, adCost, settings, orderCount, periodDays } = params;
+
+  // 1. 매출총이익
+  const vat = settings.vatEnabled ? revenue * (settings.vatRate / 100) / (1 + settings.vatRate / 100) : 0;
+  const grossProfit = revenue - costOfGoods - vat;
+  const grossProfitRate = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
+
+  // 2. 공헌이익
+  const variableCost = settings.variableCosts
+    .filter(v => v.isActive)
+    .reduce((sum, v) => {
+      if (v.type === 'rate') return sum + revenue * (v.value / 100);
+      return sum + v.value * orderCount;
+    }, 0);
+
+  const contributionProfit = grossProfit - shippingFee - channelFee - adCost - variableCost;
+  const contributionProfitRate = revenue > 0 ? (contributionProfit / revenue) * 100 : 0;
+
+  // 3. 순이익
+  const dailyFixedCost = settings.fixedCosts
+    .filter(f => f.isActive)
+    .reduce((sum, f) => sum + f.monthlyAmount / 30, 0);
+  const fixedCost = dailyFixedCost * periodDays;
+  const fixedCostVat = settings.fixedCostVatEnabled ? fixedCost * (settings.vatRate / 100) / (1 + settings.vatRate / 100) : 0;
+
+  const netProfit = contributionProfit - fixedCost - fixedCostVat;
+  const netProfitRate = revenue > 0 ? (netProfit / revenue) * 100 : 0;
+
+  return {
+    revenue,
+    costOfGoods,
+    vat,
+    grossProfit,
+    grossProfitRate,
+    shippingFee,
+    channelFee,
+    adCost,
+    variableCost,
+    contributionProfit,
+    contributionProfitRate,
+    fixedCost,
+    fixedCostVat,
+    netProfit,
+    netProfitRate,
+  };
 }

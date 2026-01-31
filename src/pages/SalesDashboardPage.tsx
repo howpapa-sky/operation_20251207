@@ -9,16 +9,15 @@ import {
   TrendingDown,
   DollarSign,
   ShoppingCart,
-  Target,
-  BarChart3,
   RefreshCw,
   Calendar,
   Store,
   Megaphone,
-  Percent,
   ArrowUpRight,
   ArrowDownRight,
   Minus,
+  BarChart3,
+  Settings,
 } from 'lucide-react';
 import { useSalesDashboardStore } from '@/store/salesDashboardStore';
 import {
@@ -29,6 +28,9 @@ import {
 } from '@/types/ecommerce';
 import { cn } from '@/lib/utils';
 import OrderSyncPanel from '@/components/sales/OrderSyncPanel';
+import ProfitBreakdownCard from '@/components/sales/ProfitBreakdownCard';
+import ChannelSummaryCard from '@/components/sales/ChannelSummaryCard';
+import { useNavigate } from 'react-router-dom';
 
 // 숫자 포맷팅
 function formatCurrency(value: number, showSign = false): string {
@@ -75,9 +77,9 @@ function KPICard({
 
   return (
     <Card>
-      <CardContent className="p-6">
+      <CardContent className="p-5">
         <div className="flex items-center justify-between">
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <p className="text-sm font-medium text-gray-500">{title}</p>
             <div className="flex items-baseline gap-1">
               <span className="text-2xl font-bold">{formatCurrency(value)}</span>
@@ -103,61 +105,6 @@ function KPICard({
           </div>
           <div className={cn('p-3 rounded-full', colorClasses[color])}>
             <Icon className="w-6 h-6" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// 채널별 성과 카드
-function ChannelPerformanceCard({
-  channel,
-  revenue,
-  orders,
-  profit,
-  profitRate,
-}: {
-  channel: SalesChannel | 'all';
-  revenue: number;
-  orders: number;
-  profit: number;
-  profitRate: number;
-}) {
-  const channelName = channel === 'all' ? '전체' : salesChannelLabels[channel] || channel;
-
-  const channelColors: Record<string, string> = {
-    smartstore: 'border-l-green-500',
-    coupang: 'border-l-orange-500',
-    coupang_rocket: 'border-l-orange-400',
-    cafe24: 'border-l-blue-500',
-    qoo10: 'border-l-purple-500',
-    all: 'border-l-gray-500',
-  };
-
-  return (
-    <Card className={cn('border-l-4', channelColors[channel] || 'border-l-gray-500')}>
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="font-medium">{channelName}</h4>
-          <Badge variant={profit >= 0 ? 'default' : 'destructive'}>
-            {formatPercent(profitRate)} 마진
-          </Badge>
-        </div>
-        <div className="grid grid-cols-3 gap-4 text-sm">
-          <div>
-            <p className="text-gray-500">매출</p>
-            <p className="font-semibold">{formatCurrency(revenue)}원</p>
-          </div>
-          <div>
-            <p className="text-gray-500">주문</p>
-            <p className="font-semibold">{orders}건</p>
-          </div>
-          <div>
-            <p className="text-gray-500">순이익</p>
-            <p className={cn('font-semibold', profit >= 0 ? 'text-green-600' : 'text-red-600')}>
-              {formatCurrency(profit, true)}원
-            </p>
           </div>
         </div>
       </CardContent>
@@ -221,10 +168,13 @@ function AdPerformanceCard({
 }
 
 export default function SalesDashboardPage() {
+  const navigate = useNavigate();
   const {
     dashboardStats,
     channelStats,
     adStats,
+    profitBreakdown,
+    channelSummaries,
     isLoading,
     error,
     selectedDateRange,
@@ -263,41 +213,6 @@ export default function SalesDashboardPage() {
     setDateRange(newRange);
   };
 
-  // 채널별 집계
-  const channelSummaries = (() => {
-    const summary: Record<string, {
-      revenue: number;
-      orders: number;
-      cost: number;
-      shipping: number;
-      fee: number;
-    }> = {};
-
-    channelStats.forEach(stat => {
-      if (selectedBrand !== 'all' && stat.brand !== selectedBrand) return;
-
-      const ch = stat.channel;
-      if (!summary[ch]) {
-        summary[ch] = { revenue: 0, orders: 0, cost: 0, shipping: 0, fee: 0 };
-      }
-      summary[ch].revenue += stat.totalRevenue;
-      summary[ch].orders += stat.totalOrders;
-      summary[ch].cost += stat.totalCost;
-      summary[ch].shipping += stat.totalShipping;
-      summary[ch].fee += stat.totalFee;
-    });
-
-    return Object.entries(summary).map(([channel, data]) => ({
-      channel: channel as SalesChannel,
-      revenue: data.revenue,
-      orders: data.orders,
-      profit: data.revenue - data.cost - data.shipping - data.fee,
-      profitRate: data.revenue > 0
-        ? ((data.revenue - data.cost - data.shipping - data.fee) / data.revenue) * 100
-        : 0,
-    }));
-  })();
-
   // 광고 채널별 집계
   const adSummaries = (() => {
     const summary: Record<string, {
@@ -332,6 +247,7 @@ export default function SalesDashboardPage() {
   })();
 
   const summary = calculateSummary();
+  const pb = profitBreakdown;
 
   return (
     <div className="space-y-6">
@@ -344,13 +260,23 @@ export default function SalesDashboardPage() {
           </h1>
           <p className="text-gray-500 mt-1">채널별 매출 현황 및 수익성 분석</p>
         </div>
-        <Button
-          onClick={() => fetchDashboardStats()}
-          disabled={isLoading}
-        >
-          <RefreshCw className={cn('w-4 h-4 mr-2', isLoading && 'animate-spin')} />
-          새로고침
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/sales/profit-settings')}
+          >
+            <Settings className="w-4 h-4 mr-1" />
+            이익 설정
+          </Button>
+          <Button
+            onClick={() => fetchDashboardStats()}
+            disabled={isLoading}
+          >
+            <RefreshCw className={cn('w-4 h-4 mr-2', isLoading && 'animate-spin')} />
+            새로고침
+          </Button>
+        </div>
       </div>
 
       {/* 필터 영역 */}
@@ -435,7 +361,7 @@ export default function SalesDashboardPage() {
       {/* KPI 요약 카드 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
-          title="총 매출"
+          title="총 결제금액"
           value={summary.totalRevenue}
           unit="원"
           change={dashboardStats?.revenueChange}
@@ -459,80 +385,86 @@ export default function SalesDashboardPage() {
         />
         <KPICard
           title="공헌이익"
-          value={summary.contributionProfit}
+          value={pb?.contributionProfit ?? summary.contributionProfit}
           unit="원"
-          icon={summary.contributionProfit >= 0 ? TrendingUp : TrendingDown}
-          color={summary.contributionProfit >= 0 ? 'green' : 'red'}
+          icon={(pb?.contributionProfit ?? summary.contributionProfit) >= 0 ? TrendingUp : TrendingDown}
+          color={(pb?.contributionProfit ?? summary.contributionProfit) >= 0 ? 'green' : 'red'}
         />
       </div>
 
-      {/* ROAS & 마진 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-br from-purple-50 to-white">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <Target className="w-5 h-5 text-purple-600" />
-              <span className="text-sm font-medium text-gray-600">ROAS</span>
-            </div>
-            <p className="text-3xl font-bold text-purple-700">
-              {formatPercent(summary.roas)}
-            </p>
-            <p className="text-sm text-gray-500 mt-1">
-              광고수익률 (전환매출 / 광고비)
-            </p>
-          </CardContent>
-        </Card>
+      {/* 3단계 이익 분석 */}
+      {pb && (
+        <div>
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-blue-600" />
+            이익 분석
+            <span className="text-sm font-normal text-gray-400">3단계 수익성</span>
+          </h2>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* 매출총이익 */}
+            <ProfitBreakdownCard
+              title="매출총이익"
+              profitValue={pb.grossProfit}
+              profitRate={pb.grossProfitRate}
+              formula="결제금액 - 매출원가 - 부가세"
+              details={[
+                { label: '결제금액', value: pb.revenue },
+                { label: '매출원가', value: pb.costOfGoods, isNegative: true },
+                { label: '부가세 (VAT)', value: pb.vat, isNegative: true },
+              ]}
+              color="blue"
+              settingsPath="/sales/profit-settings"
+              breakdown={pb}
+            />
 
-        <Card className="bg-gradient-to-br from-green-50 to-white">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <Percent className="w-5 h-5 text-green-600" />
-              <span className="text-sm font-medium text-gray-600">공헌이익률</span>
-            </div>
-            <p className="text-3xl font-bold text-green-700">
-              {summary.totalRevenue > 0
-                ? formatPercent((summary.contributionProfit / summary.totalRevenue) * 100)
-                : '0%'}
-            </p>
-            <p className="text-sm text-gray-500 mt-1">
-              (공헌이익 / 매출) × 100
-            </p>
-          </CardContent>
-        </Card>
+            {/* 공헌이익 */}
+            <ProfitBreakdownCard
+              title="공헌이익"
+              profitValue={pb.contributionProfit}
+              profitRate={pb.contributionProfitRate}
+              formula="매출총이익 - 배송비 - 수수료 - 광고비 - 변동비"
+              details={[
+                { label: '매출총이익', value: pb.grossProfit },
+                { label: '배송비', value: pb.shippingFee, isNegative: true },
+                { label: '채널 수수료', value: pb.channelFee, isNegative: true },
+                { label: '광고비', value: pb.adCost, isNegative: true },
+                { label: '변동판관비', value: pb.variableCost, isNegative: true },
+              ]}
+              color="green"
+              settingsPath="/sales/channels"
+              breakdown={pb}
+            />
 
-        <Card className="bg-gradient-to-br from-orange-50 to-white">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <Store className="w-5 h-5 text-orange-600" />
-              <span className="text-sm font-medium text-gray-600">평균 객단가</span>
-            </div>
-            <p className="text-3xl font-bold text-orange-700">
-              {formatCurrency(summary.avgOrderValue)}원
-            </p>
-            <p className="text-sm text-gray-500 mt-1">
-              총 매출 / 주문 수
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+            {/* 순이익 */}
+            <ProfitBreakdownCard
+              title="순이익"
+              profitValue={pb.netProfit}
+              profitRate={pb.netProfitRate}
+              formula="공헌이익 - 고정판관비 - 고정비VAT"
+              details={[
+                { label: '공헌이익', value: pb.contributionProfit },
+                { label: '고정판관비', value: pb.fixedCost, isNegative: true },
+                { label: '고정비 VAT', value: pb.fixedCostVat, isNegative: true },
+              ]}
+              color="orange"
+              settingsPath="/sales/profit-settings"
+              breakdown={pb}
+            />
+          </div>
+        </div>
+      )}
 
-      {/* 채널별 성과 */}
+      {/* 채널별 매출 현황 (이전 기간 비교) */}
       <div>
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <Store className="w-5 h-5 text-gray-600" />
           채널별 매출 현황
+          <span className="text-sm font-normal text-gray-400">이전 기간 대비</span>
         </h2>
         {channelSummaries.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {channelSummaries.map((ch) => (
-              <ChannelPerformanceCard
-                key={ch.channel}
-                channel={ch.channel}
-                revenue={ch.revenue}
-                orders={ch.orders}
-                profit={ch.profit}
-                profitRate={ch.profitRate}
-              />
+              <ChannelSummaryCard key={ch.channel} data={ch} />
             ))}
           </div>
         ) : (
@@ -578,7 +510,7 @@ export default function SalesDashboardPage() {
         )}
       </div>
 
-      {/* 데이터 없음 안내 (전체가 비어있을 때) */}
+      {/* 데이터 없음 안내 */}
       {!isLoading && channelSummaries.length === 0 && adSummaries.length === 0 && (
         <Card className="border-dashed">
           <CardContent className="p-12 text-center">
@@ -590,14 +522,6 @@ export default function SalesDashboardPage() {
               판매 채널 API를 연동하거나, 수동으로 주문 데이터를 등록하면
               이 대시보드에서 실시간 매출과 수익성을 확인할 수 있습니다.
             </p>
-            <div className="mt-6 flex justify-center gap-4">
-              <Badge variant="outline" className="px-3 py-1">
-                스마트스토어 API 연동 예정
-              </Badge>
-              <Badge variant="outline" className="px-3 py-1">
-                쿠팡 API 연동 예정
-              </Badge>
-            </div>
           </CardContent>
         </Card>
       )}
