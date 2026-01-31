@@ -81,7 +81,7 @@ export async function syncOrdersChunked(params: {
   endDate: string;
   onProgress?: (current: number, total: number, chunkResult?: SyncResult) => void;
 }): Promise<SyncResult> {
-  const CHUNK_DAYS = 89; // ~3개월
+  const CHUNK_DAYS = 30; // 30일 단위 (Netlify 10초 타임아웃 대응)
   const MS_PER_DAY = 86400000;
   const chunks: { start: string; end: string }[] = [];
 
