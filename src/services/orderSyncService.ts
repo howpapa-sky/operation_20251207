@@ -72,6 +72,76 @@ export async function syncOrders(params: {
 }
 
 /**
+ * Cafe24 등 날짜 범위 제한이 있는 채널용 분할 동기화
+ * 긴 기간을 3개월 단위로 나눠 순차 호출 (Netlify 504 타임아웃 방지)
+ */
+export async function syncOrdersChunked(params: {
+  channel: string;
+  startDate: string;
+  endDate: string;
+  onProgress?: (current: number, total: number, chunkResult?: SyncResult) => void;
+}): Promise<SyncResult> {
+  const CHUNK_DAYS = 30; // 30일 단위 (Netlify 10초 타임아웃 대응)
+  const MS_PER_DAY = 86400000;
+  const chunks: { start: string; end: string }[] = [];
+
+  let cur = new Date(params.startDate + 'T00:00:00');
+  const end = new Date(params.endDate + 'T00:00:00');
+
+  while (cur < end) {
+    const chunkEnd = new Date(Math.min(cur.getTime() + CHUNK_DAYS * MS_PER_DAY, end.getTime()));
+    chunks.push({
+      start: cur.toISOString().split('T')[0],
+      end: chunkEnd.toISOString().split('T')[0],
+    });
+    cur = new Date(chunkEnd.getTime() + MS_PER_DAY);
+  }
+
+  if (chunks.length === 0) {
+    return { success: false, error: '날짜 범위가 올바르지 않습니다.' };
+  }
+
+  let totalSynced = 0;
+  let totalSkipped = 0;
+  const allErrors: string[] = [];
+
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    params.onProgress?.(i + 1, chunks.length);
+
+    const result = await syncOrders({
+      channel: params.channel,
+      startDate: chunk.start,
+      endDate: chunk.end,
+    });
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: `${chunk.start}~${chunk.end} 구간 실패: ${result.error}`,
+        synced: totalSynced,
+        skipped: totalSkipped,
+        errors: allErrors,
+      };
+    }
+
+    totalSynced += result.synced ?? 0;
+    totalSkipped += result.skipped ?? 0;
+    if (result.errors) allErrors.push(...result.errors);
+
+    params.onProgress?.(i + 1, chunks.length, result);
+  }
+
+  return {
+    success: true,
+    message: `${totalSynced}건 동기화 완료`,
+    synced: totalSynced,
+    skipped: totalSkipped,
+    errors: allErrors.length > 0 ? allErrors : undefined,
+  };
+}
+
+/**
  * 연결 테스트
  */
 export async function testChannelConnection(channel: string): Promise<ConnectionTestResult> {

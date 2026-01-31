@@ -15,7 +15,7 @@ import {
   ToggleRight,
   Clock,
 } from 'lucide-react';
-import { syncOrders, testChannelConnection } from '@/services/orderSyncService';
+import { syncOrders, syncOrdersChunked, testChannelConnection } from '@/services/orderSyncService';
 import type { SyncResult } from '@/services/orderSyncService';
 import { useAutoSync } from '@/hooks/useAutoSync';
 import { cn } from '@/lib/utils';
@@ -47,6 +47,7 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
   const [isSyncing, setIsSyncing] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number } | null>(null);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const autoSync = useAutoSync(channel, onSyncComplete);
@@ -54,9 +55,21 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
   const handleSync = async () => {
     setIsSyncing(true);
     setSyncResult(null);
+    setSyncProgress(null);
 
-    const result = await syncOrders({ channel, startDate, endDate });
+    // Cafe24는 날짜 범위 제한(6개월) + Netlify 타임아웃 방지를 위해 분할 호출
+    const needsChunking = channel === 'cafe24';
+    const result = needsChunking
+      ? await syncOrdersChunked({
+          channel,
+          startDate,
+          endDate,
+          onProgress: (current, total) => setSyncProgress({ current, total }),
+        })
+      : await syncOrders({ channel, startDate, endDate });
+
     setSyncResult(result);
+    setSyncProgress(null);
     setIsSyncing(false);
 
     if (result.success && onSyncComplete) {
@@ -189,7 +202,9 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
           {isSyncing ? (
             <>
               <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-              동기화 중...
+              {syncProgress
+                ? `동기화 중... (${syncProgress.current}/${syncProgress.total})`
+                : '동기화 중...'}
             </>
           ) : (
             <>
