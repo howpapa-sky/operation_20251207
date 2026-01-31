@@ -140,39 +140,52 @@ async function testConnection(channel: string) {
   };
 }
 
-// ========== SKU 매칭 ==========
-async function matchSKU(
-  channel: string,
-  optionName: string | undefined
-): Promise<{ skuId: string | null; costPrice: number }> {
-  if (!optionName) return { skuId: null, costPrice: 0 };
-
+// ========== SKU 일괄 매칭 (N*2 쿼리 → 2 쿼리) ==========
+async function loadSKULookup(channel: string): Promise<{
+  match: (optionName: string | undefined) => { skuId: string | null; costPrice: number };
+}> {
+  // 1) 채널의 모든 옵션 매핑을 한 번에 조회
+  const optionMap = new Map<string, string>(); // optionName → skuId
   try {
-    const { data: mapping } = await supabase
+    const { data: mappings } = await supabase
       .from("channel_option_mapping")
-      .select("sku_id")
+      .select("option_name, sku_id")
       .eq("channel", channel)
-      .eq("option_name", optionName)
-      .eq("is_active", true)
-      .single();
+      .eq("is_active", true);
 
-    if (mapping?.sku_id) {
-      const { data: sku } = await supabase
-        .from("sku_master")
-        .select("cost_price")
-        .eq("id", mapping.sku_id)
-        .single();
-
-      return {
-        skuId: mapping.sku_id,
-        costPrice: sku?.cost_price ? parseFloat(sku.cost_price) : 0,
-      };
+    if (mappings) {
+      for (const m of mappings) {
+        optionMap.set(m.option_name, m.sku_id);
+      }
     }
-  } catch {
-    // 매칭 실패는 정상 케이스 (아직 매핑 안됨)
+  } catch { /* 매핑 테이블 미존재 시 무시 */ }
+
+  // 2) 필요한 SKU의 원가를 한 번에 조회
+  const skuCostMap = new Map<string, number>(); // skuId → costPrice
+  const skuIds = [...new Set(optionMap.values())];
+  if (skuIds.length > 0) {
+    try {
+      const { data: skus } = await supabase
+        .from("sku_master")
+        .select("id, cost_price")
+        .in("id", skuIds);
+
+      if (skus) {
+        for (const s of skus) {
+          skuCostMap.set(s.id, s.cost_price ? parseFloat(s.cost_price) : 0);
+        }
+      }
+    } catch { /* SKU 테이블 미존재 시 무시 */ }
   }
 
-  return { skuId: null, costPrice: 0 };
+  return {
+    match(optionName) {
+      if (!optionName) return { skuId: null, costPrice: 0 };
+      const skuId = optionMap.get(optionName) || null;
+      const costPrice = skuId ? (skuCostMap.get(skuId) || 0) : 0;
+      return { skuId, costPrice };
+    },
+  };
 }
 
 // ========== 채널 수수료율 조회 ==========
@@ -358,10 +371,13 @@ async function syncOrders(params: {
 
   console.log(`[commerce-proxy] Fetched ${rawOrders.length} orders from proxy`);
 
-  // 수수료율 조회
-  const feeRate = await getChannelFeeRate(channel);
+  // 수수료율 + SKU 룩업을 동시에 조회 (병렬)
+  const [feeRate, skuLookup] = await Promise.all([
+    getChannelFeeRate(channel),
+    loadSKULookup(channel),
+  ]);
 
-  // 주문 데이터 변환 및 검증
+  // 주문 데이터 변환 및 검증 (DB 호출 없이 인메모리 처리)
   const validOrders: any[] = [];
   const allErrors: string[] = [];
   let skippedCount = 0;
@@ -381,7 +397,8 @@ async function syncOrders(params: {
       ? `${order.orderId}-${order.productOrderId}`
       : order.orderId;
 
-    const { skuId, costPrice } = await matchSKU(channel, order.optionName);
+    // 인메모리 매칭 (DB 호출 없음)
+    const { skuId, costPrice } = skuLookup.match(order.optionName);
 
     const totalPrice = order.totalPrice || order.unitPrice * order.quantity;
     const channelFee = Math.round(totalPrice * (feeRate / 100));
@@ -437,25 +454,43 @@ async function syncOrders(params: {
     console.log(`[commerce-proxy] Removed ${duplicateCount} duplicate orders`);
   }
 
-  // Supabase에 upsert (중복 방지: channel + order_id UNIQUE 제약)
-  console.log(`[commerce-proxy] Upserting ${uniqueOrders.length} orders to Supabase`);
+  // Supabase에 upsert (병렬 청크 처리)
+  const CHUNK_SIZE = 200;
+  console.log(`[commerce-proxy] Upserting ${uniqueOrders.length} orders in chunks of ${CHUNK_SIZE}`);
 
-  const { data, error: dbError } = await supabase
-    .from("orders_raw")
-    .upsert(uniqueOrders, {
-      onConflict: "channel,order_id",
-      ignoreDuplicates: false,
-    })
-    .select("id");
+  const chunks: (typeof uniqueOrders)[] = [];
+  for (let i = 0; i < uniqueOrders.length; i += CHUNK_SIZE) {
+    chunks.push(uniqueOrders.slice(i, i + CHUNK_SIZE));
+  }
 
-  if (dbError) {
-    console.error("[commerce-proxy] DB error:", dbError);
+  const upsertResults = await Promise.all(
+    chunks.map((chunk) =>
+      supabase
+        .from("orders_raw")
+        .upsert(chunk, {
+          onConflict: "channel,order_id",
+          ignoreDuplicates: false,
+        })
+        .select("id")
+    )
+  );
+
+  // 결과 합산 및 에러 확인
+  const dbErrors = upsertResults.filter((r) => r.error);
+  if (dbErrors.length > 0) {
+    const firstError = dbErrors[0].error!;
+    console.error("[commerce-proxy] DB error:", firstError);
     return {
       success: false,
-      error: `데이터 저장 오류: ${dbError.message}`,
+      error: `데이터 저장 오류: ${firstError.message}`,
       errors: allErrors,
     };
   }
+
+  const totalInserted = upsertResults.reduce(
+    (sum, r) => sum + (r.data?.length || 0),
+    0
+  );
 
   // 동기화 로그 기록
   try {
@@ -464,7 +499,7 @@ async function syncOrders(params: {
       sync_type: "manual",
       status: "success",
       records_fetched: rawOrders.length,
-      records_created: data?.length || uniqueOrders.length,
+      records_created: totalInserted || uniqueOrders.length,
       records_updated: 0,
       started_at: new Date().toISOString(),
       completed_at: new Date().toISOString(),
@@ -489,7 +524,7 @@ async function syncOrders(params: {
   return {
     success: true,
     message: `${uniqueOrders.length}건의 주문이 동기화되었습니다.${duplicateCount > 0 ? ` (중복 ${duplicateCount}건 제거)` : ''}`,
-    synced: data?.length || uniqueOrders.length,
+    synced: totalInserted || uniqueOrders.length,
     skipped: skippedCount,
     duplicates: duplicateCount,
     total: rawOrders.length,
