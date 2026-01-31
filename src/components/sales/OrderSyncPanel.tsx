@@ -11,9 +11,13 @@ import {
   AlertTriangle,
   Download,
   Wifi,
+  ToggleLeft,
+  ToggleRight,
+  Clock,
 } from 'lucide-react';
 import { syncOrders, testChannelConnection } from '@/services/orderSyncService';
 import type { SyncResult } from '@/services/orderSyncService';
+import { useAutoSync } from '@/hooks/useAutoSync';
 import { cn } from '@/lib/utils';
 
 const CHANNELS = [
@@ -22,11 +26,21 @@ const CHANNELS = [
   { value: 'cafe24', label: 'Cafe24 (준비중)', disabled: true },
 ];
 
+function formatRelativeTime(isoStr: string): string {
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return '방금 전';
+  if (mins < 60) return `${mins}분 전`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}시간 전`;
+  return `${Math.floor(hours / 24)}일 전`;
+}
+
 export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: () => void }) {
   const [channel, setChannel] = useState('smartstore');
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() - 7);
+    d.setMonth(d.getMonth() - 6);
     return d.toISOString().split('T')[0];
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -34,6 +48,8 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
   const [isTesting, setIsTesting] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const autoSync = useAutoSync(channel, onSyncComplete);
 
   const handleSync = async () => {
     setIsSyncing(true);
@@ -60,10 +76,44 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Download className="w-5 h-5 text-blue-500" />
-          주문 데이터 동기화
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Download className="w-5 h-5 text-blue-500" />
+            주문 데이터 동기화
+          </CardTitle>
+
+          {/* 자동 동기화 토글 */}
+          <div className="flex items-center gap-3">
+            {autoSync.lastSyncAt && (
+              <span className="text-xs text-gray-400 flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                마지막 동기화: {formatRelativeTime(autoSync.lastSyncAt)}
+              </span>
+            )}
+            {autoSync.isSyncing && (
+              <Badge variant="secondary" className="text-xs gap-1">
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                자동 동기화 중
+              </Badge>
+            )}
+            <button
+              onClick={() => autoSync.setEnabled(!autoSync.enabled)}
+              className={cn(
+                'flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full transition-colors',
+                autoSync.enabled
+                  ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              )}
+            >
+              {autoSync.enabled ? (
+                <ToggleRight className="w-4 h-4" />
+              ) : (
+                <ToggleLeft className="w-4 h-4" />
+              )}
+              자동 동기화 {autoSync.enabled ? 'ON' : 'OFF'}
+            </button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* 채널 선택 */}
