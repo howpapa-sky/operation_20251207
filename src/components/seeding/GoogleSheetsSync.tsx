@@ -213,7 +213,10 @@ function parseYesNo(value: any): boolean {
 
 // 상태 결정 (Yes/No 필드들로부터)
 function determineStatus(item: any): string {
-  // Upload completed → posted
+  // completed_at에 날짜 데이터가 있으면 → completed
+  if (item.completed_at && item.completed_at !== '') return 'completed';
+
+  // Upload completed → posted (Yes/No 형식일 때만)
   const uploadCompleted = findFieldValue(item, '_upload_completed', 'Upload completed', '업로드완료');
   if (parseYesNo(uploadCompleted)) return 'posted';
 
@@ -266,7 +269,8 @@ function normalizeInfluencerData(data: any[]): any[] {
     const feeRaw = item.fee ?? findFieldValue(item, 'Fee', '원고비');
 
     // ===== 날짜 정보 =====
-    const postedAtRaw = item.posted_at ?? findFieldValue(item, 'upload date (MM/DD)', 'upload date', '업로드일', '포스팅일');
+    // posted_at: findFieldValue의 부분 일치가 'Upload completed date'를 잘못 매칭하므로 직접 키 접근
+    const postedAtRaw = item.posted_at || item['upload date'] || item['upload date (MM/DD)'] || item['Upload Date'] || item['Upload date'] || item['업로드일'] || item['업로드 예정'] || item['포스팅일'] || undefined;
 
     // ===== 메모 =====
     const notesRaw = item.notes ?? findFieldValue(item, 'NOTE', 'note', 'Notes', 'Memo', '메모', '비고');

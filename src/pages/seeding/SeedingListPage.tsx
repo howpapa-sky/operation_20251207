@@ -118,6 +118,13 @@ export default function SeedingListPage() {
     return getProjectStats(projectId);
   }, [projectId, getProjectStats, influencers]);
 
+  // 완료일(completed_at) 필드가 있는 인플루언서 수 (완료 탭 카운트용)
+  const completedAtCount = useMemo(() => {
+    return influencers.filter(
+      (inf) => inf.project_id === projectId && inf.completed_at
+    ).length;
+  }, [influencers, projectId]);
+
   // Filtered influencers
   const filteredInfluencers = useMemo(() => {
     return influencers.filter((inf) => {
@@ -366,6 +373,7 @@ export default function SeedingListPage() {
         stats={projectStats}
         activeStatus={statusFilter}
         onChange={setStatusFilter}
+        completedAtCount={completedAtCount}
       />
 
       {/* Filter & Action Bar */}
