@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
-import { useApiCredentialsStore } from '../store/useApiCredentialsStore';
 
 export default function Cafe24CallbackPage() {
   const navigate = useNavigate();
-  const { fetchCredentials } = useApiCredentialsStore();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('Cafe24 인증 코드를 처리하는 중...');
 
@@ -21,27 +19,13 @@ export default function Cafe24CallbackPage() {
 
     (async () => {
       try {
-        // DB에서 cafe24 자격증명 가져오기
-        await fetchCredentials();
-        const creds = useApiCredentialsStore.getState().credentials;
-        const cafe24Cred = creds.find((c) => c.channel === 'cafe24');
-        const cafe24 = cafe24Cred?.cafe24;
-
-        if (!cafe24?.mallId || !cafe24?.clientId || !cafe24?.clientSecret) {
-          setStatus('error');
-          setMessage('Cafe24 자격증명이 저장되어 있지 않습니다. 설정에서 먼저 저장해주세요.');
-          return;
-        }
-
+        // 서버에서 DB 자격증명으로 토큰 교환 (프론트엔드 로그인 불필요)
         const redirectUri = window.location.origin;
         const res = await fetch('/.netlify/functions/commerce-proxy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            action: 'cafe24-exchange-token',
-            mallId: cafe24.mallId,
-            clientId: cafe24.clientId,
-            clientSecret: cafe24.clientSecret,
+            action: 'cafe24-complete-oauth',
             code,
             redirectUri,
           }),
@@ -51,7 +35,6 @@ export default function Cafe24CallbackPage() {
         if (data.success) {
           setStatus('success');
           setMessage('Cafe24 OAuth 인증이 완료되었습니다!');
-          await fetchCredentials();
           // 3초 후 설정 페이지로 이동
           setTimeout(() => navigate('/settings', { replace: true }), 3000);
         } else {

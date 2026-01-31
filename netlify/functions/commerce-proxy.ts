@@ -21,7 +21,7 @@ interface CommerceProxyRequest {
   action:
     | "naver_token" | "naver_api" | "proxy"
     | "test-connection" | "sync-orders"
-    | "cafe24-auth-url" | "cafe24-exchange-token" | "cafe24-init-oauth";
+    | "cafe24-auth-url" | "cafe24-exchange-token" | "cafe24-init-oauth" | "cafe24-complete-oauth";
   // Naver token
   clientId?: string;
   clientSecret?: string;
@@ -1128,6 +1128,44 @@ const handler: Handler = async (
         try {
           const tokens = await exchangeCafe24Token(
             request.mallId, request.clientId, request.clientSecret, request.code, request.redirectUri
+          );
+          // DB에 토큰 저장
+          await supabase
+            .from("api_credentials")
+            .update({
+              cafe24_access_token: tokens.accessToken,
+              cafe24_refresh_token: tokens.refreshToken,
+              cafe24_token_expires_at: tokens.expiresAt,
+            })
+            .eq("channel", "cafe24");
+
+          return {
+            statusCode: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ success: true, message: "Cafe24 인증이 완료되었습니다." }),
+          };
+        } catch (error: any) {
+          return {
+            statusCode: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ success: false, error: error.message }),
+          };
+        }
+      }
+
+      case "cafe24-complete-oauth": {
+        // DB에서 자격증명을 읽고, code로 토큰 교환까지 서버에서 완료 (프론트 로그인 불필요)
+        if (!request.code || !request.redirectUri) {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({ success: false, error: "code and redirectUri are required" }),
+          };
+        }
+        try {
+          const creds = await getCafe24Credentials();
+          const tokens = await exchangeCafe24Token(
+            creds.mallId, creds.clientId, creds.clientSecret, request.code, request.redirectUri
           );
           // DB에 토큰 저장
           await supabase
