@@ -571,11 +571,14 @@ async function getCafe24Credentials(): Promise<{
 }
 
 // Cafe24 OAuth 인증 URL 생성
-// scope은 개발자센터 권한관리에 등록된 항목만 요청 가능
-// 기본: mall.read_application,mall.write_application (앱 권한)
-// 주문동기화 시: mall.read_order,mall.read_product,mall.read_store 추가 필요
+// scope은 개발자센터 권한관리에 등록된 항목과 일치해야 함
 function getCafe24AuthUrl(mallId: string, clientId: string, redirectUri: string): string {
-  const scope = "mall.read_application,mall.write_application";
+  const scope = [
+    "mall.read_application", "mall.write_application",
+    "mall.read_category", "mall.read_product", "mall.read_personal",
+    "mall.read_order", "mall.read_community", "mall.read_store",
+    "mall.read_salesreport", "mall.read_shipping", "mall.read_analytics",
+  ].join(",");
   return `https://${mallId}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=cafe24auth`;
 }
 
