@@ -12,6 +12,7 @@ interface SeedingStatusTabsProps {
   stats: SeedingProjectStats;
   activeStatus: SeedingStatus | 'all';
   onChange: (status: SeedingStatus | 'all') => void;
+  completedAtCount?: number;
 }
 
 // 상태별 설정
@@ -39,6 +40,7 @@ export default function SeedingStatusTabs({
   stats,
   activeStatus,
   onChange,
+  completedAtCount,
 }: SeedingStatusTabsProps) {
   const totalCount = stats.total_influencers;
   const rejectedCount = stats.by_status.rejected;
@@ -85,6 +87,9 @@ export default function SeedingStatusTabs({
             count = stats.by_status.accepted + stats.by_status.shipped + stats.by_status.guide_sent + stats.by_status.posted + stats.by_status.completed;
           } else if (status === 'shipped') {
             count = stats.by_status.shipped + stats.by_status.guide_sent + stats.by_status.posted + stats.by_status.completed;
+          } else if (status === 'completed') {
+            // 완료 = 완료일(completed_at) 필드가 있는 인플루언서 수
+            count = completedAtCount ?? stats.by_status.completed;
           } else {
             count = stats.by_status[status];
           }
