@@ -62,6 +62,7 @@ const allMenuItems: MenuItem[] = [
 // 매출 관리 메뉴 아이템
 const salesMenuItems: MenuItem[] = [
   { icon: TrendingUp, label: '매출 대시보드', path: '/sales-dashboard' },
+  { icon: FileText, label: '주문서', path: '/sales/orders' },
   { icon: DollarSign, label: '원가 입력', path: '/sales/costs' },
   { icon: Store, label: '채널 수수료', path: '/sales/channels' },
   { icon: Percent, label: '이익 설정', path: '/sales/profit-settings' },

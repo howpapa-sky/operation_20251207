@@ -67,6 +67,26 @@ function deriveBrand(productName: string | undefined): 'howpapa' | 'nuccio' | un
   return undefined;
 }
 
+// SKU 원가 매핑: sku_master의 cost_price를 orders에 적용 (cost_price가 0인 경우)
+function enrichOrdersWithSKUCost(
+  orders: Record<string, unknown>[],
+  skuMap: Map<string, number>
+): Record<string, unknown>[] {
+  return orders.map(o => {
+    const costPrice = Number(o.cost_price) || 0;
+    if (costPrice > 0) return o;
+
+    // SKU 매칭: product_name으로 검색
+    const productName = (o.product_name as string || '').toLowerCase();
+    const skuCost = skuMap.get(productName);
+
+    if (skuCost && skuCost > 0) {
+      return { ...o, cost_price: skuCost };
+    }
+    return o;
+  });
+}
+
 // orders_raw 레코드를 DailyChannelStats로 집계
 function aggregateOrdersByDateChannel(
   orders: Record<string, unknown>[],
@@ -308,7 +328,24 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
 
       if (ordersError) throw ordersError;
 
-      const orders = rawOrders || [];
+      // SKU 마스터에서 원가 로드
+      let skuMap = new Map<string, number>();
+      try {
+        const { data: skuData } = await db
+          .from('sku_master')
+          .select('product_name, cost_price')
+          .eq('is_active', true);
+        if (skuData) {
+          for (const sku of skuData) {
+            skuMap.set((sku.product_name as string).toLowerCase(), Number(sku.cost_price) || 0);
+          }
+        }
+      } catch {
+        // sku_master 테이블 없으면 무시
+      }
+
+      // SKU 원가 적용 (cost_price가 0인 주문에 SKU 원가 매핑)
+      const orders = enrichOrdersWithSKUCost(rawOrders || [], skuMap);
 
       // 이전 기간 주문 데이터 조회
       const { data: prevRawOrders } = await db
@@ -317,7 +354,7 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
         .gte('order_date', prevRange.start)
         .lte('order_date', prevRange.end);
 
-      const prevOrders = prevRawOrders || [];
+      const prevOrders = enrichOrdersWithSKUCost(prevRawOrders || [], skuMap);
 
       // 날짜+채널별 집계
       const channelStats = aggregateOrdersByDateChannel(orders, brandFilter);
