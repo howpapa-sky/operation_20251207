@@ -18,7 +18,10 @@ const corsHeaders = {
 
 // ========== 프록시 요청 타입 ==========
 interface CommerceProxyRequest {
-  action: "naver_token" | "naver_api" | "proxy" | "test-connection" | "sync-orders";
+  action:
+    | "naver_token" | "naver_api" | "proxy"
+    | "test-connection" | "sync-orders"
+    | "cafe24-auth-url" | "cafe24-exchange-token";
   // Naver token
   clientId?: string;
   clientSecret?: string;
@@ -35,6 +38,10 @@ interface CommerceProxyRequest {
   channel?: string;
   startDate?: string;
   endDate?: string;
+  // Cafe24 OAuth
+  mallId?: string;
+  code?: string;
+  redirectUri?: string;
 }
 
 // ========== 주문 동기화 타입 ==========
@@ -532,6 +539,415 @@ async function syncOrders(params: {
   };
 }
 
+// ========== Cafe24 API ==========
+
+// Cafe24 자격증명 조회
+async function getCafe24Credentials(): Promise<{
+  mallId: string;
+  clientId: string;
+  clientSecret: string;
+  accessToken?: string;
+  refreshToken?: string;
+}> {
+  // api_credentials 테이블에서 cafe24 자격증명 조회
+  const { data } = await supabase
+    .from("api_credentials")
+    .select("cafe24_mall_id, cafe24_client_id, cafe24_client_secret, cafe24_access_token, cafe24_refresh_token")
+    .eq("channel", "cafe24")
+    .limit(1)
+    .single();
+
+  if (!data?.cafe24_mall_id || !data?.cafe24_client_id || !data?.cafe24_client_secret) {
+    throw new Error("Cafe24 자격증명이 설정되지 않았습니다. 설정 > API 연동에서 등록해주세요.");
+  }
+
+  return {
+    mallId: data.cafe24_mall_id,
+    clientId: data.cafe24_client_id,
+    clientSecret: data.cafe24_client_secret,
+    accessToken: data.cafe24_access_token || undefined,
+    refreshToken: data.cafe24_refresh_token || undefined,
+  };
+}
+
+// Cafe24 OAuth 인증 URL 생성
+function getCafe24AuthUrl(mallId: string, clientId: string, redirectUri: string): string {
+  const scope = "mall.read_order,mall.read_product,mall.read_store";
+  return `https://${mallId}.cafe24api.com/api/v2/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=cafe24auth`;
+}
+
+// Cafe24 토큰 교환 (authorization_code → access_token)
+async function exchangeCafe24Token(
+  mallId: string,
+  clientId: string,
+  clientSecret: string,
+  code: string,
+  redirectUri: string
+): Promise<{ accessToken: string; refreshToken: string; expiresAt: string }> {
+  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
+  const response = await fetch(`https://${mallId}.cafe24api.com/api/v2/oauth/token`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Basic ${basicAuth}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+    }).toString(),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || data.error) {
+    throw new Error(data.error_description || data.error || "Cafe24 토큰 교환 실패");
+  }
+
+  const expiresAt = new Date(Date.now() + (data.expires_in || 7200) * 1000).toISOString();
+
+  return {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token,
+    expiresAt,
+  };
+}
+
+// Cafe24 토큰 갱신
+async function refreshCafe24Token(
+  mallId: string,
+  clientId: string,
+  clientSecret: string,
+  refreshToken: string
+): Promise<{ accessToken: string; refreshToken: string; expiresAt: string }> {
+  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
+  const response = await fetch(`https://${mallId}.cafe24api.com/api/v2/oauth/token`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Basic ${basicAuth}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }).toString(),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok || data.error) {
+    throw new Error(data.error_description || data.error || "Cafe24 토큰 갱신 실패");
+  }
+
+  const expiresAt = new Date(Date.now() + (data.expires_in || 7200) * 1000).toISOString();
+
+  return {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token || refreshToken,
+    expiresAt,
+  };
+}
+
+// Cafe24 토큰 확보 (저장된 토큰 사용, 만료 시 갱신)
+async function ensureCafe24Token(creds: {
+  mallId: string;
+  clientId: string;
+  clientSecret: string;
+  accessToken?: string;
+  refreshToken?: string;
+}): Promise<string> {
+  if (!creds.accessToken || !creds.refreshToken) {
+    throw new Error("Cafe24 인증이 필요합니다. 설정에서 OAuth 인증을 진행해주세요.");
+  }
+
+  // 토큰 갱신 시도 (만료 여부와 관계없이 안전하게)
+  try {
+    // 토큰이 유효한지 간단히 테스트
+    const testRes = await fetch(`https://${creds.mallId}.cafe24api.com/api/v2/admin/store`, {
+      headers: { Authorization: `Bearer ${creds.accessToken}`, "Content-Type": "application/json" },
+    });
+
+    if (testRes.ok) return creds.accessToken;
+  } catch { /* 토큰 만료 → 갱신 */ }
+
+  // 토큰 갱신
+  console.log("[cafe24] Refreshing token...");
+  const newTokens = await refreshCafe24Token(
+    creds.mallId, creds.clientId, creds.clientSecret, creds.refreshToken
+  );
+
+  // DB에 새 토큰 저장
+  await supabase
+    .from("api_credentials")
+    .update({
+      cafe24_access_token: newTokens.accessToken,
+      cafe24_refresh_token: newTokens.refreshToken,
+      cafe24_token_expires_at: newTokens.expiresAt,
+    })
+    .eq("channel", "cafe24");
+
+  return newTokens.accessToken;
+}
+
+// Cafe24 주문 조회 (페이지네이션 포함)
+async function fetchCafe24Orders(
+  mallId: string,
+  accessToken: string,
+  startDate: string,
+  endDate: string
+): Promise<Record<string, unknown>[]> {
+  const allOrders: Record<string, unknown>[] = [];
+  let offset = 0;
+  const limit = 100;
+
+  while (true) {
+    const url = `https://${mallId}.cafe24api.com/api/v2/admin/orders?start_date=${startDate}&end_date=${endDate}&limit=${limit}&offset=${offset}&embed=items`;
+    console.log(`[cafe24] Fetching orders: offset=${offset}`);
+
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "X-Cafe24-Api-Version": "2024-06-01",
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[cafe24] API error: ${response.status} ${errorText}`);
+      throw new Error(`Cafe24 API 오류: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const orders = data.orders || [];
+
+    if (orders.length === 0) break;
+
+    allOrders.push(...orders);
+    offset += limit;
+
+    // 안전 장치: 최대 50페이지 (5000건)
+    if (offset >= 5000) break;
+  }
+
+  return allOrders;
+}
+
+// Cafe24 주문 → orders_raw 변환
+function transformCafe24Order(raw: Record<string, unknown>): NaverOrder[] {
+  const orderId = String(raw.order_id || "");
+  const orderDate = String(raw.order_date || raw.payment_date || "");
+  const buyerName = String((raw as any).buyer_name || (raw as any).billing_name || "");
+  const buyerPhone = String((raw as any).buyer_cellphone || (raw as any).buyer_phone || "");
+
+  // Cafe24는 주문 내 여러 상품이 items 배열로 들어옴
+  const items = (raw.items || raw.order_items || []) as Record<string, unknown>[];
+
+  if (items.length === 0) {
+    // items가 없으면 주문 단위로 처리
+    return [{
+      orderId,
+      orderDate,
+      productName: String(raw.product_name || ""),
+      quantity: toNumber(raw.quantity, 1),
+      unitPrice: toNumber(raw.product_price || raw.selling_price),
+      totalPrice: toNumber(raw.actual_payment_amount || raw.order_price_amount),
+      shippingFee: toNumber(raw.shipping_fee),
+      discountAmount: toNumber(raw.total_discount_amount || raw.discount_amount),
+      orderStatus: String(raw.order_status || ""),
+      buyerName,
+      buyerPhone,
+      rawData: raw,
+    }];
+  }
+
+  // 상품 단위로 분리
+  return items.map((item) => ({
+    orderId,
+    productOrderId: String(item.order_item_code || item.item_no || ""),
+    orderDate,
+    productName: String(item.product_name || item.product_code || ""),
+    optionName: String(item.option_value || item.option_id || "") || undefined,
+    quantity: toNumber(item.quantity, 1),
+    unitPrice: toNumber(item.product_price || item.selling_price),
+    totalPrice: toNumber(item.actual_payment_amount || item.payment_amount)
+      || toNumber(item.product_price || item.selling_price) * toNumber(item.quantity, 1),
+    shippingFee: 0, // 배송비는 주문 단위
+    discountAmount: toNumber(item.discount_amount || item.additional_discount_price),
+    orderStatus: String(item.order_status || raw.order_status || ""),
+    buyerName,
+    buyerPhone,
+    rawData: raw,
+  }));
+}
+
+// Cafe24 주문 동기화
+async function syncCafe24Orders(params: { startDate: string; endDate: string }) {
+  const { startDate, endDate } = params;
+  const channel = "cafe24";
+
+  console.log(`[cafe24] Syncing orders: ${startDate} ~ ${endDate}`);
+
+  // 자격증명 조회 + 토큰 확보
+  let creds;
+  try {
+    creds = await getCafe24Credentials();
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+
+  let accessToken: string;
+  try {
+    accessToken = await ensureCafe24Token(creds);
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+
+  // 주문 데이터 가져오기
+  let rawOrders: Record<string, unknown>[];
+  try {
+    rawOrders = await fetchCafe24Orders(creds.mallId, accessToken, startDate, endDate);
+  } catch (error: any) {
+    return { success: false, error: `Cafe24 주문 조회 실패: ${error.message}` };
+  }
+
+  if (rawOrders.length === 0) {
+    return { success: true, message: "해당 기간에 주문이 없습니다.", synced: 0, skipped: 0, errors: [] };
+  }
+
+  console.log(`[cafe24] Fetched ${rawOrders.length} orders`);
+
+  // 수수료율 + SKU 룩업 병렬 조회
+  const [feeRate, skuLookup] = await Promise.all([
+    getChannelFeeRate(channel),
+    loadSKULookup(channel),
+  ]);
+
+  // 주문 데이터 변환 (Cafe24는 1주문 → 다상품이므로 flat 처리)
+  const validOrders: any[] = [];
+  const allErrors: string[] = [];
+  let skippedCount = 0;
+  let rowIndex = 0;
+
+  for (const raw of rawOrders) {
+    const orderItems = transformCafe24Order(raw);
+
+    // 주문 전체 배송비를 첫 상품에 할당
+    const orderShippingFee = toNumber((raw as any).shipping_fee);
+
+    for (let j = 0; j < orderItems.length; j++) {
+      rowIndex++;
+      const order = orderItems[j];
+
+      const errors = validateOrder(order, rowIndex);
+      if (errors.length > 0) {
+        allErrors.push(...errors);
+        skippedCount++;
+        continue;
+      }
+
+      const uniqueOrderId = order.productOrderId
+        ? `${order.orderId}-${order.productOrderId}`
+        : order.orderId;
+
+      const { skuId, costPrice } = skuLookup.match(order.optionName);
+
+      const totalPrice = order.totalPrice || order.unitPrice * order.quantity;
+      const channelFee = Math.round(totalPrice * (feeRate / 100));
+      const shippingFee = j === 0 ? orderShippingFee : 0;
+      const discount = order.discountAmount || 0;
+      const totalCost = costPrice * order.quantity;
+      const profit = totalPrice - totalCost - channelFee - shippingFee - discount;
+
+      validOrders.push({
+        channel,
+        order_id: uniqueOrderId,
+        order_date: toDateStr(order.orderDate),
+        order_datetime: null,
+        product_name: order.productName || null,
+        option_name: order.optionName || null,
+        sku_id: skuId,
+        quantity: order.quantity,
+        unit_price: order.unitPrice || Math.round(totalPrice / order.quantity),
+        total_price: totalPrice,
+        shipping_fee: shippingFee,
+        discount_amount: discount,
+        channel_fee: channelFee,
+        cost_price: costPrice,
+        profit,
+        order_status: order.orderStatus || null,
+        buyer_name: order.buyerName || null,
+        buyer_phone: order.buyerPhone || null,
+        shipping_address: null,
+        currency: "KRW",
+        exchange_rate: 1,
+        raw_data: order.rawData || null,
+      });
+    }
+  }
+
+  if (validOrders.length === 0) {
+    return { success: false, error: "유효한 주문 데이터가 없습니다.", errors: allErrors };
+  }
+
+  // 중복 제거
+  const deduped = new Map<string, (typeof validOrders)[number]>();
+  for (const order of validOrders) {
+    deduped.set(`${order.channel}::${order.order_id}`, order);
+  }
+  const uniqueOrders = Array.from(deduped.values());
+  const duplicateCount = validOrders.length - uniqueOrders.length;
+
+  // 병렬 청크 upsert
+  const CHUNK_SIZE = 200;
+  console.log(`[cafe24] Upserting ${uniqueOrders.length} orders`);
+
+  const chunks: (typeof uniqueOrders)[] = [];
+  for (let i = 0; i < uniqueOrders.length; i += CHUNK_SIZE) {
+    chunks.push(uniqueOrders.slice(i, i + CHUNK_SIZE));
+  }
+
+  const upsertResults = await Promise.all(
+    chunks.map((chunk) =>
+      supabase.from("orders_raw").upsert(chunk, { onConflict: "channel,order_id", ignoreDuplicates: false }).select("id")
+    )
+  );
+
+  const dbErrors = upsertResults.filter((r) => r.error);
+  if (dbErrors.length > 0) {
+    return { success: false, error: `데이터 저장 오류: ${dbErrors[0].error!.message}`, errors: allErrors };
+  }
+
+  const totalInserted = upsertResults.reduce((sum, r) => sum + (r.data?.length || 0), 0);
+
+  // 로그 및 설정 업데이트
+  try {
+    await supabase.from("api_sync_logs").insert({
+      channel, sync_type: "manual", status: "success",
+      records_fetched: rawOrders.length, records_created: totalInserted || uniqueOrders.length,
+      records_updated: 0, started_at: new Date().toISOString(), completed_at: new Date().toISOString(),
+    });
+  } catch { /* 무시 */ }
+
+  try {
+    await supabase.from("sales_channel_settings")
+      .update({ last_sync_at: new Date().toISOString(), sync_status: "success" })
+      .eq("channel", channel);
+  } catch { /* 무시 */ }
+
+  return {
+    success: true,
+    message: `${uniqueOrders.length}건의 Cafe24 주문이 동기화되었습니다.${duplicateCount > 0 ? ` (중복 ${duplicateCount}건 제거)` : ""}`,
+    synced: totalInserted || uniqueOrders.length,
+    skipped: skippedCount,
+    duplicates: duplicateCount,
+    total: rawOrders.length,
+    errors: allErrors,
+  };
+}
+
 // ========== Handler ==========
 const handler: Handler = async (
   event: HandlerEvent,
@@ -657,9 +1073,84 @@ const handler: Handler = async (
         };
       }
 
+      // ===== Cafe24 OAuth =====
+      case "cafe24-auth-url": {
+        if (!request.mallId || !request.clientId || !request.redirectUri) {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({ success: false, error: "mallId, clientId, redirectUri are required" }),
+          };
+        }
+        const authUrl = getCafe24AuthUrl(request.mallId, request.clientId, request.redirectUri);
+        return {
+          statusCode: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ success: true, authUrl }),
+        };
+      }
+
+      case "cafe24-exchange-token": {
+        if (!request.mallId || !request.clientId || !request.clientSecret || !request.code || !request.redirectUri) {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({ success: false, error: "mallId, clientId, clientSecret, code, redirectUri are required" }),
+          };
+        }
+        try {
+          const tokens = await exchangeCafe24Token(
+            request.mallId, request.clientId, request.clientSecret, request.code, request.redirectUri
+          );
+          // DB에 토큰 저장
+          await supabase
+            .from("api_credentials")
+            .update({
+              cafe24_access_token: tokens.accessToken,
+              cafe24_refresh_token: tokens.refreshToken,
+              cafe24_token_expires_at: tokens.expiresAt,
+            })
+            .eq("channel", "cafe24");
+
+          return {
+            statusCode: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ success: true, message: "Cafe24 인증이 완료되었습니다." }),
+          };
+        } catch (error: any) {
+          return {
+            statusCode: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ success: false, error: error.message }),
+          };
+        }
+      }
+
       // ===== 주문 동기화 =====
       case "test-connection": {
-        const result = await testConnection(request.channel || "smartstore");
+        const ch = request.channel || "smartstore";
+
+        if (ch === "cafe24") {
+          try {
+            const creds = await getCafe24Credentials();
+            const token = await ensureCafe24Token(creds);
+            if (token) {
+              return {
+                statusCode: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                body: JSON.stringify({ success: true, message: "Cafe24 API 연결 성공!" }),
+              };
+            }
+          } catch (error: any) {
+            return {
+              statusCode: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              body: JSON.stringify({ success: false, message: error.message }),
+            };
+          }
+        }
+
+        const result = await testConnection(ch);
         return {
           statusCode: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -668,8 +1159,22 @@ const handler: Handler = async (
       }
 
       case "sync-orders": {
+        const syncChannel = request.channel || "smartstore";
+
+        if (syncChannel === "cafe24") {
+          const cafe24Result = await syncCafe24Orders({
+            startDate: request.startDate || "",
+            endDate: request.endDate || "",
+          });
+          return {
+            statusCode: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify(cafe24Result),
+          };
+        }
+
         const result = await syncOrders({
-          channel: request.channel || "smartstore",
+          channel: syncChannel,
           startDate: request.startDate || "",
           endDate: request.endDate || "",
         });
