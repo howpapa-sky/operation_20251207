@@ -871,10 +871,29 @@ async function syncCafe24Orders(params: { startDate: string; endDate: string }) 
     return { success: false, error: error.message };
   }
 
-  // 주문 데이터 가져오기
-  let rawOrders: Record<string, unknown>[];
+  // Cafe24 API는 최대 6개월 범위만 허용 → 3개월 단위로 분할 조회
+  const dateChunks: { start: string; end: string }[] = [];
+  const msPerDay = 86400000;
+  const chunkDays = 89; // ~3개월 (안전하게 89일)
+  let chunkStart = new Date(startDate + "T00:00:00+09:00");
+  const finalEnd = new Date(endDate + "T00:00:00+09:00");
+
+  while (chunkStart < finalEnd) {
+    const chunkEnd = new Date(Math.min(chunkStart.getTime() + chunkDays * msPerDay, finalEnd.getTime()));
+    dateChunks.push({
+      start: chunkStart.toISOString().split("T")[0],
+      end: chunkEnd.toISOString().split("T")[0],
+    });
+    chunkStart = new Date(chunkEnd.getTime() + msPerDay); // 다음 날부터
+  }
+  console.log(`[cafe24] Date range split into ${dateChunks.length} chunks:`, dateChunks);
+
+  let rawOrders: Record<string, unknown>[] = [];
   try {
-    rawOrders = await fetchCafe24Orders(creds.mallId, accessToken, startDate, endDate);
+    for (const chunk of dateChunks) {
+      const chunkOrders = await fetchCafe24Orders(creds.mallId, accessToken, chunk.start, chunk.end);
+      rawOrders.push(...chunkOrders);
+    }
   } catch (error: any) {
     return { success: false, error: `Cafe24 주문 조회 실패: ${error.message}` };
   }
