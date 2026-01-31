@@ -1672,9 +1672,9 @@ export default function SettingsPage() {
                           return;
                         }
                         const redirectUri = window.location.origin;
-                        // Cafe24 개발자센터 권한관리에 등록된 scope만 요청 가능
-                        // 주문/상품/쇼핑몰 Read 권한을 개발자센터에서 추가해야 주문 동기화 가능
-                        const scope = 'mall.read_order,mall.read_product,mall.read_store';
+                        // Cafe24 개발자센터 권한관리에 기본 등록된 scope만 우선 요청
+                        // 주문 동기화를 위해서는 개발자센터에서 주문/상품/쇼핑몰 Read 권한 추가 후 재인증 필요
+                        const scope = 'mall.read_application,mall.write_application';
                         const authUrl = `https://${mallId}.cafe24api.com/api/v2/oauth/authorize`
                           + `?response_type=code`
                           + `&client_id=${clientId}`
