@@ -13,8 +13,14 @@ interface SeedingTableProps {
   isLoading?: boolean;
 }
 
-type SortField = 'listed_at' | 'account_id' | 'follower_count' | 'following_count' | 'email' | 'product_name' | 'product_price' | 'posted_at' | 'notes';
+type SortField = 'listed_at' | 'account_id' | 'follower_count' | 'following_count' | 'email' | 'dm_sent' | 'response' | 'accepted' | 'shipped' | 'product_name' | 'product_price' | 'posted_at' | 'completed_at' | 'notes';
 type SortDirection = 'asc' | 'desc';
+
+// 상태에 따른 boolean 플래그
+const getDmSent = (status: string) => ['contacted', 'accepted', 'rejected', 'shipped', 'guide_sent', 'posted', 'completed'].includes(status);
+const getResponseReceived = (status: string) => ['accepted', 'rejected', 'shipped', 'guide_sent', 'posted', 'completed'].includes(status);
+const getIsAccepted = (inf: SeedingInfluencer) => !!inf.accepted_at || ['accepted', 'shipped', 'guide_sent', 'posted', 'completed'].includes(inf.status);
+const getIsShipped = (status: string) => ['shipped', 'guide_sent', 'posted', 'completed'].includes(status);
 
 // 스켈레톤 로딩 컴포넌트
 function SkeletonRow() {
@@ -77,6 +83,18 @@ export default function SeedingTable({
         case 'email':
           comparison = (a.email || '').localeCompare(b.email || '');
           break;
+        case 'dm_sent':
+          comparison = Number(getDmSent(a.status)) - Number(getDmSent(b.status));
+          break;
+        case 'response':
+          comparison = Number(getResponseReceived(a.status)) - Number(getResponseReceived(b.status));
+          break;
+        case 'accepted':
+          comparison = Number(getIsAccepted(a)) - Number(getIsAccepted(b));
+          break;
+        case 'shipped':
+          comparison = Number(getIsShipped(a.status)) - Number(getIsShipped(b.status));
+          break;
         case 'product_name':
           comparison = (a.product_name || '').localeCompare(b.product_name || '');
           break;
@@ -90,6 +108,14 @@ export default function SeedingTable({
           else if (!aPosted) comparison = 1;
           else if (!bPosted) comparison = -1;
           else comparison = new Date(aPosted).getTime() - new Date(bPosted).getTime();
+          break;
+        case 'completed_at':
+          const aCompleted = a.completed_at;
+          const bCompleted = b.completed_at;
+          if (!aCompleted && !bCompleted) comparison = 0;
+          else if (!aCompleted) comparison = 1;
+          else if (!bCompleted) comparison = -1;
+          else comparison = new Date(aCompleted).getTime() - new Date(bCompleted).getTime();
           break;
         case 'notes':
           comparison = (a.notes || '').localeCompare(b.notes || '');
@@ -225,23 +251,35 @@ export default function SeedingTable({
 
               {/* DM발송여부 */}
               <th className="px-3 py-3 text-left">
-                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <button
+                  onClick={() => handleSort('dm_sent')}
+                  className="flex items-center gap-1 text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                >
                   DM발송
-                </span>
+                  <SortIcon field="dm_sent" />
+                </button>
               </th>
 
               {/* 응답여부 */}
               <th className="px-3 py-3 text-left">
-                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <button
+                  onClick={() => handleSort('response')}
+                  className="flex items-center gap-1 text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                >
                   응답
-                </span>
+                  <SortIcon field="response" />
+                </button>
               </th>
 
               {/* 수락여부 */}
               <th className="px-3 py-3 text-left">
-                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <button
+                  onClick={() => handleSort('accepted')}
+                  className="flex items-center gap-1 text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                >
                   수락
-                </span>
+                  <SortIcon field="accepted" />
+                </button>
               </th>
 
               {/* 수락일자 */}
@@ -275,9 +313,13 @@ export default function SeedingTable({
 
               {/* 발송여부 */}
               <th className="px-3 py-3 text-left">
-                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <button
+                  onClick={() => handleSort('shipped')}
+                  className="flex items-center gap-1 text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                >
                   발송
-                </span>
+                  <SortIcon field="shipped" />
+                </button>
               </th>
 
               {/* 업로드 예정 */}
@@ -293,9 +335,13 @@ export default function SeedingTable({
 
               {/* 완료일 */}
               <th className="px-3 py-3 text-left">
-                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <button
+                  onClick={() => handleSort('completed_at')}
+                  className="flex items-center gap-1 text-xs font-semibold text-gray-600 uppercase tracking-wider hover:text-gray-900"
+                >
                   완료일
-                </span>
+                  <SortIcon field="completed_at" />
+                </button>
               </th>
 
               {/* 비고 */}
