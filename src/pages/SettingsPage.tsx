@@ -1663,7 +1663,7 @@ export default function SettingsPage() {
                           return;
                         }
                         try {
-                          const redirectUri = `${window.location.origin}/auth/cafe24`;
+                          const redirectUri = window.location.origin;
                           const res = await fetch('/.netlify/functions/commerce-proxy', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
