@@ -1629,6 +1629,23 @@ export default function SettingsPage() {
           {/* 카페24 */}
           {editingChannel === 'cafe24' && (
             <>
+              {/* 앱 등록 안내 */}
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                <p className="font-medium mb-1">Cafe24 앱 등록이 필요합니다</p>
+                <p className="text-xs text-amber-700">
+                  <a
+                    href="https://developers.cafe24.com/app/front/app/develop/register"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline font-medium"
+                  >
+                    Cafe24 개발자센터
+                  </a>
+                  에서 앱을 등록하면 Client ID와 Client Secret이 발급됩니다.
+                  몰 ID와 Client ID는 서로 다른 값입니다.
+                </p>
+              </div>
+
               <div>
                 <label className="label">몰 ID *</label>
                 <input
@@ -1643,10 +1660,10 @@ export default function SettingsPage() {
                   className="input-field"
                   placeholder="your-mall-id"
                 />
-                <p className="text-xs text-gray-400 mt-1">카페24 관리자에서 확인할 수 있습니다</p>
+                <p className="text-xs text-gray-400 mt-1">쇼핑몰 주소의 서브도메인 (예: howpapa.cafe24.com → howpapa)</p>
               </div>
               <div>
-                <label className="label">Client ID *</label>
+                <label className="label">Client ID * <span className="text-xs text-gray-400 font-normal">(몰 ID와 다름)</span></label>
                 <input
                   type="text"
                   value={apiFormData.cafe24.clientId}
@@ -1657,8 +1674,9 @@ export default function SettingsPage() {
                     }))
                   }
                   className="input-field"
-                  placeholder="앱 Client ID"
+                  placeholder="예: AbCdEfGhIjKlMn (개발자센터에서 발급)"
                 />
+                <p className="text-xs text-gray-400 mt-1">개발자센터 &gt; 앱 관리에서 확인 가능한 앱 Client ID</p>
               </div>
               <div>
                 <label className="label">Client Secret *</label>
