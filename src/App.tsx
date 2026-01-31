@@ -22,6 +22,7 @@ import DevRequestPage from './pages/DevRequestPage';
 import SKUMasterPage from './pages/SKUMasterPage';
 import SalesDashboardPage from './pages/SalesDashboardPage';
 import DailyReportSettingsPage from './pages/DailyReportSettingsPage';
+import Cafe24CallbackPage from './pages/Cafe24CallbackPage';
 
 // Seeding Pages
 import SeedingProjectsPage from './pages/seeding/SeedingProjectsPage';
@@ -156,6 +157,16 @@ function App() {
           <Route path="seeding/guides/:id/edit" element={<ProductGuideEditPage />} />
           <Route path="seeding/reports" element={<SeedingReportsPage />} />
         </Route>
+
+        {/* Cafe24 OAuth Callback */}
+        <Route
+          path="/auth/cafe24"
+          element={
+            <ProtectedRoute>
+              <Cafe24CallbackPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Public Guide Page (no auth required) */}
         <Route path="/g/:slug" element={<ProductGuidePublicPage />} />

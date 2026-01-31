@@ -179,66 +179,9 @@ export default function SettingsPage() {
     coupang: { vendorId: '', accessKey: '', secretKey: '' },
   });
 
-  const [cafe24OAuthStatus, setCafe24OAuthStatus] = useState<string | null>(null);
-
   useEffect(() => {
     fetchCredentials();
   }, [fetchCredentials]);
-
-  // Cafe24 OAuth 콜백 처리
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const cafe24Callback = params.get('cafe24_callback');
-    const code = params.get('code');
-
-    if (cafe24Callback && code) {
-      // URL에서 파라미터 제거
-      window.history.replaceState({}, '', window.location.pathname);
-
-      // API 탭으로 전환
-      setActiveTab('api');
-      setCafe24OAuthStatus('인증 코드를 교환하는 중...');
-
-      // DB에서 cafe24 자격증명 가져와서 토큰 교환
-      (async () => {
-        try {
-          // credentials가 아직 로드되지 않았을 수 있으므로 fetchCredentials 후 최신 상태 확인
-          await fetchCredentials();
-          const latestCreds = useApiCredentialsStore.getState().credentials;
-          const updatedCred = latestCreds.find((c) => c.channel === 'cafe24');
-          const cafe24 = updatedCred?.cafe24;
-
-          if (!cafe24?.mallId || !cafe24?.clientId || !cafe24?.clientSecret) {
-            setCafe24OAuthStatus('Cafe24 자격증명이 저장되어 있지 않습니다. 먼저 API 설정에서 저장해주세요.');
-            return;
-          }
-
-          const redirectUri = `${window.location.origin}/settings?cafe24_callback=true`;
-          const res = await fetch('/.netlify/functions/commerce-proxy', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'cafe24-exchange-token',
-              mallId: cafe24.mallId,
-              clientId: cafe24.clientId,
-              clientSecret: cafe24.clientSecret,
-              code,
-              redirectUri,
-            }),
-          });
-          const data = await res.json();
-          if (data.success) {
-            setCafe24OAuthStatus('Cafe24 OAuth 인증이 완료되었습니다!');
-            await fetchCredentials();
-          } else {
-            setCafe24OAuthStatus(`인증 실패: ${data.error || '알 수 없는 오류'}`);
-          }
-        } catch (err) {
-          setCafe24OAuthStatus(`인증 처리 중 오류: ${(err as Error).message}`);
-        }
-      })();
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSaveProfile = () => {
     updateUser({ name, email });
@@ -959,20 +902,6 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </div>
-
-                {/* Cafe24 OAuth 콜백 결과 */}
-                {cafe24OAuthStatus && (
-                  <div className={`rounded-xl p-4 text-sm flex items-center gap-2 ${
-                    cafe24OAuthStatus.includes('완료') ? 'bg-green-50 border border-green-200 text-green-800' :
-                    cafe24OAuthStatus.includes('실패') || cafe24OAuthStatus.includes('오류') ? 'bg-red-50 border border-red-200 text-red-800' :
-                    'bg-yellow-50 border border-yellow-200 text-yellow-800'
-                  }`}>
-                    {cafe24OAuthStatus.includes('완료') ? <CheckCircle className="w-4 h-4 flex-shrink-0" /> :
-                     cafe24OAuthStatus.includes('실패') || cafe24OAuthStatus.includes('오류') ? <XCircle className="w-4 h-4 flex-shrink-0" /> :
-                     <RefreshCw className="w-4 h-4 flex-shrink-0 animate-spin" />}
-                    {cafe24OAuthStatus}
-                  </div>
-                )}
 
                 {/* 채널 목록 */}
                 {(['cafe24', 'naver_smartstore', 'coupang'] as SalesChannel[]).map((channel) => {
@@ -1734,7 +1663,7 @@ export default function SettingsPage() {
                           return;
                         }
                         try {
-                          const redirectUri = `${window.location.origin}/settings?cafe24_callback=true`;
+                          const redirectUri = `${window.location.origin}/auth/cafe24`;
                           const res = await fetch('/.netlify/functions/commerce-proxy', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
