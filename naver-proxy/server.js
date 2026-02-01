@@ -58,9 +58,10 @@ async function generateNaverToken(clientId, clientSecret) {
     throw new Error('bcrypt hash failed: ' + e.message + ' (secret_len=' + (clientSecret ? clientSecret.length : 0) + ')');
   }
 
-  var body = 'client_id=' + encodeURIComponent(clientId)
+  // Naver API requires raw bcrypt hash (no URL encoding for $, /)
+  var body = 'client_id=' + clientId
     + '&timestamp=' + timestamp
-    + '&client_secret_sign=' + encodeURIComponent(hashedSign)
+    + '&client_secret_sign=' + hashedSign
     + '&grant_type=client_credentials&type=SELF';
 
   console.log('[naver-token] clientId=' + clientId.substring(0, 6) + '... secret_len=' + clientSecret.length + ' hash_len=' + hashedSign.length);
