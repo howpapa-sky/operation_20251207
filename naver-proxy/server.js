@@ -24,15 +24,30 @@ app.use(limiter);
 // API Key authentication middleware (x-api-key, x-proxy-api-key 모두 허용)
 function authenticate(req, res, next) {
   const apiKey = req.headers['x-api-key'] || req.headers['x-proxy-api-key'];
+  const headerUsed = req.headers['x-api-key'] ? 'x-api-key' : (req.headers['x-proxy-api-key'] ? 'x-proxy-api-key' : 'none');
+
   if (!apiKey || apiKey !== API_KEY) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    console.log(`[AUTH FAIL] ${req.method} ${req.path} | header: ${headerUsed} | received_len: ${apiKey ? apiKey.length : 0} | expected_len: ${API_KEY ? API_KEY.length : 0}`);
+    return res.status(401).json({
+      error: 'Unauthorized',
+      hint: !API_KEY ? 'PROXY_API_KEY 환경변수가 설정되지 않았습니다' :
+            !apiKey ? '인증 헤더가 없습니다 (x-api-key 또는 x-proxy-api-key)' :
+            'API 키가 일치하지 않습니다'
+    });
   }
   next();
 }
 
-// Health check (no auth required)
+// Health check (no auth required) + 설정 상태 확인
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    config: {
+      apiKeyConfigured: !!API_KEY,
+      apiKeyLength: API_KEY ? API_KEY.length : 0,
+    }
+  });
 });
 
 // ==========================================

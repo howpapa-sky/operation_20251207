@@ -131,7 +131,7 @@ async function testConnection(channel: string) {
       }
       return {
         success: result.success === true,
-        message: result.message || (result.success ? "연결 성공" : "연결 실패"),
+        message: result.message || result.hint || (result.success ? "연결 성공" : result.error || "연결 실패"),
       };
     } catch (error: any) {
       return {
@@ -345,7 +345,7 @@ async function syncOrders(params: {
       if (!response.ok || !result.success) {
         return {
           success: false,
-          error: result.message || "프록시 동기화 실패",
+          error: result.message || result.hint || result.error || "프록시 동기화 실패",
         };
       }
 
