@@ -13,6 +13,7 @@ import {
   BarChart2,
   Download,
   Upload,
+  Megaphone,
 } from 'lucide-react';
 import {
   LineChart,
@@ -63,6 +64,8 @@ export default function SalesPage() {
     updateSalesRecord,
     deleteSalesRecord,
     getMonthlySummary,
+    getSeedingMarketingCost,
+    seedingMarketingCost,
   } = useSalesStore();
 
   const { products: masterProducts } = useProductMasterStore();
@@ -87,7 +90,8 @@ export default function SalesPage() {
     const startDate = `${selectedMonth}-01`;
     const endDate = `${selectedMonth}-31`;
     fetchSalesRecords(startDate, endDate);
-  }, [selectedMonth, fetchProducts, fetchSalesRecords]);
+    getSeedingMarketingCost(startDate, endDate);
+  }, [selectedMonth, fetchProducts, fetchSalesRecords, getSeedingMarketingCost]);
 
   const summary = getMonthlySummary(selectedMonth);
 
@@ -254,7 +258,7 @@ export default function SalesPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card className="p-5">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-100 rounded-xl">
@@ -275,9 +279,26 @@ export default function SalesPage() {
               <TrendingDown className="w-6 h-6 text-red-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">총 원가</p>
+              <p className="text-sm text-gray-500">총 비용</p>
               <p className="text-xl font-bold text-gray-900">
-                {formatNumber(summary.totalCost)}원
+                {formatNumber(summary.totalCost + seedingMarketingCost)}원
+              </p>
+              <p className="text-xs text-gray-400">
+                원가 {formatNumber(summary.totalCost)} + 시딩 {formatNumber(seedingMarketingCost)}
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-orange-100 rounded-xl">
+              <Megaphone className="w-6 h-6 text-orange-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">시딩 마케팅비</p>
+              <p className="text-xl font-bold text-orange-600">
+                {formatNumber(seedingMarketingCost)}원
               </p>
             </div>
           </div>
@@ -291,10 +312,10 @@ export default function SalesPage() {
             <div>
               <p className="text-sm text-gray-500">순이익</p>
               <p className="text-xl font-bold text-green-600">
-                {formatNumber(summary.totalProfit)}원
+                {formatNumber(summary.totalProfit - seedingMarketingCost)}원
               </p>
               <p className="text-xs text-gray-400">
-                이익률 {summary.profitMargin.toFixed(1)}%
+                이익률 {summary.totalRevenue > 0 ? (((summary.totalProfit - seedingMarketingCost) / summary.totalRevenue) * 100).toFixed(1) : '0.0'}%
               </p>
             </div>
           </div>

@@ -994,8 +994,10 @@ export interface SeedingInfluencer {
   seeding_type: SeedingType;       // 무가/유가
   content_type: ContentType;       // 스토리/릴스/피드
   fee?: number;                    // 원고비 (유가인 경우)
+  payment?: number;                // 인플루언서 지급비
   product_name?: string;           // 발송 제품명
   product_price?: number;          // 제품 단가
+  shipping_cost?: number;          // 배송비
   status: SeedingStatus;
 
   // 배송 정보

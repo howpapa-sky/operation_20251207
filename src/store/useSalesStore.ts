@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import { Product, SalesRecord, SalesChannel } from '../types';
+import { Product, SalesRecord, SalesChannel, Brand } from '../types';
 
 interface SalesState {
   products: Product[];
@@ -8,6 +8,10 @@ interface SalesState {
   isLoading: boolean;
   selectedDate: string; // YYYY-MM-DD
   selectedMonth: string; // YYYY-MM
+  seedingMarketingCost: number;
+
+  // 시딩 마케팅비
+  getSeedingMarketingCost: (startDate: string, endDate: string, brand?: Brand) => Promise<number>;
 
   // 제품 관련
   fetchProducts: () => Promise<void>;
@@ -59,6 +63,63 @@ export const useSalesStore = create<SalesState>((set, get) => ({
   isLoading: false,
   selectedDate: new Date().toISOString().split('T')[0],
   selectedMonth: new Date().toISOString().slice(0, 7),
+  seedingMarketingCost: 0,
+
+  // 시딩 마케팅비 조회
+  getSeedingMarketingCost: async (startDate: string, endDate: string, brand?: Brand) => {
+    try {
+      // 브랜드 필터가 있으면 해당 브랜드의 프로젝트 ID 목록 조회
+      let projectIds: string[] | null = null;
+      if (brand) {
+        const { data: projects } = await supabase
+          .from('seeding_projects')
+          .select('id')
+          .eq('brand', brand);
+        projectIds = projects?.map((p: { id: string }) => p.id) || [];
+        if (projectIds.length === 0) {
+          set({ seedingMarketingCost: 0 });
+          return 0;
+        }
+      }
+
+      // 발송완료 이후 상태의 인플루언서 조회
+      let query = supabase
+        .from('seeding_influencers')
+        .select('product_price, shipping, payment, shipping_cost, project_id')
+        .in('status', ['shipped', 'posted', 'completed'])
+        .gte('created_at', `${startDate}T00:00:00`)
+        .lte('created_at', `${endDate}T23:59:59`);
+
+      if (projectIds) {
+        query = query.in('project_id', projectIds);
+      }
+
+      const { data, error } = await query;
+
+      if (error || !data) {
+        console.error('getSeedingMarketingCost error:', error);
+        set({ seedingMarketingCost: 0 });
+        return 0;
+      }
+
+      // 계산: SUM(product_price * quantity) + SUM(payment) + SUM(shipping_cost)
+      let total = 0;
+      data.forEach((inf: Record<string, unknown>) => {
+        const quantity = (inf.shipping as Record<string, unknown>)?.quantity as number || 1;
+        const productPrice = Number(inf.product_price) || 0;
+        const payment = Number(inf.payment) || 0;
+        const shippingCost = Number(inf.shipping_cost) || 0;
+        total += (productPrice * quantity) + payment + shippingCost;
+      });
+
+      set({ seedingMarketingCost: total });
+      return total;
+    } catch (error) {
+      console.error('getSeedingMarketingCost error:', error);
+      set({ seedingMarketingCost: 0 });
+      return 0;
+    }
+  },
 
   // 제품 목록 가져오기
   fetchProducts: async () => {

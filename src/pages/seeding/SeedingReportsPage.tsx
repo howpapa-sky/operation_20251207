@@ -124,27 +124,26 @@ export default function SeedingReportsPage() {
   }, [filteredData]);
 
   // 비용 통계 계산 (발송완료 상태만)
+  // 매출 대시보드(useSalesStore.getSeedingMarketingCost)와 동일한 계산 로직:
+  // SUM(product_price * quantity) + SUM(payment) + SUM(shipping_cost)
   const costData = useMemo(() => {
-    const { influencers: filtered, projects: filteredProjects } = filteredData;
+    const { influencers: filtered } = filteredData;
 
     // 발송 완료 이후 상태 (비용 계산 대상)
-    const shippedStatuses = ['shipped', 'guide_sent', 'posted', 'completed'];
+    const shippedStatuses = ['shipped', 'posted', 'completed'];
 
     let totalSeedingCost = 0;
     let totalFee = 0;
-    let shippedCount = 0;
 
     filtered.forEach((inf) => {
       // 발송완료 상태인 건만 비용 계산
       if (shippedStatuses.includes(inf.status)) {
-        const project = filteredProjects.find((p) => p.id === inf.project_id);
         const quantity = inf.shipping?.quantity || 1;
-        // 인플루언서별 product_price 우선, 없으면 프로젝트 cost_price 사용
-        const productPrice = inf.product_price || project?.cost_price || 0;
-        totalSeedingCost += quantity * productPrice;
+        const productPrice = inf.product_price || 0;
+        const payment = inf.payment || 0;
+        const shippingCost = inf.shipping_cost || 0;
+        totalSeedingCost += (quantity * productPrice) + payment + shippingCost;
         totalFee += inf.fee || 0;
-        shippedCount++;
-
       }
     });
 
@@ -201,11 +200,12 @@ export default function SeedingReportsPage() {
   }, [filteredData]);
 
   // 시딩 유형 데이터 (비용은 발송완료 상태만)
+  // 매출 대시보드와 동일한 계산 로직 사용
   const seedingTypeData = useMemo(() => {
-    const { influencers: filtered, projects: filteredProjects } = filteredData;
+    const { influencers: filtered } = filteredData;
 
     // 발송 완료 이후 상태 (비용 계산 대상)
-    const shippedStatuses = ['shipped', 'guide_sent', 'posted', 'completed'];
+    const shippedStatuses = ['shipped', 'posted', 'completed'];
 
     let freeCount = 0;
     let paidCount = 0;
@@ -222,10 +222,11 @@ export default function SeedingReportsPage() {
 
       // 비용은 발송완료 상태만
       if (shippedStatuses.includes(inf.status)) {
-        const project = filteredProjects.find((p) => p.id === inf.project_id);
         const quantity = inf.shipping?.quantity || 1;
-        const productPrice = inf.product_price || project?.cost_price || 0;
-        const cost = quantity * productPrice;
+        const productPrice = inf.product_price || 0;
+        const payment = inf.payment || 0;
+        const shippingCost = inf.shipping_cost || 0;
+        const cost = (quantity * productPrice) + payment + shippingCost;
 
         if (inf.seeding_type === 'free') {
           freeCost += cost;
