@@ -109,10 +109,10 @@ export async function syncOrders(params: {
   const chunkDays = CHUNK_DAYS[params.channel] || DEFAULT_CHUNK_DAYS;
   const MS_PER_DAY = 86400000;
 
-  // 날짜 범위를 청크로 분할
+  // 날짜 범위를 청크로 분할 (UTC로 파싱하여 타임존 밀림 방지)
   const chunks: { start: string; end: string }[] = [];
-  let cur = new Date(params.startDate + 'T00:00:00');
-  const end = new Date(params.endDate + 'T00:00:00');
+  let cur = new Date(params.startDate + 'T00:00:00Z');
+  const end = new Date(params.endDate + 'T00:00:00Z');
 
   while (cur <= end) {
     const chunkEnd = new Date(Math.min(cur.getTime() + (chunkDays - 1) * MS_PER_DAY, end.getTime()));

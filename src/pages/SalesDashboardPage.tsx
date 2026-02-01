@@ -203,9 +203,10 @@ export default function SalesDashboardPage() {
     const start = new Date();
     start.setDate(start.getDate() - (days - 1));
 
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const newRange = {
-      start: start.toISOString().split('T')[0],
-      end: end.toISOString().split('T')[0],
+      start: fmt(start),
+      end: fmt(end),
     };
 
     setStartDate(newRange.start);

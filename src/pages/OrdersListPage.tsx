@@ -77,9 +77,12 @@ export default function OrdersListPage() {
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 6);
-    return d.toISOString().split('T')[0];
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   });
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
   const [channelFilter, setChannelFilter] = useState<SalesChannel | 'all'>('all');
   const [searchField, setSearchField] = useState<'product_name' | 'order_id' | 'option_name'>('product_name');
   const [searchTerm, setSearchTerm] = useState('');
