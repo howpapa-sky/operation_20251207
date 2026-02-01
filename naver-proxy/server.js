@@ -50,27 +50,36 @@ app.get('/health', (req, res) => {
 // 토큰 발급 헬퍼 (내부 재사용)
 async function generateNaverToken(clientId, clientSecret) {
   const timestamp = Date.now();
-  const password = `${clientId}_${timestamp}`;
-  const hashedSign = bcrypt.hashSync(password, clientSecret);
-  const clientSecretSign = Buffer.from(hashedSign, 'utf-8').toString('utf-8');
+  const password = clientId + '_' + timestamp;
+  var hashedSign;
+  try {
+    hashedSign = bcrypt.hashSync(password, clientSecret);
+  } catch (e) {
+    throw new Error('bcrypt hash failed: ' + e.message + ' (secret_len=' + (clientSecret ? clientSecret.length : 0) + ')');
+  }
 
-  const params = new URLSearchParams({
-    client_id: clientId,
-    timestamp: timestamp.toString(),
-    client_secret_sign: clientSecretSign,
-    grant_type: 'client_credentials',
-    type: 'SELF',
-  });
+  var body = 'client_id=' + encodeURIComponent(clientId)
+    + '&timestamp=' + timestamp
+    + '&client_secret_sign=' + encodeURIComponent(hashedSign)
+    + '&grant_type=client_credentials&type=SELF';
+
+  console.log('[naver-token] clientId=' + clientId.substring(0, 6) + '... secret_len=' + clientSecret.length + ' hash_len=' + hashedSign.length);
 
   const response = await fetch('https://api.commerce.naver.com/external/v1/oauth2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
+    body: body,
   });
 
-  const data = await response.json();
+  var text = await response.text();
+  console.log('[naver-token] response status=' + response.status + ' body=' + text.substring(0, 300));
+
+  var data;
+  try { data = JSON.parse(text); } catch (e) {
+    throw new Error('Naver token parse error: ' + text.substring(0, 200));
+  }
   if (!response.ok || !data.access_token) {
-    throw new Error(data.message || data.error || 'Token request failed');
+    throw new Error(data.message || data.error || 'Token request failed (status=' + response.status + ')');
   }
   return data;
 }
