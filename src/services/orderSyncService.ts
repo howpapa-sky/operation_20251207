@@ -9,7 +9,7 @@ const FUNCTION_URL = '/.netlify/functions/commerce-proxy';
 
 /** 채널별 청크 일수 (Netlify 10s 타임아웃 대응) */
 const CHUNK_DAYS: Record<string, number> = {
-  smartstore: 14,   // 네이버: 14일 단위
+  smartstore: 3,    // 네이버: 3일 단위 (NCP에서 1일씩 재분할 → Netlify 타임아웃 방지)
   cafe24: 30,       // Cafe24: 30일 단위
   coupang: 14,      // 쿠팡: 14일 단위 (향후 확장)
 };
@@ -109,10 +109,10 @@ export async function syncOrders(params: {
   const chunkDays = CHUNK_DAYS[params.channel] || DEFAULT_CHUNK_DAYS;
   const MS_PER_DAY = 86400000;
 
-  // 날짜 범위를 청크로 분할
+  // 날짜 범위를 청크로 분할 (UTC로 파싱하여 타임존 밀림 방지)
   const chunks: { start: string; end: string }[] = [];
-  let cur = new Date(params.startDate + 'T00:00:00');
-  const end = new Date(params.endDate + 'T00:00:00');
+  let cur = new Date(params.startDate + 'T00:00:00Z');
+  const end = new Date(params.endDate + 'T00:00:00Z');
 
   while (cur <= end) {
     const chunkEnd = new Date(Math.min(cur.getTime() + (chunkDays - 1) * MS_PER_DAY, end.getTime()));

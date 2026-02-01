@@ -110,6 +110,13 @@ function aggregateOrdersByDateChannel(
   >();
 
   for (const o of orders) {
+    // 취소/반품 주문은 매출에서 제외
+    const status = ((o.order_status as string) || '').toUpperCase();
+    if (status.includes('CANCEL') || status.includes('RETURN') || status.includes('REFUND')
+        || /^[CR]\d/.test(status)) {
+      continue;
+    }
+
     const brand = deriveBrand(o.product_name as string);
 
     // 브랜드 필터
@@ -242,10 +249,18 @@ function buildChannelSummaries(
   }).sort((a, b) => b.current.revenue - a.current.revenue);
 }
 
+// 로컬 날짜 문자열 (toISOString은 UTC 변환되어 KST에서 하루 밀림)
+function toLocalDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 // 이전 기간 날짜 범위 계산
 function getPreviousPeriod(range: DateRange): DateRange {
-  const start = new Date(range.start + 'T00:00:00');
-  const end = new Date(range.end + 'T00:00:00');
+  const start = new Date(range.start + 'T00:00:00Z');
+  const end = new Date(range.end + 'T00:00:00Z');
   const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
 
   const prevEnd = new Date(start.getTime() - 86400000);
@@ -264,8 +279,8 @@ function getDefaultDateRange(): DateRange {
   start.setDate(start.getDate() - 6);
 
   return {
-    start: start.toISOString().split('T')[0],
-    end: end.toISOString().split('T')[0],
+    start: toLocalDateStr(start),
+    end: toLocalDateStr(end),
   };
 }
 
@@ -273,7 +288,7 @@ function getDefaultDateRange(): DateRange {
 function getYesterdayRange(): DateRange {
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  const dateStr = yesterday.toISOString().split('T')[0];
+  const dateStr = toLocalDateStr(yesterday);
 
   return { start: dateStr, end: dateStr };
 }
@@ -432,7 +447,7 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
 
       // 전일 대비 변화 계산
       const yesterdayRange = getYesterdayRange();
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = toLocalDateStr(new Date());
 
       const todayStats = channelStats.filter(s => s.date === todayStr);
       const yesterdayStats = channelStats.filter(s => s.date === yesterdayRange.start);

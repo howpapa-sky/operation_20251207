@@ -3,7 +3,7 @@ import { syncOrders } from '@/services/orderSyncService';
 import type { SyncResult } from '@/services/orderSyncService';
 
 const SYNC_INTERVAL_MS = 1 * 60 * 1000; // 1분마다 자동 동기화
-const RECENT_DAYS = 3; // 증분 동기화 범위 (최근 3일)
+const RECENT_DAYS = 7; // 증분 동기화 범위 (대시보드 기본 7일과 일치)
 const STORAGE_KEY = 'order_auto_sync';
 
 interface AutoSyncState {
@@ -34,7 +34,11 @@ function saveState(lastSyncAt: string | null, enabled: boolean) {
 }
 
 function formatDateStr(d: Date): string {
-  return d.toISOString().split('T')[0];
+  // 로컬 날짜 기준 (toISOString은 UTC 변환되어 KST에서 하루 밀림)
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 export function useAutoSync(channels: string | string[], onSyncComplete?: () => void) {
