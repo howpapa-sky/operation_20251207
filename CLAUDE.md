@@ -385,6 +385,54 @@ NCP 프록시 서버 (49.50.131.90:3100, naver-proxy/server.js)
 
 ---
 
+## ⛔ 변경 금지 코드 (정상 작동 확인된 코드)
+
+아래 코드는 실제 운영에서 정상 작동이 확인된 코드입니다.
+**전체 구조 리뉴얼이 아닌 이상 절대 수정하지 마세요.**
+부분 수정 시에도 아래 항목은 반드시 원본 값을 유지해야 합니다.
+
+### 1. 네이버 커머스 API 엔드포인트 URL
+```
+토큰 발급:   https://api.commerce.naver.com/external/v1/oauth2/token
+주문상태조회: https://api.commerce.naver.com/external/v1/pay-order/seller/product-orders/last-changed-statuses
+주문상세조회: https://api.commerce.naver.com/external/v1/pay-order/seller/product-orders/query
+```
+- ⚠️ `product-orders` ← 이것이 정확합니다. `orders`로 바꾸면 404 발생!
+
+### 2. 네이버 토큰 생성 공식
+```javascript
+// 반드시 이 순서: bcrypt → Base64
+hashedSign = bcrypt.hashSync(clientId + '_' + timestamp, clientSecret);
+base64Sign = Buffer.from(hashedSign).toString('base64');
+// client_secret_sign에 base64Sign을 전달
+```
+- ⚠️ Base64 인코딩을 빼면 `client_secret_sign 항목이 유효하지 않습니다` 에러 발생
+
+### 3. NCP 프록시 인증 헤더
+```javascript
+// 반드시 둘 다 허용 (하위 호환)
+const apiKey = req.headers['x-api-key'] || req.headers['x-proxy-api-key'];
+```
+
+### 4. 코드 수정 시 체크리스트
+- [ ] 수정 대상이 아닌 URL/경로가 변경되지 않았는지 diff 확인
+- [ ] 기존에 작동하던 함수의 시그니처가 바뀌지 않았는지 확인
+- [ ] 리팩터링 시 기존 로직을 축약하면서 값이 바뀌지 않았는지 확인
+
+---
+
+## 🔴 오류 이력 (동일 실수 방지용)
+
+| # | 날짜 | 오류 | 원인 | 교훈 |
+|---|------|------|------|------|
+| 1 | 2026-02-01 | `client_secret_sign 항목이 유효하지 않습니다` | bcrypt 해시를 Base64 인코딩 없이 전송 | 네이버 API 공식: `Base64(bcrypt(password, salt))` |
+| 2 | 2026-02-01 | 주문 동기화 404 | 인증 헤더 수정 중 URL을 `product-orders` → `orders`로 실수 변경 | **수정 대상이 아닌 코드를 건드리지 말 것.** diff로 반드시 확인 |
+| 3 | 2026-02-01 | NCP EADDRINUSE | 이전 프로세스가 포트 3100 점유 | 배포 시 `fuser -k 3100/tcp` 먼저 실행 |
+| 4 | 2026-02-01 | Unauthorized 401 | NCP 서버가 `x-api-key`만 허용, Netlify는 `x-proxy-api-key` 전송 | 인증 헤더 양쪽 모두 허용 |
+| 5 | 2026-02-01 | 504 Timeout | NCP에 `/api/naver/sync` 엔드포인트 없음 | 프론트→Netlify→NCP 전체 경로 확인 필수 |
+
+---
+
 ## 최근 변경 이력 (세션간 컨텍스트 보존)
 
 ### 2025-02-01: 스마트스토어 주문 수집 504 타임아웃 해결 + 동기화 UX 개선
