@@ -211,7 +211,7 @@ async function sendNaverWorksMessage(message: string, channelId?: string): Promi
 
 // ========== 메인 핸들러 ==========
 
-const alertCheckHandler: Handler = async (event) => {
+const alertCheckHandler: Handler = async (_event) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Content-Type': 'application/json',

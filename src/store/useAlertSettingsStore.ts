@@ -40,6 +40,7 @@ export const useAlertSettingsStore = create<AlertSettingsState>((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from('alert_settings')
         .select('*')

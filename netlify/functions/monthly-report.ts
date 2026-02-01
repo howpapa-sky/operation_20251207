@@ -335,7 +335,7 @@ async function sendNaverWorksMessage(message: string): Promise<void> {
 
 // ========== 메인 핸들러 ==========
 
-const monthlyReportHandler: Handler = async (event) => {
+const monthlyReportHandler: Handler = async (_event) => {
   const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
 
   try {

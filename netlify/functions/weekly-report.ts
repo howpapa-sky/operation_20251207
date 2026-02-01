@@ -9,12 +9,6 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // ========== 유틸 ==========
 
-function getTodayKST(): string {
-  const now = new Date();
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  return kst.toISOString().split('T')[0];
-}
-
 function getDaysAgoKST(days: number): string {
   const now = new Date();
   const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
@@ -261,7 +255,7 @@ async function sendNaverWorksMessage(message: string): Promise<void> {
 
 // ========== 메인 핸들러 ==========
 
-const weeklyReportHandler: Handler = async (event) => {
+const weeklyReportHandler: Handler = async (_event) => {
   const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
 
   try {
