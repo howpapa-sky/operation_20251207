@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { syncOrders } from '@/services/orderSyncService';
 import type { SyncResult } from '@/services/orderSyncService';
 
-const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5분
+const SYNC_INTERVAL_MS = 1 * 60 * 1000; // 1분마다 자동 동기화
 const RECENT_DAYS = 3; // 증분 동기화 범위 (최근 3일)
 const STORAGE_KEY = 'order_auto_sync';
 
@@ -37,7 +37,8 @@ function formatDateStr(d: Date): string {
   return d.toISOString().split('T')[0];
 }
 
-export function useAutoSync(channel: string, onSyncComplete?: () => void) {
+export function useAutoSync(channels: string | string[], onSyncComplete?: () => void) {
+  const channelList = Array.isArray(channels) ? channels : [channels];
   const stored = getStoredState();
   const [state, setState] = useState<AutoSyncState>({
     enabled: stored.enabled,
@@ -57,11 +58,22 @@ export function useAutoSync(channel: string, onSyncComplete?: () => void) {
     const startDate = new Date();
     startDate.setDate(endDate.getDate() - RECENT_DAYS);
 
-    const result = await syncOrders({
-      channel,
-      startDate: formatDateStr(startDate),
-      endDate: formatDateStr(endDate),
-    });
+    let lastResult: SyncResult | null = null;
+    let anySuccess = false;
+
+    for (const ch of channelList) {
+      try {
+        const result = await syncOrders({
+          channel: ch,
+          startDate: formatDateStr(startDate),
+          endDate: formatDateStr(endDate),
+        });
+        lastResult = result;
+        if (result.success) anySuccess = true;
+      } catch {
+        // 개별 채널 실패 시 다음 채널 계속 진행
+      }
+    }
 
     const now = new Date().toISOString();
     saveState(now, true);
@@ -69,14 +81,15 @@ export function useAutoSync(channel: string, onSyncComplete?: () => void) {
       ...prev,
       isSyncing: false,
       lastSyncAt: now,
-      lastResult: result,
+      lastResult: lastResult,
     }));
     syncingRef.current = false;
 
-    if (result.success && onSyncComplete) {
+    if (anySuccess && onSyncComplete) {
       onSyncComplete();
     }
-  }, [channel, onSyncComplete]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelList.join(','), onSyncComplete]);
 
   const setEnabled = useCallback((enabled: boolean) => {
     setState(prev => {
@@ -95,14 +108,14 @@ export function useAutoSync(channel: string, onSyncComplete?: () => void) {
       return;
     }
 
-    // 즉시 1회 실행 (마지막 동기화로부터 5분 이상 경과 시)
+    // 즉시 1회 실행 (마지막 동기화로부터 1분 이상 경과 시)
     const lastSync = state.lastSyncAt ? new Date(state.lastSyncAt).getTime() : 0;
     const elapsed = Date.now() - lastSync;
     if (elapsed >= SYNC_INTERVAL_MS) {
       doSync();
     }
 
-    // 5분마다 반복
+    // 1분마다 반복
     intervalRef.current = setInterval(doSync, SYNC_INTERVAL_MS);
 
     return () => {

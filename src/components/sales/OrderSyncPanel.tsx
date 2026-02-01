@@ -65,7 +65,7 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef(0);
 
-  const autoSync = useAutoSync(channel, onSyncComplete);
+  const autoSync = useAutoSync(['smartstore', 'cafe24'], onSyncComplete);
 
   const startTimer = () => {
     startTimeRef.current = Date.now();
