@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import { Product, SalesRecord, SalesChannel, SeedingMarketingCost } from '../types';
+import { Product, SalesRecord, SalesChannel, Brand, SeedingMarketingCost } from '../types';
 
 interface SalesState {
   products: Product[];
@@ -8,6 +8,7 @@ interface SalesState {
   isLoading: boolean;
   selectedDate: string; // YYYY-MM-DD
   selectedMonth: string; // YYYY-MM
+  seedingMarketingCost: number;
 
   // 제품 관련
   fetchProducts: () => Promise<void>;
@@ -62,6 +63,7 @@ export const useSalesStore = create<SalesState>((set, get) => ({
   isLoading: false,
   selectedDate: new Date().toISOString().split('T')[0],
   selectedMonth: new Date().toISOString().slice(0, 7),
+  seedingMarketingCost: 0,
 
   // 제품 목록 가져오기
   fetchProducts: async () => {

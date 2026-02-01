@@ -118,6 +118,13 @@ export default function SeedingListPage() {
     return getProjectStats(projectId);
   }, [projectId, getProjectStats, influencers]);
 
+  // 완료일(completed_at) 필드가 있는 인플루언서 수 (완료 탭 카운트용)
+  const completedAtCount = useMemo(() => {
+    return influencers.filter(
+      (inf) => inf.project_id === projectId && inf.completed_at
+    ).length;
+  }, [influencers, projectId]);
+
   // Filtered influencers
   const filteredInfluencers = useMemo(() => {
     return influencers.filter((inf) => {
@@ -125,12 +132,24 @@ export default function SeedingListPage() {
       if (projectId && inf.project_id !== projectId) {
         return false;
       }
-      // Status filter
-      // "수락" 탭은 accepted 이후 상태(shipped, guide_sent, posted, completed)도 모두 포함
+      // Status filter - 누적 필터링
+      // 연락완료: DM발송된 모든 인플루언서 (contacted 이후 상태)
+      // 수락: 응답받은 모든 인플루언서 (accepted 이후 상태)
+      // 제품발송: 발송된 모든 인플루언서 (shipped 이후 상태)
       if (statusFilter !== 'all') {
-        if (statusFilter === 'accepted') {
+        if (statusFilter === 'contacted') {
+          const contactedStatuses: SeedingStatus[] = ['contacted', 'accepted', 'rejected', 'shipped', 'guide_sent', 'posted', 'completed'];
+          if (!contactedStatuses.includes(inf.status)) {
+            return false;
+          }
+        } else if (statusFilter === 'accepted') {
           const acceptedStatuses: SeedingStatus[] = ['accepted', 'shipped', 'guide_sent', 'posted', 'completed'];
           if (!acceptedStatuses.includes(inf.status)) {
+            return false;
+          }
+        } else if (statusFilter === 'shipped') {
+          const shippedStatuses: SeedingStatus[] = ['shipped', 'guide_sent', 'posted', 'completed'];
+          if (!shippedStatuses.includes(inf.status)) {
             return false;
           }
         } else if (inf.status !== statusFilter) {
@@ -354,6 +373,7 @@ export default function SeedingListPage() {
         stats={projectStats}
         activeStatus={statusFilter}
         onChange={setStatusFilter}
+        completedAtCount={completedAtCount}
       />
 
       {/* Filter & Action Bar */}

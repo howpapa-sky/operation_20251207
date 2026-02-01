@@ -96,6 +96,7 @@ export default function SalesPage() {
     deleteSalesRecord,
     getMonthlySummary,
     getSeedingMarketingCost,
+    seedingMarketingCost,
   } = useSalesStore();
 
   const { products: masterProducts } = useProductMasterStore();

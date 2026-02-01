@@ -17,13 +17,21 @@ interface DateRange {
   end: string;
 }
 
+// 로컬 날짜를 YYYY-MM-DD 형식으로 변환 (타임존 안전)
+function toLocalDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // 기본 날짜 범위 (이번 달)
 function getDefaultDateRange(): DateRange {
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
   return {
-    start: firstDay.toISOString().split('T')[0],
-    end: today.toISOString().split('T')[0],
+    start: toLocalDateString(firstDay),
+    end: toLocalDateString(today),
   };
 }
 
@@ -60,15 +68,16 @@ export default function SeedingReportsPage() {
       filteredProjects = filteredProjects.filter((p) => p.id === selectedProjectId);
     }
 
-    // 날짜 필터 (created_at 기준)
+    // 날짜 필터 (listed_at 우선, created_at 폴백)
     if (dateRange.start && dateRange.end) {
-      const startDate = new Date(dateRange.start);
-      const endDate = new Date(dateRange.end);
-      endDate.setHours(23, 59, 59, 999);
+      const startStr = dateRange.start; // "YYYY-MM-DD"
+      const endStr = dateRange.end;     // "YYYY-MM-DD"
 
       filteredInfluencers = filteredInfluencers.filter((i) => {
-        const createdAt = new Date(i.created_at);
-        return createdAt >= startDate && createdAt <= endDate;
+        // listed_at 우선 사용, 없으면 created_at 폴백
+        const dateField = i.listed_at || i.created_at;
+        const dateStr = dateField.split('T')[0]; // "YYYY-MM-DD" 부분만 추출
+        return dateStr >= startStr && dateStr <= endStr;
       });
     }
 
@@ -115,33 +124,28 @@ export default function SeedingReportsPage() {
   }, [filteredData]);
 
   // 비용 통계 계산 (발송완료 상태만)
+  // 매출 대시보드(useSalesStore.getSeedingMarketingCost)와 동일한 계산 로직:
+  // SUM(product_price * quantity) + SUM(payment) + SUM(shipping_cost)
   const costData = useMemo(() => {
-    const { influencers: filtered, projects: filteredProjects } = filteredData;
+    const { influencers: filtered } = filteredData;
 
     // 발송 완료 이후 상태 (비용 계산 대상)
-    const shippedStatuses = ['shipped', 'guide_sent', 'posted', 'completed'];
+    const shippedStatuses = ['shipped', 'posted', 'completed'];
 
     let totalSeedingCost = 0;
     let totalFee = 0;
-    let shippedCount = 0;
 
     filtered.forEach((inf) => {
       // 발송완료 상태인 건만 비용 계산
       if (shippedStatuses.includes(inf.status)) {
-        const project = filteredProjects.find((p) => p.id === inf.project_id);
         const quantity = inf.shipping?.quantity || 1;
-        // 인플루언서별 product_price 우선, 없으면 프로젝트 cost_price 사용
-        const productPrice = inf.product_price || project?.cost_price || 0;
-        totalSeedingCost += quantity * productPrice;
+        const productPrice = inf.product_price || 0;
+        const payment = inf.payment || 0;
+        const shippingCost = inf.shipping_cost || 0;
+        totalSeedingCost += (quantity * productPrice) + payment + shippingCost;
         totalFee += inf.fee || 0;
-        shippedCount++;
-
-        // 디버깅: 비용 계산 내역
-        console.log(`[Cost Debug] ${inf.account_id}: status=${inf.status}, qty=${quantity}, price=${productPrice} (inf.product_price=${inf.product_price}, project.cost_price=${project?.cost_price}), subtotal=${quantity * productPrice}`);
       }
     });
-
-    console.log(`[Cost Summary] ${shippedCount}건 발송완료, 총 비용: ₩${totalSeedingCost.toLocaleString()}`);
 
     return {
       totalSeedingCost,
@@ -196,11 +200,12 @@ export default function SeedingReportsPage() {
   }, [filteredData]);
 
   // 시딩 유형 데이터 (비용은 발송완료 상태만)
+  // 매출 대시보드와 동일한 계산 로직 사용
   const seedingTypeData = useMemo(() => {
-    const { influencers: filtered, projects: filteredProjects } = filteredData;
+    const { influencers: filtered } = filteredData;
 
     // 발송 완료 이후 상태 (비용 계산 대상)
-    const shippedStatuses = ['shipped', 'guide_sent', 'posted', 'completed'];
+    const shippedStatuses = ['shipped', 'posted', 'completed'];
 
     let freeCount = 0;
     let paidCount = 0;
@@ -217,10 +222,11 @@ export default function SeedingReportsPage() {
 
       // 비용은 발송완료 상태만
       if (shippedStatuses.includes(inf.status)) {
-        const project = filteredProjects.find((p) => p.id === inf.project_id);
         const quantity = inf.shipping?.quantity || 1;
-        const productPrice = inf.product_price || project?.cost_price || 0;
-        const cost = quantity * productPrice;
+        const productPrice = inf.product_price || 0;
+        const payment = inf.payment || 0;
+        const shippingCost = inf.shipping_cost || 0;
+        const cost = (quantity * productPrice) + payment + shippingCost;
 
         if (inf.seeding_type === 'free') {
           freeCost += cost;
