@@ -29,9 +29,9 @@ if (!PROXY_API_KEY) {
 app.use(cors());
 app.use(express.json());
 
-// API 키 인증 미들웨어
+// API 키 인증 미들웨어 (x-api-key, x-proxy-api-key 모두 허용)
 function authenticate(req, res, next) {
-  const apiKey = req.headers['x-proxy-api-key'];
+  const apiKey = req.headers['x-api-key'] || req.headers['x-proxy-api-key'];
   if (apiKey !== PROXY_API_KEY) {
     return res.status(401).json({ success: false, message: 'Unauthorized' });
   }

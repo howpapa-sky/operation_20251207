@@ -277,15 +277,18 @@ NCP 프록시 서버 (49.50.131.90:3100)
 |--------|------|------|------|
 | GET | `/health` | 불필요 | 헬스체크 |
 | POST | `/naver/token` | API Key | Naver Commerce 토큰 발급 |
-| ALL | `/naver/api/*` | API Key | Naver Commerce API 프록시 |
+| POST | `/api/naver/test` | API Key | 네이버 연결 테스트 (토큰 발급 검증) |
+| POST | `/api/naver/sync` | API Key | 네이버 주문 동기화 (토큰→주문ID→상세조회 일괄) |
+| ALL | `/naver/api/*` | API Key | Naver Commerce API 범용 프록시 |
 | POST | `/cafe24/orders` | API Key | Cafe24 주문 조회 (페이지네이션 전체 처리) |
 | POST | `/cafe24/test` | API Key | Cafe24 연결 테스트 |
 | POST | `/proxy` | API Key | 범용 프록시 (Coupang 등) |
 
 ### 인증
-- 헤더: `x-api-key`
+- 헤더: `x-api-key` 또는 `x-proxy-api-key` (둘 다 허용)
 - 키: 환경변수 `PROXY_API_KEY` (`.env`에 설정)
 - Netlify 환경변수: `NAVER_PROXY_API_KEY`
+- **중요**: 네이버 Commerce API는 등록된 고정 IP에서만 호출 가능 → 반드시 NCP 프록시 경유
 
 ### 서버 배포 방법
 ```bash
@@ -320,3 +323,85 @@ journalctl -u naver-proxy -f     # 실시간 로그
 - 주문 페이지네이션: offset 기반, limit 최대 100
 - OAuth scope: `mall.read_application,mall.write_application,mall.read_category,mall.read_product,mall.read_personal,mall.read_order,mall.read_community,mall.read_store,mall.read_salesreport,mall.read_shipping,mall.read_analytics`
 
+---
+
+## 주문 동기화 시스템
+
+### 아키텍처 (중요!)
+```
+브라우저 (React)
+  ↓ orderSyncService.ts (날짜 범위를 청크로 분할)
+Netlify Functions (commerce-proxy.ts)
+  ↓ x-api-key 헤더로 인증
+NCP 프록시 서버 (49.50.131.90:3100, naver-proxy/server.js)
+  ↓ 고정 IP에서 API 호출
+외부 API (Naver Commerce, Cafe24, Coupang)
+```
+
+### 핵심 파일
+| 파일 | 설명 |
+|------|------|
+| `src/services/orderSyncService.ts` | 프론트엔드 동기화 서비스 (청크 분할, 진행률 콜백) |
+| `src/components/sales/OrderSyncPanel.tsx` | 동기화 UI (경과시간, 진행바, 결과 표시) |
+| `netlify/functions/commerce-proxy.ts` | Netlify → NCP 프록시 중계 함수 |
+| `naver-proxy/server.js` | NCP 프록시 서버 (실제 배포 코드) |
+| `src/hooks/useAutoSync.ts` | 자동 동기화 훅 (최근 3일) |
+
+### 채널별 청크 크기
+- **네이버 스마트스토어**: 14일 단위 (Netlify 10초 타임아웃 대비)
+- **카페24**: 30일 단위
+- **쿠팡**: 30일 단위
+
+### 네이버 스마트스토어 주문 동기화 플로우
+1. NCP 프록시에서 bcrypt 서명 생성 → 토큰 발급
+2. `last-changed-statuses` API로 변경된 주문 productOrderId 목록 수집 (페이지네이션)
+3. `product-orders/query` API로 상세 조회 (300건씩 배치)
+4. 결과를 Netlify Function → 프론트엔드로 반환
+5. 프론트엔드에서 orders_raw 테이블에 upsert
+
+### 네이버 IP 제한 (절대 변경 금지!)
+- 네이버 Commerce API는 등록된 고정 IP에서만 호출 가능
+- NCP 서버(49.50.131.90)의 IP가 네이버에 등록되어 있음
+- Netlify에서 직접 네이버 API를 호출하면 IP 차단됨
+- 반드시 NCP 프록시를 경유해야 함
+
+---
+
+## 매출 관리 시스템
+
+### 주요 파일
+| 파일 | 설명 |
+|------|------|
+| `src/pages/SalesPage.tsx` | 매출 관리 메인 페이지 |
+| `src/store/dashboardStore.ts` | 대시보드 데이터 스토어 (orders_raw 조회) |
+| `src/pages/OrdersListPage.tsx` | 주문서 전체목록 페이지 |
+| `src/pages/CostInputPage.tsx` | 원가 입력 페이지 (orders_raw 연동) |
+| `src/components/sales/OrderSyncPanel.tsx` | 주문 동기화 UI |
+
+### DB 테이블
+- `orders_raw`: 주문 원시 데이터 (채널별 수집)
+- `api_credentials`: API 인증정보 + 동기화 상태
+- `sku_costs`: SKU별 원가 정보
+
+---
+
+## 최근 변경 이력 (세션간 컨텍스트 보존)
+
+### 2025-02-01: 스마트스토어 주문 수집 504 타임아웃 해결 + 동기화 UX 개선
+- **문제**: 스마트스토어 주문 수집 시 504 Inactivity Timeout 발생
+- **원인**: NCP 서버에 `/api/naver/sync`, `/api/naver/test` 엔드포인트 없음 + 인증 헤더 불일치 + 날짜 청크 분할 없음
+- **해결**:
+  - `naver-proxy/server.js`: `/api/naver/test`, `/api/naver/sync` 엔드포인트 추가
+  - `commerce-proxy.ts`: 인증 헤더 `x-proxy-api-key` → `x-api-key` 통일
+  - `orderSyncService.ts`: 전 채널 날짜 범위 청크 분할 (14일/30일)
+  - `OrderSyncPanel.tsx`: 경과시간 표시, 진행바, 매끄러운 UX
+  - NCP 서버 인증: `x-api-key` 또는 `x-proxy-api-key` 둘 다 허용 (하위 호환)
+
+### 2025-02-01: 주문서 전체목록 + 원가 입력 + SKU 원가 대시보드
+- `OrdersListPage.tsx`: 주문서 전체목록 페이지 신규
+- `CostInputPage.tsx`: orders_raw 테이블 직접 연동으로 재설계
+- `dashboardStore.ts`: SKU 원가 반영한 이익 계산
+
+### 2025-01-31: 매출 관리 시스템 3단계 이익 분석
+- 매출총이익, 영업이익, 순이익 3단계 분석
+- 채널별 수익성 대시보드

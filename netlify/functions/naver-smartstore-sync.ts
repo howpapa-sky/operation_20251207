@@ -62,7 +62,7 @@ async function fetchOrdersViaProxy(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-proxy-api-key': proxyApiKey,
+      'x-api-key': proxyApiKey,
     },
     body: JSON.stringify({ clientId, clientSecret, startDate, endDate }),
   });
