@@ -17,13 +17,21 @@ interface DateRange {
   end: string;
 }
 
+// 로컬 날짜를 YYYY-MM-DD 형식으로 변환 (타임존 안전)
+function toLocalDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // 기본 날짜 범위 (이번 달)
 function getDefaultDateRange(): DateRange {
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
   return {
-    start: firstDay.toISOString().split('T')[0],
-    end: today.toISOString().split('T')[0],
+    start: toLocalDateString(firstDay),
+    end: toLocalDateString(today),
   };
 }
 
@@ -60,15 +68,16 @@ export default function SeedingReportsPage() {
       filteredProjects = filteredProjects.filter((p) => p.id === selectedProjectId);
     }
 
-    // 날짜 필터 (created_at 기준)
+    // 날짜 필터 (listed_at 우선, created_at 폴백)
     if (dateRange.start && dateRange.end) {
-      const startDate = new Date(dateRange.start);
-      const endDate = new Date(dateRange.end);
-      endDate.setHours(23, 59, 59, 999);
+      const startStr = dateRange.start; // "YYYY-MM-DD"
+      const endStr = dateRange.end;     // "YYYY-MM-DD"
 
       filteredInfluencers = filteredInfluencers.filter((i) => {
-        const createdAt = new Date(i.created_at);
-        return createdAt >= startDate && createdAt <= endDate;
+        // listed_at 우선 사용, 없으면 created_at 폴백
+        const dateField = i.listed_at || i.created_at;
+        const dateStr = dateField.split('T')[0]; // "YYYY-MM-DD" 부분만 추출
+        return dateStr >= startStr && dateStr <= endStr;
       });
     }
 
@@ -136,12 +145,8 @@ export default function SeedingReportsPage() {
         totalFee += inf.fee || 0;
         shippedCount++;
 
-        // 디버깅: 비용 계산 내역
-        console.log(`[Cost Debug] ${inf.account_id}: status=${inf.status}, qty=${quantity}, price=${productPrice} (inf.product_price=${inf.product_price}, project.cost_price=${project?.cost_price}), subtotal=${quantity * productPrice}`);
       }
     });
-
-    console.log(`[Cost Summary] ${shippedCount}건 발송완료, 총 비용: ₩${totalSeedingCost.toLocaleString()}`);
 
     return {
       totalSeedingCost,
