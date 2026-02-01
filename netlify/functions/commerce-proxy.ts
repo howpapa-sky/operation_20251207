@@ -112,7 +112,7 @@ async function testConnection(channel: string) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-proxy-api-key": PROXY_API_KEY,
+          "x-api-key": PROXY_API_KEY,
         },
         body: JSON.stringify({ clientId, clientSecret }),
       });
@@ -316,16 +316,15 @@ async function syncOrders(params: {
 
   if (channel === "smartstore") {
     try {
-      // app_secrets에서 자격증명 읽기
       const { clientId, clientSecret } = await getNaverCredentials();
 
-      // 프록시 서버의 /api/naver/sync 엔드포인트 호출
-      // 프록시가 토큰 발급 + 주문 조회를 일괄 처리
+      // NCP 프록시 서버의 /api/naver/sync 엔드포인트 호출
+      // 프록시가 토큰 발급 + 변경주문 조회 + 상세조회를 일괄 처리
       const response = await fetch(`${PROXY_URL}/api/naver/sync`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-proxy-api-key": PROXY_API_KEY,
+          "x-api-key": PROXY_API_KEY,
         },
         body: JSON.stringify({ clientId, clientSecret, startDate, endDate }),
       });
@@ -350,9 +349,7 @@ async function syncOrders(params: {
         };
       }
 
-      // 프록시 서버가 반환한 주문 목록
-      const orders = result.data?.orders || [];
-      rawOrders = orders;
+      rawOrders = result.data?.orders || [];
     } catch (error: any) {
       return {
         success: false,
@@ -1017,12 +1014,11 @@ const handler: Handler = async (
           };
         }
 
-        // 프록시 서버의 /api/naver/test로 연결 테스트 (토큰 발급 검증)
-        proxyResponse = await fetch(`${PROXY_URL}/api/naver/test`, {
+        proxyResponse = await fetch(`${PROXY_URL}/naver/token`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-proxy-api-key": PROXY_API_KEY,
+            "x-api-key": PROXY_API_KEY,
           },
           body: JSON.stringify({
             clientId: request.clientId,
@@ -1088,7 +1084,7 @@ const handler: Handler = async (
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-proxy-api-key": PROXY_API_KEY,
+            "x-api-key": PROXY_API_KEY,
           },
           body: JSON.stringify({
             url: request.url,

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,16 +14,18 @@ import {
   ToggleLeft,
   ToggleRight,
   Clock,
+  Timer,
+  Zap,
 } from 'lucide-react';
-import { syncOrders, syncOrdersChunked, testChannelConnection } from '@/services/orderSyncService';
-import type { SyncResult } from '@/services/orderSyncService';
+import { syncOrders, testChannelConnection } from '@/services/orderSyncService';
+import type { SyncResult, SyncProgress } from '@/services/orderSyncService';
 import { useAutoSync } from '@/hooks/useAutoSync';
 import { cn } from '@/lib/utils';
 
 const CHANNELS = [
   { value: 'smartstore', label: '네이버 스마트스토어' },
-  { value: 'coupang', label: '쿠팡 (준비중)', disabled: true },
   { value: 'cafe24', label: 'Cafe24' },
+  { value: 'coupang', label: '쿠팡 (준비중)', disabled: true },
 ];
 
 function formatRelativeTime(isoStr: string): string {
@@ -36,6 +38,14 @@ function formatRelativeTime(isoStr: string): string {
   return `${Math.floor(hours / 24)}일 전`;
 }
 
+function formatElapsedTime(ms: number): string {
+  const secs = Math.floor(ms / 1000);
+  if (secs < 60) return `${secs}초`;
+  const mins = Math.floor(secs / 60);
+  const remainSecs = secs % 60;
+  return `${mins}분 ${remainSecs}초`;
+}
+
 export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: () => void }) {
   const [channel, setChannel] = useState('smartstore');
   const [startDate, setStartDate] = useState(() => {
@@ -46,28 +56,50 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
-  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
-  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number } | null>(null);
+  const [syncResult, setSyncResult] = useState<(SyncResult & { elapsedMs?: number }) | null>(null);
+  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
+  // 실시간 경과 시간 타이머
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startTimeRef = useRef(0);
+
   const autoSync = useAutoSync(channel, onSyncComplete);
+
+  const startTimer = () => {
+    startTimeRef.current = Date.now();
+    setElapsedMs(0);
+    timerRef.current = setInterval(() => {
+      setElapsedMs(Date.now() - startTimeRef.current);
+    }, 100);
+  };
+
+  const stopTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => stopTimer();
+  }, []);
 
   const handleSync = async () => {
     setIsSyncing(true);
     setSyncResult(null);
     setSyncProgress(null);
+    startTimer();
 
-    // Cafe24는 날짜 범위 제한(6개월) + Netlify 타임아웃 방지를 위해 분할 호출
-    const needsChunking = channel === 'cafe24';
-    const result = needsChunking
-      ? await syncOrdersChunked({
-          channel,
-          startDate,
-          endDate,
-          onProgress: (current, total) => setSyncProgress({ current, total }),
-        })
-      : await syncOrders({ channel, startDate, endDate });
+    const result = await syncOrders({
+      channel,
+      startDate,
+      endDate,
+      onProgress: (progress) => setSyncProgress(progress),
+    });
 
+    stopTimer();
     setSyncResult(result);
     setSyncProgress(null);
     setIsSyncing(false);
@@ -86,8 +118,12 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
     setIsTesting(false);
   };
 
+  const progressPercent = syncProgress
+    ? Math.round((syncProgress.current / syncProgress.total) * 100)
+    : 0;
+
   return (
-    <Card>
+    <Card className="overflow-hidden">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
@@ -148,7 +184,7 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
             variant="outline"
             size="sm"
             onClick={handleTestConnection}
-            disabled={isTesting}
+            disabled={isTesting || isSyncing}
           >
             {isTesting ? (
               <RefreshCw className="w-4 h-4 animate-spin mr-1" />
@@ -162,7 +198,7 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
         {/* 연결 테스트 결과 */}
         {testResult && (
           <div className={cn(
-            'p-3 rounded-lg text-sm flex items-center gap-2',
+            'p-3 rounded-lg text-sm flex items-center gap-2 transition-all duration-300',
             testResult.success
               ? 'bg-green-50 text-green-700 border border-green-200'
               : 'bg-red-50 text-red-700 border border-red-200'
@@ -183,6 +219,7 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
             className="w-40"
+            disabled={isSyncing}
           />
           <span className="text-gray-400">~</span>
           <Input
@@ -190,34 +227,75 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
             className="w-40"
+            disabled={isSyncing}
           />
         </div>
 
         {/* 동기화 버튼 */}
-        <Button
-          onClick={handleSync}
-          disabled={isSyncing || !startDate || !endDate}
-          className="w-full"
-        >
-          {isSyncing ? (
-            <>
-              <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-              {syncProgress
-                ? `동기화 중... (${syncProgress.current}/${syncProgress.total})`
-                : '동기화 중...'}
-            </>
-          ) : (
-            <>
-              <Download className="w-4 h-4 mr-2" />
-              주문 데이터 가져오기
-            </>
+        <div className="relative">
+          <Button
+            onClick={handleSync}
+            disabled={isSyncing || !startDate || !endDate}
+            className={cn(
+              'w-full h-12 text-sm font-medium transition-all duration-200',
+              isSyncing && 'bg-blue-600'
+            )}
+          >
+            {isSyncing ? (
+              <div className="flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>
+                  {syncProgress
+                    ? `${syncProgress.dateRange} (${syncProgress.current}/${syncProgress.total})`
+                    : '연결 중...'}
+                </span>
+              </div>
+            ) : (
+              <>
+                <Download className="w-4 h-4 mr-2" />
+                주문 데이터 가져오기
+              </>
+            )}
+          </Button>
+
+          {/* 진행률 바 (버튼 하단) */}
+          {isSyncing && syncProgress && syncProgress.total > 1 && (
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-200 rounded-b-md overflow-hidden">
+              <div
+                className="h-full bg-white/40 transition-all duration-500 ease-out"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
           )}
-        </Button>
+        </div>
+
+        {/* 실시간 경과 시간 + 진행 상세 */}
+        {isSyncing && (
+          <div className="flex items-center justify-between px-1 animate-in fade-in duration-300">
+            <div className="flex items-center gap-4 text-xs text-gray-500">
+              <span className="flex items-center gap-1">
+                <Timer className="w-3.5 h-3.5" />
+                경과: <span className="font-mono font-medium text-gray-700">{formatElapsedTime(elapsedMs)}</span>
+              </span>
+              {syncProgress && syncProgress.syncedSoFar > 0 && (
+                <span className="flex items-center gap-1">
+                  <Zap className="w-3.5 h-3.5" />
+                  누적: <span className="font-medium text-gray-700">{syncProgress.syncedSoFar.toLocaleString()}건</span>
+                </span>
+              )}
+            </div>
+            {syncProgress && syncProgress.total > 1 && (
+              <span className="text-xs font-medium text-blue-600">
+                {progressPercent}%
+              </span>
+            )}
+          </div>
+        )}
 
         {/* 동기화 결과 */}
         {syncResult && (
           <div className={cn(
-            'p-4 rounded-lg border',
+            'p-4 rounded-lg border transition-all duration-300 animate-in slide-in-from-top-2',
             syncResult.success
               ? 'bg-green-50 border-green-200'
               : 'bg-red-50 border-red-200'
@@ -239,21 +317,23 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
                   }
                 </p>
 
-                {syncResult.success && (syncResult.synced !== undefined || syncResult.skipped !== undefined) && (
-                  <div className="flex items-center gap-3 mt-2">
+                {/* 성공 시 상세 정보 */}
+                {syncResult.success && (
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
                     {syncResult.synced !== undefined && (
-                      <Badge variant="default" className="bg-green-600">
-                        {syncResult.synced}건 동기화
+                      <Badge variant="default" className="bg-green-600 text-xs">
+                        {syncResult.synced.toLocaleString()}건 동기화
                       </Badge>
                     )}
                     {(syncResult.skipped ?? 0) > 0 && (
-                      <Badge variant="secondary">
+                      <Badge variant="secondary" className="text-xs">
                         {syncResult.skipped}건 스킵
                       </Badge>
                     )}
-                    {syncResult.total !== undefined && (
-                      <span className="text-sm text-gray-500">
-                        총 {syncResult.total}건 중
+                    {syncResult.elapsedMs !== undefined && (
+                      <span className="text-xs text-gray-500 flex items-center gap-1">
+                        <Timer className="w-3 h-3" />
+                        {formatElapsedTime(syncResult.elapsedMs)}
                       </span>
                     )}
                   </div>
