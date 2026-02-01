@@ -110,6 +110,13 @@ function aggregateOrdersByDateChannel(
   >();
 
   for (const o of orders) {
+    // 취소/반품 주문은 매출에서 제외
+    const status = ((o.order_status as string) || '').toUpperCase();
+    if (status.includes('CANCEL') || status.includes('RETURN') || status.includes('REFUND')
+        || /^[CR]\d/.test(status)) {
+      continue;
+    }
+
     const brand = deriveBrand(o.product_name as string);
 
     // 브랜드 필터
