@@ -9,7 +9,7 @@ const FUNCTION_URL = '/.netlify/functions/commerce-proxy';
 
 /** 채널별 청크 일수 (Netlify 10s 타임아웃 대응) */
 const CHUNK_DAYS: Record<string, number> = {
-  smartstore: 14,   // 네이버: 14일 단위
+  smartstore: 3,    // 네이버: 3일 단위 (NCP에서 1일씩 재분할 → Netlify 타임아웃 방지)
   cafe24: 30,       // Cafe24: 30일 단위
   coupang: 14,      // 쿠팡: 14일 단위 (향후 확장)
 };
