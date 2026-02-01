@@ -1,6 +1,5 @@
 import { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
 import { createClient } from "@supabase/supabase-js";
-import bcryptjs from "bcryptjs";
 
 // ========== 환경변수 ==========
 const PROXY_URL = process.env.NAVER_PROXY_URL || "http://49.50.131.90:3100";
@@ -103,141 +102,36 @@ async function getNaverCredentials(): Promise<{ clientId: string; clientSecret: 
   };
 }
 
-// ========== 네이버 API 직접 호출 ==========
-
-/** 네이버 커머스 API 토큰 직접 발급 (NCP 프록시 불필요) */
-async function getNaverAccessToken(clientId: string, clientSecret: string): Promise<string> {
-  const timestamp = Date.now();
-  const password = `${clientId}_${timestamp}`;
-  const hashed = bcryptjs.hashSync(password, clientSecret);
-
-  const params = new URLSearchParams({
-    client_id: clientId,
-    timestamp: timestamp.toString(),
-    client_secret_sign: hashed,
-    grant_type: "client_credentials",
-    type: "SELF",
-  });
-
-  const response = await fetch("https://api.commerce.naver.com/external/v1/oauth2/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params.toString(),
-  });
-
-  const data = await response.json();
-  if (!response.ok || !data.access_token) {
-    throw new Error(`토큰 발급 실패: ${data.message || data.error || "인증 정보를 확인하세요"}`);
-  }
-  return data.access_token;
-}
-
-/** 변경된 주문의 productOrderId 목록 조회 */
-async function fetchNaverChangedOrderIds(
-  accessToken: string,
-  startDate: string,
-  endDate: string
-): Promise<string[]> {
-  const allIds: string[] = [];
-  const lastChangedFrom = `${startDate}T00:00:00.000+09:00`;
-  const lastChangedTo = `${endDate}T23:59:59.999+09:00`;
-  let moreSequence: string | null = null;
-
-  while (true) {
-    const params = new URLSearchParams({ lastChangedFrom, lastChangedTo });
-    if (moreSequence) params.set("moreSequence", moreSequence);
-
-    const url = `https://api.commerce.naver.com/external/v1/pay-order/seller/orders/last-changed-statuses?${params}`;
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const err: Record<string, string> = await response.json().catch(() => ({}));
-      throw new Error(`주문 조회 실패 (${response.status}): ${err.message || "알 수 없는 오류"}`);
-    }
-
-    const data = await response.json();
-    const statuses = data.data?.lastChangeStatuses || [];
-    if (statuses.length === 0) break;
-
-    allIds.push(...statuses.map((s: { productOrderId: string }) => s.productOrderId));
-    moreSequence = data.data?.moreSequence || null;
-    if (!moreSequence) break;
-  }
-
-  return allIds;
-}
-
-/** productOrderId 목록으로 주문 상세 조회 */
-async function fetchNaverOrderDetails(
-  accessToken: string,
-  productOrderIds: string[]
-): Promise<Record<string, unknown>[]> {
-  const orders: Record<string, unknown>[] = [];
-  const BATCH_SIZE = 300;
-
-  for (let i = 0; i < productOrderIds.length; i += BATCH_SIZE) {
-    const batch = productOrderIds.slice(i, i + BATCH_SIZE);
-
-    const response = await fetch(
-      "https://api.commerce.naver.com/external/v1/pay-order/seller/product-orders/query",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ productOrderIds: batch }),
-      }
-    );
-
-    if (!response.ok) {
-      console.error(`[naver] Order details batch failed: ${response.status}`);
-      continue;
-    }
-
-    const data = await response.json();
-    const productOrders = data.data || [];
-
-    for (const po of productOrders) {
-      orders.push({
-        orderId: po.order?.orderId || "",
-        orderDate: po.order?.orderDate || "",
-        productOrder: {
-          productOrderId: po.productOrderId || "",
-          productName: po.productOrder?.productName || "",
-          productOption: po.productOrder?.productOption || "",
-          quantity: po.productOrder?.quantity || 1,
-          unitPrice: po.productOrder?.unitPrice || 0,
-          totalPaymentAmount: po.productOrder?.totalPaymentAmount || 0,
-          productOrderStatus: po.productOrder?.productOrderStatus || "",
-          deliveryFeeAmount: po.productOrder?.deliveryFeeAmount || 0,
-          totalDiscountAmount: po.productOrder?.totalDiscountAmount || 0,
-        },
-        ordererName: po.order?.ordererName || "",
-        ordererTel: po.order?.ordererTel || "",
-      });
-    }
-  }
-
-  return orders;
-}
-
 // ========== 연결 테스트 ==========
 async function testConnection(channel: string) {
   if (channel === "smartstore") {
     try {
       const { clientId, clientSecret } = await getNaverCredentials();
-      // 직접 토큰 발급으로 연결 테스트 (NCP 프록시 불필요)
-      await getNaverAccessToken(clientId, clientSecret);
+
+      const response = await fetch(`${PROXY_URL}/api/naver/test`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": PROXY_API_KEY,
+        },
+        body: JSON.stringify({ clientId, clientSecret }),
+      });
+
+      const responseText = await response.text();
+      console.log(`[commerce-proxy] test-connection proxy response: status=${response.status}, body=${responseText.substring(0, 300)}`);
+
+      let result: any;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        return {
+          success: false,
+          message: `프록시 응답 파싱 실패 (status ${response.status}): ${responseText.substring(0, 100)}`,
+        };
+      }
       return {
-        success: true,
-        message: "네이버 스마트스토어 API 연결 성공!",
+        success: result.success === true,
+        message: result.message || (result.success ? "연결 성공" : "연결 실패"),
       };
     } catch (error: any) {
       return {
@@ -422,27 +316,40 @@ async function syncOrders(params: {
 
   if (channel === "smartstore") {
     try {
-      // 직접 네이버 API 호출 (NCP 프록시 불필요)
       const { clientId, clientSecret } = await getNaverCredentials();
-      console.log(`[naver] Getting access token...`);
-      const accessToken = await getNaverAccessToken(clientId, clientSecret);
 
-      console.log(`[naver] Fetching changed order IDs: ${startDate} ~ ${endDate}`);
-      const productOrderIds = await fetchNaverChangedOrderIds(accessToken, startDate, endDate);
+      // NCP 프록시 서버의 /api/naver/sync 엔드포인트 호출
+      // 프록시가 토큰 발급 + 변경주문 조회 + 상세조회를 일괄 처리
+      const response = await fetch(`${PROXY_URL}/api/naver/sync`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": PROXY_API_KEY,
+        },
+        body: JSON.stringify({ clientId, clientSecret, startDate, endDate }),
+      });
 
-      if (productOrderIds.length === 0) {
+      const responseText = await response.text();
+      console.log(`[commerce-proxy] sync proxy response: status=${response.status}, body=${responseText.substring(0, 500)}`);
+
+      let result: any;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
         return {
-          success: true,
-          message: "해당 기간에 주문이 없습니다.",
-          synced: 0,
-          skipped: 0,
-          errors: [],
+          success: false,
+          error: `프록시 응답 파싱 실패 (status ${response.status}): ${responseText.substring(0, 200)}`,
         };
       }
 
-      console.log(`[naver] Found ${productOrderIds.length} product orders, fetching details...`);
-      rawOrders = await fetchNaverOrderDetails(accessToken, productOrderIds);
-      console.log(`[naver] Fetched ${rawOrders.length} order details`);
+      if (!response.ok || !result.success) {
+        return {
+          success: false,
+          error: result.message || "프록시 동기화 실패",
+        };
+      }
+
+      rawOrders = result.data?.orders || [];
     } catch (error: any) {
       return {
         success: false,
@@ -1107,28 +1014,24 @@ const handler: Handler = async (
           };
         }
 
-        // 직접 토큰 발급 (NCP 프록시 불필요)
-        try {
-          const token = await getNaverAccessToken(request.clientId, request.clientSecret);
-          return {
-            statusCode: 200,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              success: true,
-              access_token: token,
-              message: "토큰 발급 성공",
-            }),
-          };
-        } catch (error: any) {
-          return {
-            statusCode: 200,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              success: false,
-              error: error.message,
-            }),
-          };
-        }
+        proxyResponse = await fetch(`${PROXY_URL}/naver/token`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": PROXY_API_KEY,
+          },
+          body: JSON.stringify({
+            clientId: request.clientId,
+            clientSecret: request.clientSecret,
+          }),
+        });
+
+        const tokenData = await proxyResponse.json();
+        return {
+          statusCode: proxyResponse.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify(tokenData),
+        };
       }
 
       case "naver_api": {
@@ -1181,7 +1084,7 @@ const handler: Handler = async (
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-proxy-api-key": PROXY_API_KEY,
+            "x-api-key": PROXY_API_KEY,
           },
           body: JSON.stringify({
             url: request.url,

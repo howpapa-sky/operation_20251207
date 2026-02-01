@@ -39,6 +39,34 @@ app.get('/health', (req, res) => {
 // Naver Commerce API endpoints
 // ==========================================
 
+// 토큰 발급 헬퍼 (내부 재사용)
+async function generateNaverToken(clientId, clientSecret) {
+  const timestamp = Date.now();
+  const password = `${clientId}_${timestamp}`;
+  const hashedSign = bcrypt.hashSync(password, clientSecret);
+  const clientSecretSign = Buffer.from(hashedSign, 'utf-8').toString('utf-8');
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    timestamp: timestamp.toString(),
+    client_secret_sign: clientSecretSign,
+    grant_type: 'client_credentials',
+    type: 'SELF',
+  });
+
+  const response = await fetch('https://api.commerce.naver.com/external/v1/oauth2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+
+  const data = await response.json();
+  if (!response.ok || !data.access_token) {
+    throw new Error(data.message || data.error || 'Token request failed');
+  }
+  return data;
+}
+
 // Generate Naver Commerce API token
 app.post('/naver/token', authenticate, async (req, res) => {
   try {
@@ -48,45 +76,149 @@ app.post('/naver/token', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'clientId and clientSecret are required' });
     }
 
-    const timestamp = Date.now();
-    const password = `${clientId}_${timestamp}`;
-
-    // BCrypt hash - Naver Commerce API requires this
-    const hashedSign = bcrypt.hashSync(password, clientSecret);
-    const clientSecretSign = Buffer.from(hashedSign, 'utf-8').toString('utf-8');
-
-    const params = new URLSearchParams({
-      client_id: clientId,
-      timestamp: timestamp.toString(),
-      client_secret_sign: clientSecretSign,
-      grant_type: 'client_credentials',
-      type: 'SELF',
+    const data = await generateNaverToken(clientId, clientSecret);
+    res.json({
+      success: true,
+      access_token: data.access_token,
+      expires_in: data.expires_in,
+      token_type: data.token_type,
     });
-
-    const response = await fetch('https://api.commerce.naver.com/external/v1/oauth2/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
-    });
-
-    const data = await response.json();
-
-    if (response.ok && data.access_token) {
-      res.json({
-        success: true,
-        access_token: data.access_token,
-        expires_in: data.expires_in,
-        token_type: data.token_type,
-      });
-    } else {
-      res.status(response.status).json({
-        success: false,
-        error: data.message || data.error || 'Token request failed',
-      });
-    }
   } catch (error) {
     console.error('[Naver Token Error]', error.message);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 연결 테스트 (토큰 발급으로 검증)
+app.post('/api/naver/test', authenticate, async (req, res) => {
+  try {
+    const { clientId, clientSecret } = req.body;
+
+    if (!clientId || !clientSecret) {
+      return res.status(400).json({ success: false, message: 'clientId and clientSecret are required' });
+    }
+
+    await generateNaverToken(clientId, clientSecret);
+    res.json({ success: true, message: '네이버 스마트스토어 API 연결 성공!' });
+  } catch (error) {
+    console.error('[Naver Test Error]', error.message);
+    res.json({ success: false, message: `연결 실패: ${error.message}` });
+  }
+});
+
+// 주문 동기화 (토큰 발급 → 변경주문 조회 → 상세 조회)
+app.post('/api/naver/sync', authenticate, async (req, res) => {
+  try {
+    const { clientId, clientSecret, startDate, endDate } = req.body;
+
+    if (!clientId || !clientSecret || !startDate || !endDate) {
+      return res.status(400).json({ success: false, message: 'clientId, clientSecret, startDate, endDate are required' });
+    }
+
+    console.log(`[naver-sync] ${startDate} ~ ${endDate}`);
+
+    // 1. 토큰 발급
+    const tokenData = await generateNaverToken(clientId, clientSecret);
+    const accessToken = tokenData.access_token;
+
+    // 2. 변경된 주문 ID 조회
+    const lastChangedFrom = `${startDate}T00:00:00.000+09:00`;
+    const lastChangedTo = `${endDate}T23:59:59.999+09:00`;
+    const allIds = [];
+    let moreSequence = null;
+
+    while (true) {
+      const params = new URLSearchParams({ lastChangedFrom, lastChangedTo });
+      if (moreSequence) params.set('moreSequence', moreSequence);
+
+      const url = `https://api.commerce.naver.com/external/v1/pay-order/seller/orders/last-changed-statuses?${params}`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        return res.json({
+          success: false,
+          message: `주문 조회 실패 (${response.status}): ${err.message || JSON.stringify(err)}`,
+        });
+      }
+
+      const data = await response.json();
+      const statuses = data.data?.lastChangeStatuses || [];
+      if (statuses.length === 0) break;
+
+      allIds.push(...statuses.map(s => s.productOrderId));
+      moreSequence = data.data?.moreSequence || null;
+      if (!moreSequence) break;
+    }
+
+    console.log(`[naver-sync] Found ${allIds.length} product order IDs`);
+
+    if (allIds.length === 0) {
+      return res.json({ success: true, data: { orders: [] } });
+    }
+
+    // 3. 주문 상세 조회 (300건씩 배치)
+    const orders = [];
+    const BATCH_SIZE = 300;
+
+    for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
+      const batch = allIds.slice(i, i + BATCH_SIZE);
+      const response = await fetch(
+        'https://api.commerce.naver.com/external/v1/pay-order/seller/product-orders/query',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ productOrderIds: batch }),
+        }
+      );
+
+      if (!response.ok) {
+        console.error(`[naver-sync] Details batch ${i} failed: ${response.status}`);
+        continue;
+      }
+
+      const data = await response.json();
+      const productOrders = data.data || [];
+
+      for (const po of productOrders) {
+        orders.push({
+          orderId: po.order?.orderId || '',
+          orderDate: po.order?.orderDate || '',
+          productOrder: {
+            productOrderId: po.productOrderId || '',
+            productName: po.productOrder?.productName || '',
+            productOption: po.productOrder?.productOption || '',
+            quantity: po.productOrder?.quantity || 1,
+            unitPrice: po.productOrder?.unitPrice || 0,
+            totalPaymentAmount: po.productOrder?.totalPaymentAmount || 0,
+            productOrderStatus: po.productOrder?.productOrderStatus || '',
+            deliveryFeeAmount: po.productOrder?.deliveryFeeAmount || 0,
+            totalDiscountAmount: po.productOrder?.totalDiscountAmount || 0,
+          },
+          ordererName: po.order?.ordererName || '',
+          ordererTel: po.order?.ordererTel || '',
+        });
+      }
+    }
+
+    console.log(`[naver-sync] Complete: ${orders.length} orders`);
+
+    res.json({
+      success: true,
+      data: { orders },
+    });
+  } catch (error) {
+    console.error('[Naver Sync Error]', error.message);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
