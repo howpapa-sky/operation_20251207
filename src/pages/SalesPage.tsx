@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   DollarSign,
   TrendingUp,
@@ -13,6 +13,7 @@ import {
   BarChart2,
   Download,
   Upload,
+  Megaphone,
 } from 'lucide-react';
 import {
   LineChart,
@@ -34,7 +35,7 @@ import Modal from '../components/common/Modal';
 import Badge from '../components/common/Badge';
 import { useSalesStore, channelLabels } from '../store/useSalesStore';
 import { useProductMasterStore } from '../store/useProductMasterStore';
-import { SalesChannel, SalesRecord } from '../types';
+import { SalesChannel, SalesRecord, SeedingMarketingCost } from '../types';
 import { formatNumber, brandLabels } from '../utils/helpers';
 
 const channelOptions: SalesChannel[] = ['cafe24', 'naver_smartstore', 'coupang', 'other'];
@@ -63,11 +64,15 @@ export default function SalesPage() {
     updateSalesRecord,
     deleteSalesRecord,
     getMonthlySummary,
+    getSeedingMarketingCost,
   } = useSalesStore();
 
   const { products: masterProducts } = useProductMasterStore();
 
   const [activeTab, setActiveTab] = useState<ViewTab>('overview');
+  const [seedingCost, setSeedingCost] = useState<SeedingMarketingCost>({
+    productCost: 0, payment: 0, shippingCost: 0, total: 0, count: 0,
+  });
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState<SalesRecord | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
@@ -82,12 +87,20 @@ export default function SalesPage() {
   const [formCostPrice, setFormCostPrice] = useState(0);
   const [formNotes, setFormNotes] = useState('');
 
+  const fetchSeedingCost = useCallback(async () => {
+    const startDate = `${selectedMonth}-01`;
+    const endDate = `${selectedMonth}-31`;
+    const result = await getSeedingMarketingCost(startDate, endDate);
+    setSeedingCost(result);
+  }, [selectedMonth, getSeedingMarketingCost]);
+
   useEffect(() => {
     fetchProducts();
     const startDate = `${selectedMonth}-01`;
     const endDate = `${selectedMonth}-31`;
     fetchSalesRecords(startDate, endDate);
-  }, [selectedMonth, fetchProducts, fetchSalesRecords]);
+    fetchSeedingCost();
+  }, [selectedMonth, fetchProducts, fetchSalesRecords, fetchSeedingCost]);
 
   const summary = getMonthlySummary(selectedMonth);
 
@@ -254,7 +267,7 @@ export default function SalesPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card className="p-5">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-100 rounded-xl">
@@ -285,16 +298,35 @@ export default function SalesPage() {
 
         <Card className="p-5">
           <div className="flex items-center gap-4">
+            <div className="p-3 bg-violet-100 rounded-xl">
+              <Megaphone className="w-6 h-6 text-violet-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">시딩 마케팅비</p>
+              <p className="text-xl font-bold text-violet-600">
+                {formatNumber(seedingCost.total)}원
+              </p>
+              <p className="text-xs text-gray-400">
+                {seedingCost.count}명 발송
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-center gap-4">
             <div className="p-3 bg-green-100 rounded-xl">
               <TrendingUp className="w-6 h-6 text-green-600" />
             </div>
             <div>
               <p className="text-sm text-gray-500">순이익</p>
               <p className="text-xl font-bold text-green-600">
-                {formatNumber(summary.totalProfit)}원
+                {formatNumber(summary.totalProfit - seedingCost.total)}원
               </p>
               <p className="text-xs text-gray-400">
-                이익률 {summary.profitMargin.toFixed(1)}%
+                이익률 {summary.totalRevenue > 0
+                  ? (((summary.totalProfit - seedingCost.total) / summary.totalRevenue) * 100).toFixed(1)
+                  : '0.0'}%
               </p>
             </div>
           </div>

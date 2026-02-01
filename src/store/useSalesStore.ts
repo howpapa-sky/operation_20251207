@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import { Product, SalesRecord, SalesChannel } from '../types';
+import { Product, SalesRecord, SalesChannel, SeedingMarketingCost } from '../types';
 
 interface SalesState {
   products: Product[];
@@ -42,6 +42,9 @@ interface SalesState {
     byChannel: Record<SalesChannel, { revenue: number; cost: number; profit: number; count: number }>;
     dailyData: { date: string; revenue: number; profit: number }[];
   };
+
+  // 시딩 마케팅비 조회
+  getSeedingMarketingCost: (startDate: string, endDate: string, brand?: string) => Promise<SeedingMarketingCost>;
 }
 
 const channelLabels: Record<SalesChannel, string> = {
@@ -432,5 +435,58 @@ export const useSalesStore = create<SalesState>((set, get) => ({
       byChannel,
       dailyData,
     };
+  },
+
+  // 시딩 마케팅비 조회
+  getSeedingMarketingCost: async (startDate, endDate, brand?) => {
+    const empty: SeedingMarketingCost = { productCost: 0, payment: 0, shippingCost: 0, total: 0, count: 0 };
+    try {
+      // 발송 완료 이상 상태만 대상
+      let query = (supabase as any)
+        .from('seeding_influencers')
+        .select('product_price, quantity, payment, shipping_cost, fee, project_id')
+        .in('status', ['shipped', 'guide_sent', 'posted', 'completed']);
+
+      // 날짜 필터: shipped 시점 기준 (shipping JSONB → shipped_at 또는 updated_at 사용)
+      // seeding_influencers에는 updated_at이 있으므로 기간 필터로 사용
+      if (startDate) query = query.gte('updated_at', startDate + 'T00:00:00');
+      if (endDate) query = query.lte('updated_at', endDate + 'T23:59:59');
+
+      const { data, error } = await query;
+      if (error || !data) return empty;
+
+      // 브랜드 필터가 있으면 프로젝트 JOIN
+      let filteredData = data;
+      if (brand && brand !== 'all') {
+        const projectIds = [...new Set(data.map((d: Record<string, unknown>) => d.project_id))];
+        if (projectIds.length > 0) {
+          const { data: projects } = await (supabase as any)
+            .from('seeding_projects')
+            .select('id, brand')
+            .in('id', projectIds)
+            .eq('brand', brand);
+          const validIds = new Set((projects || []).map((p: Record<string, unknown>) => p.id));
+          filteredData = data.filter((d: Record<string, unknown>) => validIds.has(d.project_id));
+        }
+      }
+
+      let productCost = 0;
+      let payment = 0;
+      let shippingCost = 0;
+
+      for (const row of filteredData) {
+        const qty = Number(row.quantity) || 1;
+        const price = Number(row.product_price) || 0;
+        productCost += price * qty;
+        payment += Number(row.payment) || Number(row.fee) || 0;
+        shippingCost += Number(row.shipping_cost) || 0;
+      }
+
+      const total = productCost + payment + shippingCost;
+      return { productCost, payment, shippingCost, total, count: filteredData.length };
+    } catch (err) {
+      console.error('getSeedingMarketingCost error:', err);
+      return empty;
+    }
   },
 }));

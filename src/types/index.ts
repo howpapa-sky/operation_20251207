@@ -1102,6 +1102,15 @@ export interface SeedingProjectStats {
   total_engagement: number;
 }
 
+// 시딩 마케팅비 집계 결과
+export interface SeedingMarketingCost {
+  productCost: number;    // 제품 원가 합계 (product_price * quantity)
+  payment: number;        // 인플루언서 페이 합계
+  shippingCost: number;   // 배송비 합계
+  total: number;          // 전체 합계
+  count: number;          // 대상 인플루언서 수
+}
+
 // ========== 개발 요청서 ==========
 
 // 개발 요청 브랜드
