@@ -148,41 +148,69 @@ app.post('/api/naver/sync', authenticate, async (req, res) => {
     const tokenData = await generateNaverToken(clientId, clientSecret);
     const accessToken = tokenData.access_token;
 
-    // 2. 변경된 주문 ID 조회
-    const lastChangedFrom = `${startDate}T00:00:00.000+09:00`;
-    const lastChangedTo = `${endDate}T23:59:59.999+09:00`;
+    // 2. 변경된 주문 ID 조회 (1일 단위 청크로 분할 - Naver API 날짜 범위 제한)
     const allIds = [];
-    let moreSequence = null;
 
-    while (true) {
-      const params = new URLSearchParams({ lastChangedFrom, lastChangedTo });
-      if (moreSequence) params.set('moreSequence', moreSequence);
-
-      // DO NOT MODIFY URL: must be "product-orders" not "orders" (404 if wrong)
-      const url = `https://api.commerce.naver.com/external/v1/pay-order/seller/product-orders/last-changed-statuses?${params}`;
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
+    // 1일 단위 청크 생성 (YYYY-MM-DD 문자열 기반 - 타임존 무관)
+    var chunks = [];
+    var cur = new Date(startDate);
+    var end = new Date(endDate);
+    while (cur <= end) {
+      var dateStr = cur.toISOString().split('T')[0];
+      chunks.push({
+        from: dateStr + 'T00:00:00.000+09:00',
+        to: dateStr + 'T23:59:59.999+09:00',
       });
+      cur.setDate(cur.getDate() + 1);
+    }
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        return res.json({
-          success: false,
-          message: `주문 조회 실패 (${response.status}): ${err.message || JSON.stringify(err)}`,
+    console.log(`[naver-sync] Split into ${chunks.length} day-chunks`);
+
+    for (var ci = 0; ci < chunks.length; ci++) {
+      if (ci > 0) await new Promise(r => setTimeout(r, 300));
+
+      var lastChangedFrom = chunks[ci].from;
+      var lastChangedTo = chunks[ci].to;
+      var moreSequence = null;
+
+      while (true) {
+        var params = new URLSearchParams({ lastChangedFrom, lastChangedTo });
+        if (moreSequence) params.set('moreSequence', moreSequence);
+
+        // DO NOT MODIFY URL: must be "product-orders" not "orders" (404 if wrong)
+        var url = `https://api.commerce.naver.com/external/v1/pay-order/seller/product-orders/last-changed-statuses?${params}`;
+        var response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
         });
+
+        if (response.status === 429) {
+          console.log('[naver-sync] 429 Rate Limit - waiting 1s');
+          await new Promise(r => setTimeout(r, 1000));
+          continue;
+        }
+
+        if (!response.ok) {
+          var err = await response.json().catch(() => ({}));
+          return res.json({
+            success: false,
+            message: `주문 조회 실패 (${response.status}): ${err.message || JSON.stringify(err)}`,
+          });
+        }
+
+        var data = await response.json();
+        var statuses = data.data?.lastChangeStatuses || [];
+        if (statuses.length === 0) break;
+
+        allIds.push(...statuses.map(s => s.productOrderId));
+        moreSequence = data.data?.moreSequence || null;
+        if (!moreSequence) break;
       }
 
-      const data = await response.json();
-      const statuses = data.data?.lastChangeStatuses || [];
-      if (statuses.length === 0) break;
-
-      allIds.push(...statuses.map(s => s.productOrderId));
-      moreSequence = data.data?.moreSequence || null;
-      if (!moreSequence) break;
+      console.log(`[naver-sync] Chunk ${ci + 1}/${chunks.length}: ${allIds.length} total IDs`);
     }
 
     console.log(`[naver-sync] Found ${allIds.length} product order IDs`);
