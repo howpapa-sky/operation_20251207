@@ -21,6 +21,12 @@
 [functions."daily-alert-check"]
   schedule = "0 0 * * *"
 
+[functions."weekly-report"]
+  schedule = "0 0 * * 1"
+
+[functions."monthly-report"]
+  schedule = "0 1 1 * *"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
