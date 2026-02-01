@@ -95,7 +95,7 @@ async function testNaver(credentials: TestRequest['credentials']): Promise<{ suc
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-proxy-api-key': proxyApiKey,
+          'x-api-key': proxyApiKey,
         },
         body: JSON.stringify({
           clientId: naverClientId,

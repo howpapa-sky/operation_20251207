@@ -21,9 +21,9 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// API Key authentication middleware
+// API Key authentication middleware (x-api-key, x-proxy-api-key 모두 허용)
 function authenticate(req, res, next) {
-  const apiKey = req.headers['x-api-key'];
+  const apiKey = req.headers['x-api-key'] || req.headers['x-proxy-api-key'];
   if (!apiKey || apiKey !== API_KEY) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
