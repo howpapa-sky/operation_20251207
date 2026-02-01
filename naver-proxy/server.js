@@ -21,18 +21,26 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// API Key authentication middleware (x-api-key, x-proxy-api-key 모두 허용)
+// API Key authentication middleware
 function authenticate(req, res, next) {
   const apiKey = req.headers['x-api-key'] || req.headers['x-proxy-api-key'];
   if (!apiKey || apiKey !== API_KEY) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    var receivedLen = apiKey ? apiKey.length : 0;
+    var expectedLen = API_KEY ? API_KEY.length : 0;
+    console.log('[AUTH FAIL] path=' + req.path + ' received_len=' + receivedLen + ' expected_len=' + expectedLen);
+    return res.status(401).json({ error: 'Unauthorized', receivedLen: receivedLen, expectedLen: expectedLen });
   }
   next();
 }
 
 // Health check (no auth required)
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    apiKeySet: API_KEY.length > 0,
+    apiKeyLen: API_KEY.length
+  });
 });
 
 // ==========================================
@@ -42,27 +50,37 @@ app.get('/health', (req, res) => {
 // 토큰 발급 헬퍼 (내부 재사용)
 async function generateNaverToken(clientId, clientSecret) {
   const timestamp = Date.now();
-  const password = `${clientId}_${timestamp}`;
-  const hashedSign = bcrypt.hashSync(password, clientSecret);
-  const clientSecretSign = Buffer.from(hashedSign, 'utf-8').toString('utf-8');
+  const password = clientId + '_' + timestamp;
+  var hashedSign;
+  try {
+    hashedSign = bcrypt.hashSync(password, clientSecret);
+  } catch (e) {
+    throw new Error('bcrypt hash failed: ' + e.message + ' (secret_len=' + (clientSecret ? clientSecret.length : 0) + ')');
+  }
 
-  const params = new URLSearchParams({
-    client_id: clientId,
-    timestamp: timestamp.toString(),
-    client_secret_sign: clientSecretSign,
-    grant_type: 'client_credentials',
-    type: 'SELF',
-  });
+  // Naver API requires raw bcrypt hash (no URL encoding for $, /)
+  var body = 'client_id=' + clientId
+    + '&timestamp=' + timestamp
+    + '&client_secret_sign=' + hashedSign
+    + '&grant_type=client_credentials&type=SELF';
+
+  console.log('[naver-token] clientId=' + clientId.substring(0, 6) + '... secret_len=' + clientSecret.length + ' hash_len=' + hashedSign.length);
 
   const response = await fetch('https://api.commerce.naver.com/external/v1/oauth2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
+    body: body,
   });
 
-  const data = await response.json();
+  var text = await response.text();
+  console.log('[naver-token] response status=' + response.status + ' body=' + text.substring(0, 300));
+
+  var data;
+  try { data = JSON.parse(text); } catch (e) {
+    throw new Error('Naver token parse error: ' + text.substring(0, 200));
+  }
   if (!response.ok || !data.access_token) {
-    throw new Error(data.message || data.error || 'Token request failed');
+    throw new Error(data.message || data.error || 'Token request failed (status=' + response.status + ')');
   }
   return data;
 }
