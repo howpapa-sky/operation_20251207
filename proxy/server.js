@@ -89,7 +89,7 @@ async function fetchChangedOrders(accessToken, startDate, endDate) {
       params.set('moreSequence', moreSequence);
     }
 
-    const url = `https://api.commerce.naver.com/external/v1/pay-order/seller/orders/last-changed-statuses?${params.toString()}`;
+    const url = `https://api.commerce.naver.com/external/v1/pay-order/seller/product-orders/last-changed-statuses?${params.toString()}`;
 
     const response = await fetch(url, {
       method: 'GET',

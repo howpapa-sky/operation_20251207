@@ -62,7 +62,7 @@ async function generateNaverToken(clientId, clientSecret) {
     throw new Error('bcrypt hash failed: ' + e.message + ' (secret_len=' + (clientSecret ? clientSecret.length : 0) + ')');
   }
 
-  // Naver Commerce API requires: Base64(bcrypt(clientId + "_" + timestamp, clientSecret))
+  // DO NOT MODIFY: Naver Commerce API requires Base64(bcrypt(password, salt))
   var base64Sign = Buffer.from(hashedSign).toString('base64');
 
   // Use URLSearchParams for proper form encoding
@@ -158,7 +158,8 @@ app.post('/api/naver/sync', authenticate, async (req, res) => {
       const params = new URLSearchParams({ lastChangedFrom, lastChangedTo });
       if (moreSequence) params.set('moreSequence', moreSequence);
 
-      const url = `https://api.commerce.naver.com/external/v1/pay-order/seller/orders/last-changed-statuses?${params}`;
+      // DO NOT MODIFY URL: must be "product-orders" not "orders" (404 if wrong)
+      const url = `https://api.commerce.naver.com/external/v1/pay-order/seller/product-orders/last-changed-statuses?${params}`;
       const response = await fetch(url, {
         method: 'GET',
         headers: {
