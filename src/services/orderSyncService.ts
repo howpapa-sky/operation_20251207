@@ -2,9 +2,18 @@
  * 주문 동기화 서비스
  *
  * Netlify Function (commerce-proxy)을 통해 판매 채널 주문 데이터를 동기화합니다.
+ * 모든 채널에 대해 날짜 분할(chunked) 방식으로 Netlify 타임아웃(10s)을 방지합니다.
  */
 
 const FUNCTION_URL = '/.netlify/functions/commerce-proxy';
+
+/** 채널별 청크 일수 (Netlify 10s 타임아웃 대응) */
+const CHUNK_DAYS: Record<string, number> = {
+  smartstore: 14,   // 네이버: 14일 단위
+  cafe24: 30,       // Cafe24: 30일 단위
+  coupang: 14,      // 쿠팡: 14일 단위 (향후 확장)
+};
+const DEFAULT_CHUNK_DAYS = 14;
 
 export interface SyncResult {
   success: boolean;
@@ -16,6 +25,21 @@ export interface SyncResult {
   errors?: string[];
 }
 
+export interface SyncProgress {
+  /** 현재 청크 번호 (1-based) */
+  current: number;
+  /** 총 청크 수 */
+  total: number;
+  /** 누적 동기화 건수 */
+  syncedSoFar: number;
+  /** 경과 시간 (ms) */
+  elapsedMs: number;
+  /** 현재 처리 중인 날짜 범위 */
+  dateRange: string;
+  /** 현재 청크 결과 (완료된 경우) */
+  chunkResult?: SyncResult;
+}
+
 export interface ConnectionTestResult {
   success: boolean;
   message: string;
@@ -23,9 +47,9 @@ export interface ConnectionTestResult {
 }
 
 /**
- * 주문 동기화 실행
+ * 단일 청크 주문 동기화 (내부용)
  */
-export async function syncOrders(params: {
+async function syncOrdersChunk(params: {
   channel: string;
   startDate: string;
   endDate: string;
@@ -52,13 +76,14 @@ export async function syncOrders(params: {
       const text = await response.text();
       return {
         success: false,
-        error: `서버 오류 (${response.status}): ${text}`,
+        error: `서버 오류 (${response.status}): ${text.substring(0, 200)}`,
       };
     }
 
     return await response.json();
-  } catch (error: any) {
-    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+  } catch (error: unknown) {
+    const err = error as Error;
+    if (err.name === 'TypeError' && err.message.includes('fetch')) {
       return {
         success: false,
         error: '동기화 함수가 배포되지 않았습니다. 배포 후 다시 시도해주세요.',
@@ -66,30 +91,31 @@ export async function syncOrders(params: {
     }
     return {
       success: false,
-      error: `네트워크 오류: ${error.message}`,
+      error: `네트워크 오류: ${err.message}`,
     };
   }
 }
 
 /**
- * Cafe24 등 날짜 범위 제한이 있는 채널용 분할 동기화
- * 긴 기간을 3개월 단위로 나눠 순차 호출 (Netlify 504 타임아웃 방지)
+ * 주문 동기화 실행 (모든 채널 공통 - 자동으로 청크 분할)
  */
-export async function syncOrdersChunked(params: {
+export async function syncOrders(params: {
   channel: string;
   startDate: string;
   endDate: string;
-  onProgress?: (current: number, total: number, chunkResult?: SyncResult) => void;
-}): Promise<SyncResult> {
-  const CHUNK_DAYS = 30; // 30일 단위 (Netlify 10초 타임아웃 대응)
+  onProgress?: (progress: SyncProgress) => void;
+}): Promise<SyncResult & { elapsedMs?: number }> {
+  const startTime = Date.now();
+  const chunkDays = CHUNK_DAYS[params.channel] || DEFAULT_CHUNK_DAYS;
   const MS_PER_DAY = 86400000;
-  const chunks: { start: string; end: string }[] = [];
 
+  // 날짜 범위를 청크로 분할
+  const chunks: { start: string; end: string }[] = [];
   let cur = new Date(params.startDate + 'T00:00:00');
   const end = new Date(params.endDate + 'T00:00:00');
 
-  while (cur < end) {
-    const chunkEnd = new Date(Math.min(cur.getTime() + CHUNK_DAYS * MS_PER_DAY, end.getTime()));
+  while (cur <= end) {
+    const chunkEnd = new Date(Math.min(cur.getTime() + (chunkDays - 1) * MS_PER_DAY, end.getTime()));
     chunks.push({
       start: cur.toISOString().split('T')[0],
       end: chunkEnd.toISOString().split('T')[0],
@@ -101,15 +127,43 @@ export async function syncOrdersChunked(params: {
     return { success: false, error: '날짜 범위가 올바르지 않습니다.' };
   }
 
+  // 단일 청크면 직접 호출 (오버헤드 최소화)
+  if (chunks.length === 1) {
+    params.onProgress?.({
+      current: 1,
+      total: 1,
+      syncedSoFar: 0,
+      elapsedMs: Date.now() - startTime,
+      dateRange: `${chunks[0].start} ~ ${chunks[0].end}`,
+    });
+
+    const result = await syncOrdersChunk({
+      channel: params.channel,
+      startDate: chunks[0].start,
+      endDate: chunks[0].end,
+    });
+
+    return { ...result, elapsedMs: Date.now() - startTime };
+  }
+
+  // 멀티 청크: 순차 실행 + 진행률 보고
   let totalSynced = 0;
   let totalSkipped = 0;
   const allErrors: string[] = [];
 
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
-    params.onProgress?.(i + 1, chunks.length);
+    const dateRange = `${chunk.start} ~ ${chunk.end}`;
 
-    const result = await syncOrders({
+    params.onProgress?.({
+      current: i + 1,
+      total: chunks.length,
+      syncedSoFar: totalSynced,
+      elapsedMs: Date.now() - startTime,
+      dateRange,
+    });
+
+    const result = await syncOrdersChunk({
       channel: params.channel,
       startDate: chunk.start,
       endDate: chunk.end,
@@ -118,10 +172,11 @@ export async function syncOrdersChunked(params: {
     if (!result.success) {
       return {
         success: false,
-        error: `${chunk.start}~${chunk.end} 구간 실패: ${result.error}`,
+        error: `${dateRange} 구간 실패: ${result.error}`,
         synced: totalSynced,
         skipped: totalSkipped,
         errors: allErrors,
+        elapsedMs: Date.now() - startTime,
       };
     }
 
@@ -129,7 +184,14 @@ export async function syncOrdersChunked(params: {
     totalSkipped += result.skipped ?? 0;
     if (result.errors) allErrors.push(...result.errors);
 
-    params.onProgress?.(i + 1, chunks.length, result);
+    params.onProgress?.({
+      current: i + 1,
+      total: chunks.length,
+      syncedSoFar: totalSynced,
+      elapsedMs: Date.now() - startTime,
+      dateRange,
+      chunkResult: result,
+    });
   }
 
   return {
@@ -137,7 +199,9 @@ export async function syncOrdersChunked(params: {
     message: `${totalSynced}건 동기화 완료`,
     synced: totalSynced,
     skipped: totalSkipped,
+    total: totalSynced + totalSkipped,
     errors: allErrors.length > 0 ? allErrors : undefined,
+    elapsedMs: Date.now() - startTime,
   };
 }
 
@@ -169,10 +233,11 @@ export async function testChannelConnection(channel: string): Promise<Connection
     }
 
     return await response.json();
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as Error;
     return {
       success: false,
-      message: `연결 실패: ${error.message}`,
+      message: `연결 실패: ${err.message}`,
     };
   }
 }
