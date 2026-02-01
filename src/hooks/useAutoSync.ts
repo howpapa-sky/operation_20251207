@@ -3,7 +3,7 @@ import { syncOrders } from '@/services/orderSyncService';
 import type { SyncResult } from '@/services/orderSyncService';
 
 const SYNC_INTERVAL_MS = 1 * 60 * 1000; // 1분마다 자동 동기화
-const RECENT_DAYS = 3; // 증분 동기화 범위 (최근 3일)
+const RECENT_DAYS = 7; // 증분 동기화 범위 (대시보드 기본 7일과 일치)
 const STORAGE_KEY = 'order_auto_sync';
 
 interface AutoSyncState {
