@@ -49,6 +49,10 @@ app.get('/health', (req, res) => {
 
 // 토큰 발급 헬퍼 (내부 재사용)
 async function generateNaverToken(clientId, clientSecret) {
+  // Trim whitespace to prevent copy-paste issues
+  clientId = (clientId || '').trim();
+  clientSecret = (clientSecret || '').trim();
+
   const timestamp = Date.now();
   const password = clientId + '_' + timestamp;
   var hashedSign;
@@ -58,18 +62,23 @@ async function generateNaverToken(clientId, clientSecret) {
     throw new Error('bcrypt hash failed: ' + e.message + ' (secret_len=' + (clientSecret ? clientSecret.length : 0) + ')');
   }
 
-  // Naver API requires raw bcrypt hash (no URL encoding for $, /)
-  var body = 'client_id=' + clientId
-    + '&timestamp=' + timestamp
-    + '&client_secret_sign=' + hashedSign
-    + '&grant_type=client_credentials&type=SELF';
+  // Naver Commerce API requires: Base64(bcrypt(clientId + "_" + timestamp, clientSecret))
+  var base64Sign = Buffer.from(hashedSign).toString('base64');
 
-  console.log('[naver-token] clientId=' + clientId.substring(0, 6) + '... secret_len=' + clientSecret.length + ' hash_len=' + hashedSign.length);
+  // Use URLSearchParams for proper form encoding
+  var params = new URLSearchParams();
+  params.set('client_id', clientId);
+  params.set('timestamp', String(timestamp));
+  params.set('client_secret_sign', base64Sign);
+  params.set('grant_type', 'client_credentials');
+  params.set('type', 'SELF');
+
+  console.log('[naver-token] clientId=' + clientId.substring(0, 6) + '... secret_len=' + clientSecret.length + ' hash_len=' + hashedSign.length + ' base64_len=' + base64Sign.length);
 
   const response = await fetch('https://api.commerce.naver.com/external/v1/oauth2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body,
+    body: params.toString(),
   });
 
   var text = await response.text();
