@@ -18,6 +18,9 @@
 [functions."seeding-kpi-alert"]
   schedule = "0 6,9 * * *"
 
+[functions."daily-alert-check"]
+  schedule = "0 0 * * *"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

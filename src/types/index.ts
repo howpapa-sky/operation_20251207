@@ -1111,6 +1111,21 @@ export interface SeedingMarketingCost {
   count: number;          // 대상 인플루언서 수
 }
 
+// ========== 매출 이상 알림 설정 ==========
+
+export interface AlertSettings {
+  id: string;
+  userId: string;
+  isEnabled: boolean;
+  salesDropThreshold: number;       // 매출 하락 임계값 (%)
+  roasTarget: number;               // ROAS 목표값 (%)
+  lowStockAlert: boolean;
+  notificationEmail: string | null;
+  notificationNaverWorks: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ========== 개발 요청서 ==========
 
 // 개발 요청 브랜드
