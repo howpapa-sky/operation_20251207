@@ -1104,6 +1104,30 @@ export interface SeedingProjectStats {
   total_engagement: number;
 }
 
+// 시딩 마케팅비 집계 결과
+export interface SeedingMarketingCost {
+  productCost: number;    // 제품 원가 합계 (product_price * quantity)
+  payment: number;        // 인플루언서 페이 합계
+  shippingCost: number;   // 배송비 합계
+  total: number;          // 전체 합계
+  count: number;          // 대상 인플루언서 수
+}
+
+// ========== 매출 이상 알림 설정 ==========
+
+export interface AlertSettings {
+  id: string;
+  userId: string;
+  isEnabled: boolean;
+  salesDropThreshold: number;       // 매출 하락 임계값 (%)
+  roasTarget: number;               // ROAS 목표값 (%)
+  lowStockAlert: boolean;
+  notificationEmail: string | null;
+  notificationNaverWorks: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ========== 개발 요청서 ==========
 
 // 개발 요청 브랜드

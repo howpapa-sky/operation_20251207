@@ -31,6 +31,7 @@ import { useApiCredentialsStore } from '../store/useApiCredentialsStore';
 import { useProjectSettingsStore, defaultProjectTypeLabels } from '../store/useProjectSettingsStore';
 import { useProjectFieldsStore, fieldTypeLabels, defaultFieldSettings } from '../store/useProjectFieldsStore';
 import { useUserManagementStore, canManageUsers } from '../store/useUserManagementStore';
+import { useAlertSettingsStore } from '../store/useAlertSettingsStore';
 import { EvaluationCriteria, ProductCategory, SalesChannel, SyncStatus, ProjectType, ProjectFieldSetting, FieldType, UserRole, userRoleLabels } from '../types';
 import { channelInfo } from '../services/salesApiService';
 import {
@@ -92,6 +93,13 @@ export default function SettingsPage() {
     deleteField,
   } = useProjectFieldsStore();
 
+  // Alert settings state
+  const {
+    settings: alertSettings,
+    fetchAlertSettings,
+    updateAlertSettings,
+  } = useAlertSettingsStore();
+
   const [selectedFieldType, setSelectedFieldType] = useState<ProjectType>('sampling');
   const [showFieldModal, setShowFieldModal] = useState(false);
   const [editingField, setEditingField] = useState<ProjectFieldSetting | null>(null);
@@ -111,10 +119,11 @@ export default function SettingsPage() {
     fetchProjectTypeSettings();
     fetchNotificationSettings();
     fetchFieldSettings();
+    fetchAlertSettings();
     if (canManageUsers(user)) {
       fetchUsers();
     }
-  }, [fetchProjectTypeSettings, fetchNotificationSettings, fetchFieldSettings, fetchUsers, user]);
+  }, [fetchProjectTypeSettings, fetchNotificationSettings, fetchFieldSettings, fetchAlertSettings, fetchUsers, user]);
 
   // 프로젝트 유형 아이콘 매핑
   const projectTypeIcons: Record<ProjectType, React.ReactNode> = {
@@ -1265,6 +1274,136 @@ export default function SettingsPage() {
                       placeholder="이메일 주소 입력"
                     />
                     <p className="text-xs text-gray-400 mt-1">비워두면 로그인 이메일로 발송됩니다</p>
+                  </div>
+                </div>
+              </Card>
+
+              {/* 매출 이상 알림 */}
+              <Card>
+                <CardHeader
+                  title="매출 이상 알림"
+                  subtitle="매출 하락, 주간 추이 이상 시 자동으로 알림을 받습니다 (매일 오전 9시 KST)"
+                />
+                <div className="space-y-4">
+                  {/* 마스터 토글 */}
+                  <div className="flex items-center justify-between p-4 rounded-xl border-2 border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-orange-500 flex items-center justify-center">
+                        <AlertCircle className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900">매출 이상 알림 활성화</p>
+                        <p className="text-sm text-gray-500">매출 하락 감지 시 자동 알림 전송</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => updateAlertSettings({
+                        isEnabled: !alertSettings?.isEnabled
+                      })}
+                      className={`w-12 h-7 rounded-full transition-all ${
+                        alertSettings?.isEnabled ? 'bg-orange-500' : 'bg-gray-300'
+                      }`}
+                    >
+                      <div
+                        className={`w-5 h-5 bg-white rounded-full shadow transition-all ${
+                          alertSettings?.isEnabled ? 'ml-6' : 'ml-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {alertSettings?.isEnabled && (
+                    <>
+                      {/* 매출 하락 임계값 */}
+                      <div className="p-4 rounded-xl border border-gray-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="font-medium text-gray-900">매출 하락 감지 임계값</p>
+                            <p className="text-sm text-gray-500">전일 대비 매출이 이 비율 이상 하락하면 알림</p>
+                          </div>
+                          <span className="text-lg font-bold text-orange-600">{alertSettings.salesDropThreshold}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="10"
+                          max="80"
+                          step="5"
+                          value={alertSettings.salesDropThreshold}
+                          onChange={(e) => updateAlertSettings({ salesDropThreshold: Number(e.target.value) })}
+                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                        />
+                        <div className="flex justify-between text-xs text-gray-400 mt-1">
+                          <span>10% (민감)</span>
+                          <span>80% (둔감)</span>
+                        </div>
+                      </div>
+
+                      {/* ROAS 목표값 */}
+                      <div className="p-4 rounded-xl border border-gray-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <p className="font-medium text-gray-900">ROAS 목표값</p>
+                            <p className="text-sm text-gray-500">ROAS가 목표의 50% 이하이면 알림 (추후 광고비 연동 시 활성화)</p>
+                          </div>
+                          <span className="text-lg font-bold text-orange-600">{alertSettings.roasTarget}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="100"
+                          max="1000"
+                          step="50"
+                          value={alertSettings.roasTarget}
+                          onChange={(e) => updateAlertSettings({ roasTarget: Number(e.target.value) })}
+                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                        />
+                        <div className="flex justify-between text-xs text-gray-400 mt-1">
+                          <span>100%</span>
+                          <span>1000%</span>
+                        </div>
+                      </div>
+
+                      {/* 네이버웍스 알림 */}
+                      <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200">
+                        <div className="flex items-center gap-3">
+                          <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                          </svg>
+                          <div>
+                            <p className="font-medium text-gray-900">네이버웍스로 알림 전송</p>
+                            <p className="text-sm text-gray-500">이상 감지 시 네이버웍스 채널로 알림</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => updateAlertSettings({
+                            notificationNaverWorks: !alertSettings.notificationNaverWorks
+                          })}
+                          className={`w-10 h-6 rounded-full transition-all ${
+                            alertSettings.notificationNaverWorks ? 'bg-green-500' : 'bg-gray-300'
+                          }`}
+                        >
+                          <div
+                            className={`w-4 h-4 bg-white rounded-full transition-all ${
+                              alertSettings.notificationNaverWorks ? 'ml-5' : 'ml-1'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* 안내 */}
+                  <div className="p-4 bg-orange-50 rounded-xl border border-orange-200">
+                    <div className="flex items-start gap-3">
+                      <Bell className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="font-medium text-orange-800 mb-1">매출 알림 동작 방식</p>
+                        <p className="text-orange-700">
+                          매일 오전 9시(KST)에 전일 매출을 전전일과 비교합니다.
+                          설정한 임계값 이상 하락하면 네이버웍스로 알림이 발송됩니다.
+                          주간 매출이 20% 이상 감소한 경우에도 추가 알림이 발송됩니다.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </Card>

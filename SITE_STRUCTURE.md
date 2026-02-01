@@ -1,6 +1,6 @@
 # Howpapa & Nuccio 운영 시스템 - 전체 구조 문서
 
-> **최종 업데이트**: 2026-01-26
+> **최종 업데이트**: 2026-02-01
 > **프로젝트명**: operation_20251207
 > **목적**: 하우파파(howpapa)와 누치오(nuccio) 브랜드의 운영 관리 시스템
 
@@ -411,6 +411,11 @@ interface SeedingState {
 | `useApiCredentialsStore.ts` | API 연동 설정 (Cafe24, Naver, Coupang) |
 | `usePersonalTaskStore.ts` | 개인 할일 |
 | `devRequestStore.ts` | 개발요청 관리 |
+| `useAlertSettingsStore.ts` | 매출 이상 알림 설정 (임계값, ROAS 목표) |
+| `salesDashboardStore.ts` | 매출 대시보드 데이터 (orders_raw 조회) |
+| `channelSettingsStore.ts` | 채널별 설정 |
+| `profitSettingsStore.ts` | 수익성 계산 설정 |
+| `skuMasterStore.ts` | SKU 마스터 데이터 |
 
 ---
 
@@ -547,6 +552,31 @@ interface DevRequest {
 }
 ```
 
+### 6.6 매출/수익성 관련
+
+```typescript
+interface SeedingMarketingCost {
+  productCost: number;    // 제품 원가 합계
+  payment: number;        // 인플루언서 페이 합계
+  shippingCost: number;   // 배송비 합계
+  total: number;          // 전체 합계
+  count: number;          // 대상 인플루언서 수
+}
+
+interface AlertSettings {
+  id: string;
+  userId: string;
+  isEnabled: boolean;
+  salesDropThreshold: number;  // 매출 하락 임계값 (%)
+  roasTarget: number;          // ROAS 목표값 (%)
+  lowStockAlert: boolean;
+  notificationEmail: string | null;
+  notificationNaverWorks: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
 ---
 
 ## 7. 서비스 및 API 연동
@@ -618,6 +648,14 @@ const supabase = createClient(
 | `notify-assignee.js` | 담당자 알림 | HTTP 요청 |
 | `send-email.js` | 이메일 발송 | HTTP 요청 |
 | `send-naver-works.js` | 네이버웍스 메시지 | HTTP 요청 |
+| `daily-seeding-report.ts` | 일일 시딩 리포트 (19:00 KST) | 스케줄 |
+| `seeding-kpi-alert.ts` | 시딩 KPI 알림 (15:00, 18:00 KST) | 스케줄 |
+| `daily-alert-check.ts` | 매출 이상 알림 (09:00 KST) | 스케줄 |
+| `weekly-report.ts` | 주간 매출/시딩 리포트 (월요일 09:00 KST) | 스케줄 |
+| `monthly-report.ts` | 월간 종합 리포트 (매월 1일 10:00 KST) | 스케줄 |
+| `commerce-proxy.ts` | NCP 프록시 중계 (주문 동기화) | HTTP 요청 |
+| `naver-smartstore-sync.ts` | 네이버 스마트스토어 주문 동기화 | HTTP 요청 |
+| `sheets-webhook.ts` | Google Sheets 웹훅 수신 | HTTP 요청 |
 
 ---
 
@@ -641,6 +679,10 @@ const supabase = createClient(
 | `seeding_influencers` | 인플루언서 목록 |
 | `outreach_templates` | 연락 템플릿 |
 | `product_guides` | 제품 가이드 |
+| `orders_raw` | 주문 원시 데이터 (채널별 수집) |
+| `sku_master` | SKU 마스터 데이터 |
+| `sku_costs` | SKU별 원가 정보 |
+| `alert_settings` | 매출 이상 알림 설정 (임계값, ROAS, 토글) |
 
 ### 9.2 스키마 파일
 
@@ -654,6 +696,8 @@ const supabase = createClient(
 | `supabase-project-settings-schema.sql` | 프로젝트 설정 |
 | `supabase-personal-tasks-schema.sql` | 개인 할일 |
 | `supabase-profiles-fix.sql` | 프로필 수정 |
+| `supabase-alert-settings.sql` | 매출 이상 알림 설정 테이블 |
+| `supabase-seeding-marketing-cost.sql` | 시딩 마케팅비 컬럼 추가 |
 
 ---
 

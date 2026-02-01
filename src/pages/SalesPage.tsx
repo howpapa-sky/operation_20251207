@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   DollarSign,
   TrendingUp,
@@ -14,6 +14,9 @@ import {
   Download,
   Upload,
   Megaphone,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
 } from 'lucide-react';
 import {
   LineChart,
@@ -35,7 +38,7 @@ import Modal from '../components/common/Modal';
 import Badge from '../components/common/Badge';
 import { useSalesStore, channelLabels } from '../store/useSalesStore';
 import { useProductMasterStore } from '../store/useProductMasterStore';
-import { SalesChannel, SalesRecord } from '../types';
+import { SalesChannel, SalesRecord, SeedingMarketingCost } from '../types';
 import { formatNumber, brandLabels } from '../utils/helpers';
 
 const channelOptions: SalesChannel[] = ['cafe24', 'naver_smartstore', 'coupang', 'other'];
@@ -50,6 +53,34 @@ const channelColors: Record<SalesChannel, string> = {
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6B7280'];
 
 type ViewTab = 'overview' | 'by-channel' | 'by-product' | 'by-period';
+type BrandFilter = 'all' | 'howpapa' | 'nuccio';
+
+const BRAND_TABS: { id: BrandFilter; label: string }[] = [
+  { id: 'all', label: '전체' },
+  { id: 'howpapa', label: '하우파파' },
+  { id: 'nuccio', label: '누씨오' },
+];
+
+// 전월 문자열 계산
+function getPrevMonth(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(y, m - 2, 1); // month-1 (0-indexed) - 1 = m-2
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// 전월 대비 변화율 계산
+function pctChange(current: number, previous: number): number {
+  if (previous === 0) return current > 0 ? 100 : 0;
+  return ((current - previous) / previous) * 100;
+}
+
+// 비용 파이차트 색상
+const COST_COLORS = {
+  productCost: '#3B82F6',  // 파란색 - 제품 원가
+  channelFee: '#10B981',   // 초록색 - 채널 수수료
+  adCost: '#F59E0B',       // 주황색 - 광고비
+  seedingCost: '#8B5CF6',  // 보라색 - 시딩 마케팅비
+};
 
 export default function SalesPage() {
   const {
@@ -71,6 +102,13 @@ export default function SalesPage() {
   const { products: masterProducts } = useProductMasterStore();
 
   const [activeTab, setActiveTab] = useState<ViewTab>('overview');
+  const [brandFilter, setBrandFilter] = useState<BrandFilter>('all');
+  const [seedingCost, setSeedingCost] = useState<SeedingMarketingCost>({
+    productCost: 0, payment: 0, shippingCost: 0, total: 0, count: 0,
+  });
+  const [prevSeedingCost, setPrevSeedingCost] = useState<SeedingMarketingCost>({
+    productCost: 0, payment: 0, shippingCost: 0, total: 0, count: 0,
+  });
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState<SalesRecord | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
@@ -85,15 +123,48 @@ export default function SalesPage() {
   const [formCostPrice, setFormCostPrice] = useState(0);
   const [formNotes, setFormNotes] = useState('');
 
-  useEffect(() => {
-    fetchProducts();
+  const prevMonth = getPrevMonth(selectedMonth);
+
+  const fetchAllCosts = useCallback(async () => {
     const startDate = `${selectedMonth}-01`;
     const endDate = `${selectedMonth}-31`;
-    fetchSalesRecords(startDate, endDate);
-    getSeedingMarketingCost(startDate, endDate);
-  }, [selectedMonth, fetchProducts, fetchSalesRecords, getSeedingMarketingCost]);
+    const prevStart = `${prevMonth}-01`;
+    const prevEnd = `${prevMonth}-31`;
+    const brand = brandFilter === 'all' ? undefined : brandFilter;
+    const [cur, prev] = await Promise.all([
+      getSeedingMarketingCost(startDate, endDate, brand),
+      getSeedingMarketingCost(prevStart, prevEnd, brand),
+    ]);
+    setSeedingCost(cur);
+    setPrevSeedingCost(prev);
+  }, [selectedMonth, prevMonth, brandFilter, getSeedingMarketingCost]);
+
+  useEffect(() => {
+    fetchProducts();
+    // 당월 + 전월 데이터를 함께 로드 (전월 대비 비교용)
+    const prevStart = `${prevMonth}-01`;
+    const endDate = `${selectedMonth}-31`;
+    fetchSalesRecords(prevStart, endDate);
+    fetchAllCosts();
+  }, [selectedMonth, prevMonth, fetchProducts, fetchSalesRecords, fetchAllCosts]);
 
   const summary = getMonthlySummary(selectedMonth);
+  const prevSummary = getMonthlySummary(prevMonth);
+
+  // 전월 대비 변화율
+  const revenueChange = pctChange(summary.totalRevenue, prevSummary.totalRevenue);
+  const totalCostAll = summary.totalCost + seedingCost.total;
+  const prevTotalCostAll = prevSummary.totalCost + prevSeedingCost.total;
+  const operatingProfit = summary.totalRevenue - totalCostAll;
+  const prevOperatingProfit = prevSummary.totalRevenue - prevTotalCostAll;
+  const profitChange = pctChange(operatingProfit, prevOperatingProfit);
+  const operatingMargin = summary.totalRevenue > 0 ? (operatingProfit / summary.totalRevenue) * 100 : 0;
+
+  // 비용 구성 파이차트 데이터
+  const costPieData = [
+    { name: '제품 원가', value: summary.totalCost, color: COST_COLORS.productCost },
+    { name: '시딩 마케팅비', value: seedingCost.total, color: COST_COLORS.seedingCost },
+  ].filter(d => d.value > 0);
 
   // 제품별 매출 요약
   const productSummary = useMemo(() => {
@@ -257,79 +328,118 @@ export default function SalesPage() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* Brand Filter Tabs */}
+      <div className="flex gap-2">
+        {BRAND_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setBrandFilter(tab.id)}
+            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+              brandFilter === tab.id
+                ? tab.id === 'howpapa'
+                  ? 'bg-orange-100 text-orange-700'
+                  : tab.id === 'nuccio'
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-gray-900 text-white'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* KPI Cards with Comparison */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 총 매출 */}
         <Card className="p-5">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-100 rounded-xl">
               <DollarSign className="w-6 h-6 text-blue-600" />
             </div>
-            <div>
+            <div className="flex-1">
               <p className="text-sm text-gray-500">총 매출</p>
               <p className="text-xl font-bold text-gray-900">
                 {formatNumber(summary.totalRevenue)}원
               </p>
+              <div className="flex items-center gap-1 mt-1">
+                {revenueChange > 0 ? (
+                  <ArrowUpRight className="w-3.5 h-3.5 text-green-500" />
+                ) : revenueChange < 0 ? (
+                  <ArrowDownRight className="w-3.5 h-3.5 text-red-500" />
+                ) : (
+                  <Minus className="w-3.5 h-3.5 text-gray-400" />
+                )}
+                <span className={`text-xs font-medium ${
+                  revenueChange > 0 ? 'text-green-600' : revenueChange < 0 ? 'text-red-600' : 'text-gray-400'
+                }`}>
+                  {revenueChange > 0 ? '+' : ''}{revenueChange.toFixed(1)}% 전월 대비
+                </span>
+              </div>
             </div>
           </div>
         </Card>
 
+        {/* 총 비용 */}
         <Card className="p-5">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-red-100 rounded-xl">
               <TrendingDown className="w-6 h-6 text-red-600" />
             </div>
-            <div>
+            <div className="flex-1">
               <p className="text-sm text-gray-500">총 비용</p>
               <p className="text-xl font-bold text-gray-900">
-                {formatNumber(summary.totalCost + seedingMarketingCost)}원
+                {formatNumber(totalCostAll)}원
               </p>
               <p className="text-xs text-gray-400">
-                원가 {formatNumber(summary.totalCost)} + 시딩 {formatNumber(seedingMarketingCost)}
+                원가 {formatNumber(summary.totalCost)} + 시딩 {formatNumber(seedingCost.total)}
               </p>
             </div>
           </div>
         </Card>
 
-        <Card className="p-5">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-orange-100 rounded-xl">
-              <Megaphone className="w-6 h-6 text-orange-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">시딩 마케팅비</p>
-              <p className="text-xl font-bold text-orange-600">
-                {formatNumber(seedingMarketingCost)}원
-              </p>
-            </div>
-          </div>
-        </Card>
-
+        {/* 영업이익 */}
         <Card className="p-5">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-green-100 rounded-xl">
               <TrendingUp className="w-6 h-6 text-green-600" />
             </div>
-            <div>
-              <p className="text-sm text-gray-500">순이익</p>
-              <p className="text-xl font-bold text-green-600">
-                {formatNumber(summary.totalProfit - seedingMarketingCost)}원
+            <div className="flex-1">
+              <p className="text-sm text-gray-500">영업이익</p>
+              <p className={`text-xl font-bold ${operatingProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {formatNumber(operatingProfit)}원
               </p>
-              <p className="text-xs text-gray-400">
-                이익률 {summary.totalRevenue > 0 ? (((summary.totalProfit - seedingMarketingCost) / summary.totalRevenue) * 100).toFixed(1) : '0.0'}%
-              </p>
+              <div className="flex items-center gap-1 mt-1">
+                {profitChange > 0 ? (
+                  <ArrowUpRight className="w-3.5 h-3.5 text-green-500" />
+                ) : profitChange < 0 ? (
+                  <ArrowDownRight className="w-3.5 h-3.5 text-red-500" />
+                ) : (
+                  <Minus className="w-3.5 h-3.5 text-gray-400" />
+                )}
+                <span className={`text-xs font-medium ${
+                  profitChange > 0 ? 'text-green-600' : profitChange < 0 ? 'text-red-600' : 'text-gray-400'
+                }`}>
+                  {profitChange > 0 ? '+' : ''}{profitChange.toFixed(1)}% 전월 대비
+                </span>
+              </div>
             </div>
           </div>
         </Card>
 
+        {/* 영업이익률 */}
         <Card className="p-5">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-purple-100 rounded-xl">
-              <ShoppingCart className="w-6 h-6 text-purple-600" />
+              <BarChart2 className="w-6 h-6 text-purple-600" />
             </div>
-            <div>
-              <p className="text-sm text-gray-500">주문 건수</p>
-              <p className="text-xl font-bold text-gray-900">
-                {formatNumber(summary.orderCount)}건
+            <div className="flex-1">
+              <p className="text-sm text-gray-500">영업이익률</p>
+              <p className={`text-xl font-bold ${operatingMargin >= 0 ? 'text-purple-600' : 'text-red-600'}`}>
+                {operatingMargin.toFixed(1)}%
+              </p>
+              <p className="text-xs text-gray-400">
+                주문 {formatNumber(summary.orderCount)}건 · 시딩 {seedingCost.count}명
               </p>
             </div>
           </div>
@@ -356,60 +466,116 @@ export default function SalesPage() {
 
       {/* Tab Content */}
       {activeTab === 'overview' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">일별 매출 추이</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={summary.dailyData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 12 }}
-                    tickFormatter={(value) => value.slice(8)}
-                  />
-                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(value) => `${value / 10000}만`} />
-                  <Tooltip
-                    formatter={(value: number) => `${formatNumber(value)}원`}
-                    labelFormatter={(label) => `${label}`}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="revenue"
-                    name="매출"
-                    stroke="#3B82F6"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="profit"
-                    name="이익"
-                    stroke="#10B981"
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">일별 매출 추이</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={summary.dailyData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 12 }}
+                      tickFormatter={(value) => value.slice(8)}
+                    />
+                    <YAxis tick={{ fontSize: 12 }} tickFormatter={(value) => `${value / 10000}만`} />
+                    <Tooltip
+                      formatter={(value: number) => `${formatNumber(value)}원`}
+                      labelFormatter={(label) => `${label}`}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="revenue"
+                      name="매출"
+                      stroke="#3B82F6"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="profit"
+                      name="이익"
+                      stroke="#10B981"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
 
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">채널별 매출</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={channelChartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(value) => `${value / 10000}만`} />
-                  <Tooltip formatter={(value: number) => `${formatNumber(value)}원`} />
-                  <Legend />
-                  <Bar dataKey="매출" fill="#3B82F6" />
-                  <Bar dataKey="이익" fill="#10B981" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">채널별 매출</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={channelChartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} tickFormatter={(value) => `${value / 10000}만`} />
+                    <Tooltip formatter={(value: number) => `${formatNumber(value)}원`} />
+                    <Legend />
+                    <Bar dataKey="매출" fill="#3B82F6" />
+                    <Bar dataKey="이익" fill="#10B981" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
+
+          {/* 비용 구성 파이차트 */}
+          {costPieData.length > 0 && (
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">비용 구성</h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={costPieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={100}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {costPieData.map((entry, index) => (
+                          <Cell key={`cost-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value: number) => `${formatNumber(value)}원`} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex flex-col justify-center space-y-3">
+                  {costPieData.map((item) => (
+                    <div key={item.name} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: item.color }}
+                        />
+                        <span className="text-sm text-gray-600">{item.name}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-semibold text-gray-900">
+                          {formatNumber(item.value)}원
+                        </span>
+                        <span className="text-xs text-gray-400 ml-2">
+                          ({totalCostAll > 0 ? ((item.value / totalCostAll) * 100).toFixed(1) : 0}%)
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="pt-2 border-t border-gray-200 flex items-center justify-between">
+                    <span className="text-sm font-semibold text-gray-700">합계</span>
+                    <span className="text-sm font-bold text-gray-900">{formatNumber(totalCostAll)}원</span>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
       )}
 
