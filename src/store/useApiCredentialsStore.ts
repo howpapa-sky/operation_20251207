@@ -262,8 +262,8 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
         return { success: false, message: errorMsg };
       }
 
-      // 네이버 스마트스토어 / Cafe24: Netlify Function (commerce-proxy) 경유
-      if (channel === 'naver_smartstore' || channel === 'cafe24') {
+      // 네이버 스마트스토어 / Cafe24 / 쿠팡: Netlify Function (commerce-proxy) 경유
+      if (channel === 'naver_smartstore' || channel === 'cafe24' || channel === 'coupang') {
         try {
           const channelParam = channel === 'naver_smartstore' ? 'smartstore' : channel;
           const response = await fetch('/.netlify/functions/commerce-proxy', {
@@ -314,8 +314,8 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
       return { success: false, message: '로그인이 필요합니다.' };
     }
 
-    if (channel !== 'naver_smartstore' && channel !== 'cafe24') {
-      return { success: false, message: '현재 네이버 스마트스토어와 Cafe24만 동기화를 지원합니다.' };
+    if (channel !== 'naver_smartstore' && channel !== 'cafe24' && channel !== 'coupang') {
+      return { success: false, message: '현재 네이버 스마트스토어, Cafe24, 쿠팡만 동기화를 지원합니다.' };
     }
 
     set({ syncingChannel: channel });

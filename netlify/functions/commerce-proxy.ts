@@ -141,6 +141,47 @@ async function testConnection(channel: string) {
     }
   }
 
+  if (channel === "coupang") {
+    try {
+      const creds = await getCoupangCredentials();
+
+      const response = await fetch(`${PROXY_URL}/api/coupang/test`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": PROXY_API_KEY,
+        },
+        body: JSON.stringify({
+          vendorId: creds.vendorId,
+          accessKey: creds.accessKey,
+          secretKey: creds.secretKey,
+        }),
+      });
+
+      const responseText = await response.text();
+      console.log(`[commerce-proxy] coupang test response: status=${response.status}, body=${responseText.substring(0, 300)}`);
+
+      let result: any;
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        return {
+          success: false,
+          message: `프록시 응답 파싱 실패 (status ${response.status}): ${responseText.substring(0, 100)}`,
+        };
+      }
+      return {
+        success: result.success === true,
+        message: result.message || (result.success ? "연결 성공" : result.error || "연결 실패"),
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: `연결 실패: ${error.message}`,
+      };
+    }
+  }
+
   return {
     success: false,
     message: `${channel} 채널은 아직 지원되지 않습니다.`,
@@ -356,6 +397,9 @@ async function syncOrders(params: {
         error: `스마트스토어 주문 조회 실패: ${error.message}`,
       };
     }
+  } else if (channel === "coupang") {
+    // 쿠팡은 별도 syncCoupangOrders에서 전체 처리
+    return await syncCoupangOrders({ startDate, endDate });
   } else {
     return {
       success: false,
@@ -978,6 +1022,306 @@ async function syncCafe24Orders(params: { startDate: string; endDate: string }) 
   };
 }
 
+// ========== Coupang API ==========
+
+// Coupang 자격증명 조회
+async function getCoupangCredentials(): Promise<{
+  vendorId: string;
+  accessKey: string;
+  secretKey: string;
+}> {
+  const { data } = await supabase
+    .from("api_credentials")
+    .select("coupang_vendor_id, coupang_access_key, coupang_secret_key")
+    .eq("channel", "coupang")
+    .limit(1)
+    .single();
+
+  if (!data?.coupang_vendor_id || !data?.coupang_access_key || !data?.coupang_secret_key) {
+    throw new Error("쿠팡 자격증명이 설정되지 않았습니다. 설정 > API 연동에서 Vendor ID, Access Key, Secret Key를 등록해주세요.");
+  }
+
+  return {
+    vendorId: data.coupang_vendor_id,
+    accessKey: data.coupang_access_key,
+    secretKey: data.coupang_secret_key,
+  };
+}
+
+// Coupang 주문 → orders_raw 변환
+interface CoupangOrderItem {
+  vendorItemId?: number;
+  vendorItemName?: string;
+  sellerProductItemName?: string;
+  firstSellerProductItemName?: string;
+  externalVendorSkuCode?: string;
+  shippingCount?: number;
+  salesPrice?: number;
+  orderPrice?: number;
+  discountPrice?: number;
+  instantCouponDiscount?: number;
+  downloadableCouponDiscount?: number;
+  coupangDiscount?: number;
+}
+
+function transformCoupangOrder(raw: Record<string, unknown>): NaverOrder[] {
+  const shipmentBoxId = String(raw.shipmentBoxId || "");
+  const orderId = String(raw.orderId || "");
+  const orderedAt = String(raw.orderedAt || "");
+  const status = String(raw.status || "");
+  const shippingPrice = toNumber(raw.shippingPrice);
+
+  const orderer = (raw.orderer || {}) as Record<string, unknown>;
+  const receiver = (raw.receiver || {}) as Record<string, unknown>;
+  const buyerName = String(orderer.name || "");
+  const buyerPhone = String(orderer.phone || orderer.safeNumber || "");
+  const shippingAddr = [
+    String(receiver.addr1 || ""),
+    String(receiver.addr2 || ""),
+  ].filter(Boolean).join(" ");
+
+  const items = (raw.orderItems || []) as CoupangOrderItem[];
+
+  if (items.length === 0) {
+    return [{
+      orderId: shipmentBoxId || orderId,
+      orderDate: orderedAt,
+      productName: "",
+      quantity: 1,
+      unitPrice: 0,
+      totalPrice: 0,
+      shippingFee: shippingPrice,
+      discountAmount: 0,
+      orderStatus: status,
+      buyerName,
+      buyerPhone,
+      shippingAddress: shippingAddr,
+      rawData: raw,
+    }];
+  }
+
+  return items.map((item, idx) => {
+    const salesPrice = toNumber(item.salesPrice);
+    const quantity = toNumber(item.shippingCount, 1);
+    const discount = toNumber(item.discountPrice)
+      + toNumber(item.instantCouponDiscount)
+      + toNumber(item.downloadableCouponDiscount)
+      + toNumber(item.coupangDiscount);
+    const totalPrice = toNumber(item.orderPrice) || (salesPrice * quantity);
+
+    return {
+      orderId: shipmentBoxId || orderId,
+      productOrderId: String(item.vendorItemId || idx),
+      orderDate: orderedAt,
+      productName: String(item.vendorItemName || ""),
+      optionName: String(item.sellerProductItemName || item.firstSellerProductItemName || "") || undefined,
+      quantity,
+      unitPrice: salesPrice,
+      totalPrice,
+      shippingFee: idx === 0 ? shippingPrice : 0,
+      discountAmount: discount,
+      orderStatus: status,
+      buyerName,
+      buyerPhone,
+      shippingAddress: shippingAddr,
+      rawData: raw,
+    };
+  });
+}
+
+// Coupang 주문 동기화
+async function syncCoupangOrders(params: { startDate: string; endDate: string }) {
+  const { startDate, endDate } = params;
+  const channel = "coupang";
+
+  console.log(`[coupang] Syncing orders: ${startDate} ~ ${endDate}`);
+
+  // 자격증명 조회
+  let creds;
+  try {
+    creds = await getCoupangCredentials();
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+
+  // NCP 프록시 서버의 /api/coupang/sync 호출
+  let rawOrders: Record<string, unknown>[];
+  try {
+    const response = await fetch(`${PROXY_URL}/api/coupang/sync`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": PROXY_API_KEY,
+      },
+      body: JSON.stringify({
+        vendorId: creds.vendorId,
+        accessKey: creds.accessKey,
+        secretKey: creds.secretKey,
+        startDate,
+        endDate,
+      }),
+    });
+
+    const responseText = await response.text();
+    console.log(`[coupang] sync proxy response: status=${response.status}, body=${responseText.substring(0, 500)}`);
+
+    let result: any;
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      return {
+        success: false,
+        error: `프록시 응답 파싱 실패 (status ${response.status}): ${responseText.substring(0, 200)}`,
+      };
+    }
+
+    if (!response.ok || !result.success) {
+      return {
+        success: false,
+        error: result.message || result.error || "쿠팡 프록시 동기화 실패",
+      };
+    }
+
+    rawOrders = result.data?.orders || [];
+  } catch (error: any) {
+    return {
+      success: false,
+      error: `쿠팡 주문 조회 실패: ${error.message}`,
+    };
+  }
+
+  if (rawOrders.length === 0) {
+    return { success: true, message: "해당 기간에 주문이 없습니다.", synced: 0, skipped: 0, errors: [] };
+  }
+
+  console.log(`[coupang] Fetched ${rawOrders.length} orders`);
+
+  // 수수료율 + SKU 룩업 병렬 조회
+  const [feeRate, skuLookup] = await Promise.all([
+    getChannelFeeRate(channel),
+    loadSKULookup(channel),
+  ]);
+
+  // 주문 데이터 변환 (1주문 → 다상품 flat 처리)
+  const validOrders: any[] = [];
+  const allErrors: string[] = [];
+  let skippedCount = 0;
+  let rowIndex = 0;
+
+  for (const raw of rawOrders) {
+    const orderItems = transformCoupangOrder(raw);
+
+    for (let j = 0; j < orderItems.length; j++) {
+      rowIndex++;
+      const order = orderItems[j];
+
+      const errors = validateOrder(order, rowIndex);
+      if (errors.length > 0) {
+        allErrors.push(...errors);
+        skippedCount++;
+        continue;
+      }
+
+      const uniqueOrderId = order.productOrderId
+        ? `${order.orderId}-${order.productOrderId}`
+        : order.orderId;
+
+      const { skuId, costPrice } = skuLookup.match(order.optionName);
+
+      const totalPrice = order.totalPrice || order.unitPrice * order.quantity;
+      const channelFee = Math.round(totalPrice * (feeRate / 100));
+      const shippingFee = order.shippingFee || 0;
+      const discount = order.discountAmount || 0;
+      const totalCost = costPrice * order.quantity;
+      const profit = totalPrice - totalCost - channelFee - shippingFee - discount;
+
+      validOrders.push({
+        channel,
+        order_id: uniqueOrderId,
+        order_date: toDateStr(order.orderDate),
+        order_datetime: order.orderDate || null,
+        product_name: order.productName || null,
+        option_name: order.optionName || null,
+        sku_id: skuId,
+        quantity: order.quantity,
+        unit_price: order.unitPrice || Math.round(totalPrice / order.quantity),
+        total_price: totalPrice,
+        shipping_fee: shippingFee,
+        discount_amount: discount,
+        channel_fee: channelFee,
+        cost_price: costPrice,
+        profit,
+        order_status: order.orderStatus || null,
+        buyer_name: order.buyerName || null,
+        buyer_phone: order.buyerPhone || null,
+        shipping_address: order.shippingAddress || null,
+        currency: "KRW",
+        exchange_rate: 1,
+        raw_data: order.rawData || null,
+      });
+    }
+  }
+
+  if (validOrders.length === 0) {
+    return { success: false, error: "유효한 주문 데이터가 없습니다.", errors: allErrors };
+  }
+
+  // 중복 제거
+  const deduped = new Map<string, (typeof validOrders)[number]>();
+  for (const order of validOrders) {
+    deduped.set(`${order.channel}::${order.order_id}`, order);
+  }
+  const uniqueOrders = Array.from(deduped.values());
+  const duplicateCount = validOrders.length - uniqueOrders.length;
+
+  // 병렬 청크 upsert
+  const CHUNK_SIZE = 200;
+  console.log(`[coupang] Upserting ${uniqueOrders.length} orders`);
+
+  const chunks: (typeof uniqueOrders)[] = [];
+  for (let i = 0; i < uniqueOrders.length; i += CHUNK_SIZE) {
+    chunks.push(uniqueOrders.slice(i, i + CHUNK_SIZE));
+  }
+
+  const upsertResults = await Promise.all(
+    chunks.map((chunk) =>
+      supabase.from("orders_raw").upsert(chunk, { onConflict: "channel,order_id", ignoreDuplicates: false }).select("id")
+    )
+  );
+
+  const dbErrors = upsertResults.filter((r) => r.error);
+  if (dbErrors.length > 0) {
+    return { success: false, error: `데이터 저장 오류: ${dbErrors[0].error!.message}`, errors: allErrors };
+  }
+
+  const totalInserted = upsertResults.reduce((sum, r) => sum + (r.data?.length || 0), 0);
+
+  // 로그 및 설정 업데이트
+  try {
+    await supabase.from("api_sync_logs").insert({
+      channel, sync_type: "manual", status: "success",
+      records_fetched: rawOrders.length, records_created: totalInserted || uniqueOrders.length,
+      records_updated: 0, started_at: new Date().toISOString(), completed_at: new Date().toISOString(),
+    });
+  } catch { /* 무시 */ }
+
+  try {
+    await supabase.from("sales_channel_settings")
+      .update({ last_sync_at: new Date().toISOString(), sync_status: "success" })
+      .eq("channel", channel);
+  } catch { /* 무시 */ }
+
+  return {
+    success: true,
+    message: `${uniqueOrders.length}건의 쿠팡 주문이 동기화되었습니다.${duplicateCount > 0 ? ` (중복 ${duplicateCount}건 제거)` : ""}`,
+    synced: totalInserted || uniqueOrders.length,
+    skipped: skippedCount,
+    duplicates: duplicateCount,
+    total: rawOrders.length,
+    errors: allErrors,
+  };
+}
+
 // ========== Handler ==========
 const handler: Handler = async (
   event: HandlerEvent,
@@ -1224,6 +1568,52 @@ const handler: Handler = async (
       case "test-connection": {
         const ch = request.channel || "smartstore";
 
+        if (ch === "coupang") {
+          try {
+            const coupangCreds = await getCoupangCredentials();
+
+            const coupangTestRes = await fetch(`${PROXY_URL}/api/coupang/test`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": PROXY_API_KEY,
+              },
+              body: JSON.stringify({
+                vendorId: coupangCreds.vendorId,
+                accessKey: coupangCreds.accessKey,
+                secretKey: coupangCreds.secretKey,
+              }),
+            });
+
+            const coupangTestText = await coupangTestRes.text();
+            let coupangTestResult: any;
+            try {
+              coupangTestResult = JSON.parse(coupangTestText);
+            } catch {
+              return {
+                statusCode: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                body: JSON.stringify({ success: false, message: `프록시 응답 파싱 실패` }),
+              };
+            }
+
+            return {
+              statusCode: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                success: coupangTestResult.success === true,
+                message: coupangTestResult.message || (coupangTestResult.success ? "쿠팡 API 연결 성공!" : "연결 실패"),
+              }),
+            };
+          } catch (error: any) {
+            return {
+              statusCode: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              body: JSON.stringify({ success: false, message: error.message }),
+            };
+          }
+        }
+
         if (ch === "cafe24") {
           try {
             const creds = await getCafe24Credentials();
@@ -1281,6 +1671,18 @@ const handler: Handler = async (
             statusCode: 200,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
             body: JSON.stringify(cafe24Result),
+          };
+        }
+
+        if (syncChannel === "coupang") {
+          const coupangResult = await syncCoupangOrders({
+            startDate: request.startDate || "",
+            endDate: request.endDate || "",
+          });
+          return {
+            statusCode: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify(coupangResult),
           };
         }
 
