@@ -1,5 +1,6 @@
 import { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
 import { createClient } from "@supabase/supabase-js";
+import { createHmac } from "crypto";
 
 // ========== 환경변수 ==========
 const PROXY_URL = process.env.NAVER_PROXY_URL || "http://49.50.131.90:3100";
@@ -144,35 +145,15 @@ async function testConnection(channel: string) {
   if (channel === "coupang") {
     try {
       const creds = await getCoupangCredentials();
+      const today = new Date().toISOString().split("T")[0];
+      const path = `/v2/providers/openapi/apis/api/v4/vendors/${creds.vendorId}/ordersheets`;
+      const query = `createdAtFrom=${today}&createdAtTo=${today}&maxPerPage=1&page=1`;
 
-      const response = await fetch(`${PROXY_URL}/api/coupang/test`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": PROXY_API_KEY,
-        },
-        body: JSON.stringify({
-          vendorId: creds.vendorId,
-          accessKey: creds.accessKey,
-          secretKey: creds.secretKey,
-        }),
-      });
+      await coupangApiRequest("GET", path, query, creds.accessKey, creds.secretKey);
 
-      const responseText = await response.text();
-      console.log(`[commerce-proxy] coupang test response: status=${response.status}, body=${responseText.substring(0, 300)}`);
-
-      let result: any;
-      try {
-        result = JSON.parse(responseText);
-      } catch {
-        return {
-          success: false,
-          message: `프록시 응답 파싱 실패 (status ${response.status}): ${responseText.substring(0, 100)}`,
-        };
-      }
       return {
-        success: result.success === true,
-        message: result.message || (result.success ? "연결 성공" : result.error || "연결 실패"),
+        success: true,
+        message: "쿠팡 WING API 연결 성공!",
       };
     } catch (error: any) {
       return {
@@ -1048,6 +1029,116 @@ async function getCoupangCredentials(): Promise<{
   };
 }
 
+// Coupang HMAC-SHA256 서명 생성
+const COUPANG_API_BASE = "https://api-gateway.coupang.com";
+
+function generateCoupangSignature(
+  method: string,
+  path: string,
+  query: string,
+  secretKey: string
+): { datetime: string; signature: string } {
+  const now = new Date();
+  const y = String(now.getUTCFullYear()).slice(2);
+  const mo = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(now.getUTCDate()).padStart(2, "0");
+  const h = String(now.getUTCHours()).padStart(2, "0");
+  const mi = String(now.getUTCMinutes()).padStart(2, "0");
+  const s = String(now.getUTCSeconds()).padStart(2, "0");
+  const datetime = `${y}${mo}${d}T${h}${mi}${s}Z`;
+
+  const message = datetime + method.toUpperCase() + path + query;
+  const signature = createHmac("sha256", secretKey).update(message).digest("hex");
+
+  return { datetime, signature };
+}
+
+// Coupang API 직접 호출 헬퍼
+async function coupangApiRequest(
+  method: string,
+  path: string,
+  query: string,
+  accessKey: string,
+  secretKey: string
+): Promise<any> {
+  const { datetime, signature } = generateCoupangSignature(method, path, query, secretKey);
+  const authorization = `CEA algorithm=HmacSHA256, access-key=${accessKey}, signed-date=${datetime}, signature=${signature}`;
+
+  const url = `${COUPANG_API_BASE}${path}${query ? "?" + query : ""}`;
+  console.log(`[coupang] ${method} ${path} query=${query}`);
+
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Authorization: authorization,
+      "Content-Type": "application/json;charset=UTF-8",
+    },
+  });
+
+  const text = await response.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Coupang API parse error (${response.status}): ${text.substring(0, 300)}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(data.message || data.error || `Coupang API error (${response.status})`);
+  }
+
+  return data;
+}
+
+// Coupang 주문 가져오기 (페이지네이션 전체 처리)
+async function fetchCoupangOrders(
+  vendorId: string,
+  accessKey: string,
+  secretKey: string,
+  startDate: string,
+  endDate: string
+): Promise<Record<string, unknown>[]> {
+  console.log(`[coupang] Fetching orders: ${startDate} ~ ${endDate}`);
+
+  const allOrders: Record<string, unknown>[] = [];
+  const path = `/v2/providers/openapi/apis/api/v4/vendors/${vendorId}/ordersheets`;
+  const MAX_PER_PAGE = 50;
+  let page = 1;
+
+  while (true) {
+    if (page > 1) await new Promise((r) => setTimeout(r, 300));
+
+    const query = `createdAtFrom=${startDate}&createdAtTo=${endDate}&maxPerPage=${MAX_PER_PAGE}&page=${page}`;
+
+    let data: any;
+    try {
+      data = await coupangApiRequest("GET", path, query, accessKey, secretKey);
+    } catch (err: any) {
+      if (err.message && err.message.includes("429")) {
+        console.log("[coupang] 429 Rate Limit - waiting 2s");
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+      throw err;
+    }
+
+    const orders = data.data || [];
+    if (orders.length === 0) break;
+
+    allOrders.push(...orders);
+    console.log(`[coupang] page ${page}: ${orders.length} orders, total=${allOrders.length}`);
+
+    if (orders.length < MAX_PER_PAGE) break;
+    page++;
+
+    // Netlify 타임아웃 대비: 최대 100페이지 (5,000건)
+    if (page > 100) break;
+  }
+
+  console.log(`[coupang] Complete: ${allOrders.length} orders`);
+  return allOrders;
+}
+
 // Coupang 주문 → orders_raw 변환
 interface CoupangOrderItem {
   vendorItemId?: number;
@@ -1144,45 +1235,16 @@ async function syncCoupangOrders(params: { startDate: string; endDate: string })
     return { success: false, error: error.message };
   }
 
-  // NCP 프록시 서버의 /api/coupang/sync 호출
+  // 쿠팡 API 직접 호출 (IP 제한 없음 → NCP 프록시 불필요)
   let rawOrders: Record<string, unknown>[];
   try {
-    const response = await fetch(`${PROXY_URL}/api/coupang/sync`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": PROXY_API_KEY,
-      },
-      body: JSON.stringify({
-        vendorId: creds.vendorId,
-        accessKey: creds.accessKey,
-        secretKey: creds.secretKey,
-        startDate,
-        endDate,
-      }),
-    });
-
-    const responseText = await response.text();
-    console.log(`[coupang] sync proxy response: status=${response.status}, body=${responseText.substring(0, 500)}`);
-
-    let result: any;
-    try {
-      result = JSON.parse(responseText);
-    } catch {
-      return {
-        success: false,
-        error: `프록시 응답 파싱 실패 (status ${response.status}): ${responseText.substring(0, 200)}`,
-      };
-    }
-
-    if (!response.ok || !result.success) {
-      return {
-        success: false,
-        error: result.message || result.error || "쿠팡 프록시 동기화 실패",
-      };
-    }
-
-    rawOrders = result.data?.orders || [];
+    rawOrders = await fetchCoupangOrders(
+      creds.vendorId,
+      creds.accessKey,
+      creds.secretKey,
+      startDate,
+      endDate,
+    );
   } catch (error: any) {
     return {
       success: false,
@@ -1571,45 +1633,22 @@ const handler: Handler = async (
         if (ch === "coupang") {
           try {
             const coupangCreds = await getCoupangCredentials();
+            const today = new Date().toISOString().split("T")[0];
+            const coupangPath = `/v2/providers/openapi/apis/api/v4/vendors/${coupangCreds.vendorId}/ordersheets`;
+            const coupangQuery = `createdAtFrom=${today}&createdAtTo=${today}&maxPerPage=1&page=1`;
 
-            const coupangTestRes = await fetch(`${PROXY_URL}/api/coupang/test`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "x-api-key": PROXY_API_KEY,
-              },
-              body: JSON.stringify({
-                vendorId: coupangCreds.vendorId,
-                accessKey: coupangCreds.accessKey,
-                secretKey: coupangCreds.secretKey,
-              }),
-            });
-
-            const coupangTestText = await coupangTestRes.text();
-            let coupangTestResult: any;
-            try {
-              coupangTestResult = JSON.parse(coupangTestText);
-            } catch {
-              return {
-                statusCode: 200,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-                body: JSON.stringify({ success: false, message: `프록시 응답 파싱 실패` }),
-              };
-            }
+            await coupangApiRequest("GET", coupangPath, coupangQuery, coupangCreds.accessKey, coupangCreds.secretKey);
 
             return {
               statusCode: 200,
               headers: { ...corsHeaders, "Content-Type": "application/json" },
-              body: JSON.stringify({
-                success: coupangTestResult.success === true,
-                message: coupangTestResult.message || (coupangTestResult.success ? "쿠팡 API 연결 성공!" : "연결 실패"),
-              }),
+              body: JSON.stringify({ success: true, message: "쿠팡 WING API 연결 성공!" }),
             };
           } catch (error: any) {
             return {
               statusCode: 200,
               headers: { ...corsHeaders, "Content-Type": "application/json" },
-              body: JSON.stringify({ success: false, message: error.message }),
+              body: JSON.stringify({ success: false, message: `연결 실패: ${error.message}` }),
             };
           }
         }
