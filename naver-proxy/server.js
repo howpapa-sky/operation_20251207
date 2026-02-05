@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3100;
@@ -441,6 +442,141 @@ app.post('/cafe24/test', authenticate, async (req, res) => {
   } catch (error) {
     console.error('[Cafe24 Test Error]', error.message);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
+// Coupang WING API endpoints
+// ==========================================
+
+// Coupang HMAC-SHA256 서명 생성
+function generateCoupangSignature(method, path, query, secretKey) {
+  const now = new Date();
+  const y = String(now.getUTCFullYear()).slice(2);
+  const mo = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(now.getUTCDate()).padStart(2, '0');
+  const h = String(now.getUTCHours()).padStart(2, '0');
+  const mi = String(now.getUTCMinutes()).padStart(2, '0');
+  const s = String(now.getUTCSeconds()).padStart(2, '0');
+  const datetime = `${y}${mo}${d}T${h}${mi}${s}Z`;
+
+  const message = datetime + method.toUpperCase() + path + query;
+  const signature = crypto.createHmac('sha256', secretKey).update(message).digest('hex');
+
+  return { datetime, signature };
+}
+
+const COUPANG_API_BASE = 'https://api-gateway.coupang.com';
+
+// Coupang API 호출 헬퍼
+async function coupangApiRequest(method, path, query, accessKey, secretKey) {
+  const { datetime, signature } = generateCoupangSignature(method, path, query, secretKey);
+  const authorization = `CEA algorithm=HmacSHA256, access-key=${accessKey}, signed-date=${datetime}, signature=${signature}`;
+
+  const url = `${COUPANG_API_BASE}${path}${query ? '?' + query : ''}`;
+  console.log(`[coupang] ${method} ${path} query=${query}`);
+
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Authorization: authorization,
+      'Content-Type': 'application/json;charset=UTF-8',
+    },
+  });
+
+  const text = await response.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Coupang API parse error (${response.status}): ${text.substring(0, 300)}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(data.message || data.error || `Coupang API error (${response.status})`);
+  }
+
+  return data;
+}
+
+// Coupang 연결 테스트
+app.post('/api/coupang/test', authenticate, async (req, res) => {
+  try {
+    const { vendorId, accessKey, secretKey } = req.body;
+
+    if (!vendorId || !accessKey || !secretKey) {
+      return res.status(400).json({ success: false, message: 'vendorId, accessKey, secretKey are required' });
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    const path = `/v2/providers/openapi/apis/api/v4/vendors/${vendorId}/ordersheets`;
+    const query = `createdAtFrom=${today}&createdAtTo=${today}&maxPerPage=1&page=1`;
+
+    await coupangApiRequest('GET', path, query, accessKey, secretKey);
+
+    res.json({ success: true, message: '쿠팡 WING API 연결 성공!' });
+  } catch (error) {
+    console.error('[Coupang Test Error]', error.message);
+    res.json({ success: false, message: `연결 실패: ${error.message}` });
+  }
+});
+
+// Coupang 주문 동기화 (페이지네이션 전체 처리)
+app.post('/api/coupang/sync', authenticate, async (req, res) => {
+  try {
+    const { vendorId, accessKey, secretKey, startDate, endDate } = req.body;
+
+    if (!vendorId || !accessKey || !secretKey || !startDate || !endDate) {
+      return res.status(400).json({ success: false, message: 'vendorId, accessKey, secretKey, startDate, endDate are required' });
+    }
+
+    console.log(`[coupang-sync] ${startDate} ~ ${endDate}`);
+
+    const allOrders = [];
+    const path = `/v2/providers/openapi/apis/api/v4/vendors/${vendorId}/ordersheets`;
+    const MAX_PER_PAGE = 50;
+    let page = 1;
+
+    while (true) {
+      if (page > 1) await new Promise(r => setTimeout(r, 300));
+
+      const query = `createdAtFrom=${startDate}&createdAtTo=${endDate}&maxPerPage=${MAX_PER_PAGE}&page=${page}`;
+
+      let data;
+      try {
+        data = await coupangApiRequest('GET', path, query, accessKey, secretKey);
+      } catch (err) {
+        if (err.message && err.message.includes('429')) {
+          console.log('[coupang-sync] 429 Rate Limit - waiting 2s');
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
+        }
+        throw err;
+      }
+
+      const orders = data.data || [];
+      if (orders.length === 0) break;
+
+      allOrders.push(...orders);
+      console.log(`[coupang-sync] page ${page}: ${orders.length} orders, total=${allOrders.length}`);
+
+      if (orders.length < MAX_PER_PAGE) break;
+      page++;
+
+      // 안전 장치: 최대 100페이지 (5,000건)
+      if (page > 100) break;
+    }
+
+    console.log(`[coupang-sync] Complete: ${allOrders.length} orders`);
+
+    res.json({
+      success: true,
+      data: { orders: allOrders },
+      count: allOrders.length,
+    });
+  } catch (error) {
+    console.error('[Coupang Sync Error]', error.message);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
