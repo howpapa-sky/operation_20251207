@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
 const CHANNELS = [
   { value: 'smartstore', label: '네이버 스마트스토어' },
   { value: 'cafe24', label: 'Cafe24' },
-  { value: 'coupang', label: '쿠팡 (준비중)', disabled: true },
+  { value: 'coupang', label: '쿠팡' },
 ];
 
 function formatRelativeTime(isoStr: string): string {
@@ -68,7 +68,7 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef(0);
 
-  const autoSync = useAutoSync(['smartstore', 'cafe24'], onSyncComplete);
+  const autoSync = useAutoSync(['smartstore', 'cafe24', 'coupang'], onSyncComplete);
 
   const startTimer = () => {
     startTimeRef.current = Date.now();
@@ -176,7 +176,7 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
             </SelectTrigger>
             <SelectContent>
               {CHANNELS.map((ch) => (
-                <SelectItem key={ch.value} value={ch.value} disabled={ch.disabled}>
+                <SelectItem key={ch.value} value={ch.value}>
                   {ch.label}
                 </SelectItem>
               ))}
