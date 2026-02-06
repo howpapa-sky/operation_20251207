@@ -22,6 +22,7 @@ import {
   List,
   Users as UsersIcon,
   Crown,
+  Megaphone,
 } from 'lucide-react';
 import Card, { CardHeader } from '../components/common/Card';
 import Badge from '../components/common/Badge';
@@ -32,7 +33,11 @@ import { useProjectSettingsStore, defaultProjectTypeLabels } from '../store/useP
 import { useProjectFieldsStore, fieldTypeLabels, defaultFieldSettings } from '../store/useProjectFieldsStore';
 import { useUserManagementStore, canManageUsers } from '../store/useUserManagementStore';
 import { useAlertSettingsStore } from '../store/useAlertSettingsStore';
+import { useBrandStore } from '../store/brandStore';
+import { useAdAccountStore } from '../store/useAdAccountStore';
 import { EvaluationCriteria, ProductCategory, SalesChannel, SyncStatus, ProjectType, ProjectFieldSetting, FieldType, UserRole, userRoleLabels } from '../types';
+import type { AdPlatform } from '../types/ecommerce';
+import { adPlatformLabels } from '../types/ecommerce';
 import { channelInfo } from '../services/salesApiService';
 import {
   Beaker,
@@ -169,6 +174,26 @@ export default function SettingsPage() {
     syncOrders,
   } = useApiCredentialsStore();
 
+  // Brand state
+  const {
+    brands,
+    selectedBrandId,
+    fetchBrands,
+    selectBrand,
+  } = useBrandStore();
+
+  // Ad account state
+  const {
+    accounts: adAccounts,
+    isLoading: adLoading,
+    testingPlatform,
+    fetchAccounts: fetchAdAccounts,
+    saveAccount: saveAdAccount,
+    deleteAccount: deleteAdAccount,
+    toggleActive: toggleAdActive,
+    testConnection: testAdConnection,
+  } = useAdAccountStore();
+
   const [showApiModal, setShowApiModal] = useState(false);
   const [editingChannel, setEditingChannel] = useState<SalesChannel | null>(null);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
@@ -188,9 +213,23 @@ export default function SettingsPage() {
     coupang: { vendorId: '', accessKey: '', secretKey: '' },
   });
 
+  // Ad account modal state
+  const [showAdModal, setShowAdModal] = useState(false);
+  const [editingAdPlatform, setEditingAdPlatform] = useState<AdPlatform | null>(null);
+  const [adTestResult, setAdTestResult] = useState<{ platform: AdPlatform; success: boolean; message: string } | null>(null);
+  const [adFormData, setAdFormData] = useState({
+    meta: { accessToken: '', adAccountId: '', appId: '', appSecret: '' },
+    naver_sa: { apiLicenseKey: '', secretKey: '', customerId: '' },
+  });
+
+  useEffect(() => {
+    fetchBrands();
+  }, [fetchBrands]);
+
   useEffect(() => {
     fetchCredentials();
-  }, [fetchCredentials]);
+    fetchAdAccounts();
+  }, [fetchCredentials, fetchAdAccounts, selectedBrandId]);
 
   const handleSaveProfile = () => {
     updateUser({ name, email });
@@ -410,6 +449,74 @@ export default function SettingsPage() {
 
   const toggleSecretVisibility = (key: string) => {
     setShowSecrets((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // 광고 API 핸들러
+  const openAdModal = (platform: AdPlatform) => {
+    setEditingAdPlatform(platform);
+    const existing = adAccounts.find((a) => a.platform === platform);
+
+    if (platform === 'meta') {
+      setAdFormData((prev) => ({
+        ...prev,
+        meta: {
+          accessToken: existing?.metaAccessToken || '',
+          adAccountId: existing?.metaAdAccountId || '',
+          appId: existing?.metaAppId || '',
+          appSecret: existing?.metaAppSecret || '',
+        },
+      }));
+    } else if (platform === 'naver_sa') {
+      setAdFormData((prev) => ({
+        ...prev,
+        naver_sa: {
+          apiLicenseKey: existing?.naverApiKey || '',
+          secretKey: existing?.naverSecretKey || '',
+          customerId: existing?.naverCustomerId || '',
+        },
+      }));
+    }
+
+    setShowAdModal(true);
+  };
+
+  const handleSaveAdAccount = async () => {
+    if (!editingAdPlatform) return;
+
+    let data: Partial<import('../types/ecommerce').AdAccount> = { isActive: true };
+
+    if (editingAdPlatform === 'meta') {
+      data = {
+        ...data,
+        metaAccessToken: adFormData.meta.accessToken,
+        metaAdAccountId: adFormData.meta.adAccountId,
+        metaAppId: adFormData.meta.appId,
+        metaAppSecret: adFormData.meta.appSecret,
+      };
+    } else if (editingAdPlatform === 'naver_sa') {
+      data = {
+        ...data,
+        naverApiKey: adFormData.naver_sa.apiLicenseKey,
+        naverSecretKey: adFormData.naver_sa.secretKey,
+        naverCustomerId: adFormData.naver_sa.customerId,
+      };
+    }
+
+    const success = await saveAdAccount(editingAdPlatform, data);
+    if (success) {
+      setShowAdModal(false);
+      setEditingAdPlatform(null);
+    }
+  };
+
+  const handleTestAdConnection = async (platform: AdPlatform) => {
+    setAdTestResult(null);
+    const result = await testAdConnection(platform);
+    setAdTestResult({ platform, ...result });
+
+    setTimeout(() => {
+      setAdTestResult(null);
+    }, 5000);
   };
 
   // 필드 모달 열기
@@ -891,155 +998,312 @@ export default function SettingsPage() {
           )}
 
           {activeTab === 'api' && (
-            <Card>
-              <CardHeader
-                title="API 연동 설정"
-                subtitle="판매 채널 API를 연동하여 매출 데이터를 자동으로 가져옵니다"
-              />
-              <div className="space-y-4">
-                {/* 안내 메시지 */}
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <div className="text-sm text-blue-800">
-                      <p className="font-medium mb-1">API 연동 안내</p>
-                      <p>
-                        네이버 스마트스토어, Cafe24 주문 동기화를 지원합니다.
-                        자격증명을 설정한 후 '연결 테스트'로 연결을 확인하고 '주문 동기화'로 데이터를 가져오세요.
-                        Cafe24는 OAuth 인증이 추가로 필요합니다.
-                      </p>
-                    </div>
+            <>
+              {/* 브랜드 선택 */}
+              <Card>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">브랜드 선택</h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      API 자격증명을 관리할 브랜드를 선택하세요
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    {brands.map((brand) => (
+                      <button
+                        key={brand.id}
+                        onClick={() => selectBrand(brand.id)}
+                        className={`px-4 py-2 rounded-xl text-sm font-medium transition-all border-2 ${
+                          selectedBrandId === brand.id
+                            ? 'text-white shadow-md'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                        }`}
+                        style={selectedBrandId === brand.id ? {
+                          backgroundColor: brand.primaryColor || '#f97316',
+                          borderColor: brand.primaryColor || '#f97316',
+                        } : undefined}
+                      >
+                        {brand.name}
+                      </button>
+                    ))}
                   </div>
                 </div>
+              </Card>
 
-                {/* 채널 목록 */}
-                {(['cafe24', 'naver_smartstore', 'coupang'] as SalesChannel[]).map((channel) => {
-                  const info = channelInfo[channel];
-                  const credential = credentials.find((c) => c.channel === channel);
-                  const isConfigured = !!credential;
-
-                  return (
-                    <div
-                      key={channel}
-                      className={`border rounded-xl p-5 transition-all ${
-                        isConfigured ? 'border-primary-200 bg-primary-50/30' : 'border-gray-200'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h4 className="font-semibold text-gray-900">{info.name}</h4>
-                            {isConfigured && getSyncStatusBadge(credential.syncStatus)}
-                          </div>
-                          <p className="text-sm text-gray-500 mb-3">{info.description}</p>
-
-                          {isConfigured && credential.lastSyncAt && (
-                            <p className="text-xs text-gray-400">
-                              마지막 동기화: {new Date(credential.lastSyncAt).toLocaleString('ko-KR')}
-                            </p>
-                          )}
-                          {isConfigured && credential.syncError && (
-                            <p className="text-xs text-red-500 mt-1">오류: {credential.syncError}</p>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {info.docUrl && (
-                            <a
-                              href={info.docUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
-                              title="API 문서"
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
-                          )}
-                          {isConfigured && (
-                            <button
-                              onClick={() => handleTestConnection(channel)}
-                              disabled={testingChannel === channel}
-                              className="btn-secondary flex items-center gap-2"
-                            >
-                              {testingChannel === channel ? (
-                                <>
-                                  <RefreshCw className="w-4 h-4 animate-spin" />
-                                  테스트 중...
-                                </>
-                              ) : (
-                                '연결 테스트'
-                              )}
-                            </button>
-                          )}
-                          {isConfigured && channel === 'naver_smartstore' && (
-                            <button
-                              onClick={() => openSyncModal(channel)}
-                              disabled={syncingChannel === channel}
-                              className="btn-primary flex items-center gap-2"
-                            >
-                              {syncingChannel === channel ? (
-                                <>
-                                  <RefreshCw className="w-4 h-4 animate-spin" />
-                                  동기화 중...
-                                </>
-                              ) : (
-                                <>
-                                  <RefreshCw className="w-4 h-4" />
-                                  주문 동기화
-                                </>
-                              )}
-                            </button>
-                          )}
-                          <button
-                            onClick={() => openApiModal(channel)}
-                            className={isConfigured ? 'btn-secondary' : 'btn-primary'}
-                          >
-                            {isConfigured ? '설정 수정' : '연동하기'}
-                          </button>
-                        </div>
+              {/* 판매 채널 API */}
+              <Card>
+                <CardHeader
+                  title="판매 채널 API 연동"
+                  subtitle="판매 채널 API를 연동하여 매출 데이터를 자동으로 가져옵니다"
+                />
+                <div className="space-y-4">
+                  {/* 안내 메시지 */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <div className="text-sm text-blue-800">
+                        <p className="font-medium mb-1">API 연동 안내</p>
+                        <p>
+                          네이버 스마트스토어, Cafe24 주문 동기화를 지원합니다.
+                          자격증명을 설정한 후 '연결 테스트'로 연결을 확인하고 '주문 동기화'로 데이터를 가져오세요.
+                          Cafe24는 OAuth 인증이 추가로 필요합니다.
+                        </p>
                       </div>
+                    </div>
+                  </div>
 
-                      {/* Toggle Active */}
-                      {isConfigured && (
-                        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-                          <span className="text-sm text-gray-600">자동 동기화 활성화</span>
-                          <button
-                            onClick={() => toggleActive(channel, !credential.isActive)}
-                            className={`w-10 h-6 rounded-full transition-all ${
-                              credential.isActive ? 'bg-primary-500' : 'bg-gray-300'
-                            }`}
-                          >
-                            <div
-                              className={`w-4 h-4 bg-white rounded-full transition-all ${
-                                credential.isActive ? 'ml-5' : 'ml-1'
-                              }`}
-                            />
-                          </button>
-                        </div>
-                      )}
+                  {/* 채널 목록 */}
+                  {(['cafe24', 'naver_smartstore', 'coupang'] as SalesChannel[]).map((channel) => {
+                    const info = channelInfo[channel];
+                    const credential = credentials.find((c) => c.channel === channel);
+                    const isConfigured = !!credential;
 
-                      {/* 테스트 결과 메시지 */}
-                      {testResult && testResult.channel === channel && (
-                        <div className={`mt-3 p-3 rounded-lg text-sm ${
-                          testResult.success
-                            ? 'bg-green-50 text-green-700 border border-green-200'
-                            : 'bg-red-50 text-red-700 border border-red-200'
-                        }`}>
-                          <div className="flex items-center gap-2">
-                            {testResult.success ? (
-                              <CheckCircle className="w-4 h-4" />
-                            ) : (
-                              <XCircle className="w-4 h-4" />
+                    return (
+                      <div
+                        key={channel}
+                        className={`border rounded-xl p-5 transition-all ${
+                          isConfigured ? 'border-primary-200 bg-primary-50/30' : 'border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <h4 className="font-semibold text-gray-900">{info.name}</h4>
+                              {isConfigured && getSyncStatusBadge(credential.syncStatus)}
+                            </div>
+                            <p className="text-sm text-gray-500 mb-3">{info.description}</p>
+
+                            {isConfigured && credential.lastSyncAt && (
+                              <p className="text-xs text-gray-400">
+                                마지막 동기화: {new Date(credential.lastSyncAt).toLocaleString('ko-KR')}
+                              </p>
                             )}
-                            {testResult.message}
+                            {isConfigured && credential.syncError && (
+                              <p className="text-xs text-red-500 mt-1">오류: {credential.syncError}</p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {info.docUrl && (
+                              <a
+                                href={info.docUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+                                title="API 문서"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                            )}
+                            {isConfigured && (
+                              <button
+                                onClick={() => handleTestConnection(channel)}
+                                disabled={testingChannel === channel}
+                                className="btn-secondary flex items-center gap-2"
+                              >
+                                {testingChannel === channel ? (
+                                  <>
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                    테스트 중...
+                                  </>
+                                ) : (
+                                  '연결 테스트'
+                                )}
+                              </button>
+                            )}
+                            {isConfigured && channel === 'naver_smartstore' && (
+                              <button
+                                onClick={() => openSyncModal(channel)}
+                                disabled={syncingChannel === channel}
+                                className="btn-primary flex items-center gap-2"
+                              >
+                                {syncingChannel === channel ? (
+                                  <>
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                    동기화 중...
+                                  </>
+                                ) : (
+                                  <>
+                                    <RefreshCw className="w-4 h-4" />
+                                    주문 동기화
+                                  </>
+                                )}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => openApiModal(channel)}
+                              className={isConfigured ? 'btn-secondary' : 'btn-primary'}
+                            >
+                              {isConfigured ? '설정 수정' : '연동하기'}
+                            </button>
                           </div>
                         </div>
-                      )}
+
+                        {/* Toggle Active */}
+                        {isConfigured && (
+                          <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                            <span className="text-sm text-gray-600">자동 동기화 활성화</span>
+                            <button
+                              onClick={() => toggleActive(channel, !credential.isActive)}
+                              className={`w-10 h-6 rounded-full transition-all ${
+                                credential.isActive ? 'bg-primary-500' : 'bg-gray-300'
+                              }`}
+                            >
+                              <div
+                                className={`w-4 h-4 bg-white rounded-full transition-all ${
+                                  credential.isActive ? 'ml-5' : 'ml-1'
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        )}
+
+                        {/* 테스트 결과 메시지 */}
+                        {testResult && testResult.channel === channel && (
+                          <div className={`mt-3 p-3 rounded-lg text-sm ${
+                            testResult.success
+                              ? 'bg-green-50 text-green-700 border border-green-200'
+                              : 'bg-red-50 text-red-700 border border-red-200'
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              {testResult.success ? (
+                                <CheckCircle className="w-4 h-4" />
+                              ) : (
+                                <XCircle className="w-4 h-4" />
+                              )}
+                              {testResult.message}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+
+              {/* 광고 플랫폼 API */}
+              <Card>
+                <CardHeader
+                  title="광고 플랫폼 API 연동"
+                  subtitle="광고 비용 데이터를 가져와 이익 분석에 반영합니다"
+                />
+                <div className="space-y-4">
+                  {/* 안내 메시지 */}
+                  <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <Megaphone className="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                      <div className="text-sm text-purple-800">
+                        <p className="font-medium mb-1">광고 API 연동 안내</p>
+                        <p>
+                          광고 플랫폼 API를 연동하면 일별 광고비 데이터를 자동으로 수집하여
+                          이익 분석에 반영할 수 있습니다.
+                        </p>
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
-            </Card>
+                  </div>
+
+                  {/* 광고 플랫폼 목록 */}
+                  {(['meta', 'naver_sa'] as AdPlatform[]).map((platform) => {
+                    const account = adAccounts.find((a) => a.platform === platform);
+                    const isConfigured = !!account;
+                    const platformDescriptions: Record<string, string> = {
+                      meta: 'Facebook/Instagram 광고 비용 연동',
+                      naver_sa: '네이버 검색광고 비용 연동',
+                    };
+
+                    return (
+                      <div
+                        key={platform}
+                        className={`border rounded-xl p-5 transition-all ${
+                          isConfigured ? 'border-purple-200 bg-purple-50/30' : 'border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <h4 className="font-semibold text-gray-900">{adPlatformLabels[platform]}</h4>
+                              {isConfigured && getSyncStatusBadge(account.syncStatus as SyncStatus)}
+                            </div>
+                            <p className="text-sm text-gray-500 mb-3">{platformDescriptions[platform]}</p>
+
+                            {isConfigured && account.lastSyncAt && (
+                              <p className="text-xs text-gray-400">
+                                마지막 동기화: {new Date(account.lastSyncAt).toLocaleString('ko-KR')}
+                              </p>
+                            )}
+                            {isConfigured && account.syncError && (
+                              <p className="text-xs text-red-500 mt-1">오류: {account.syncError}</p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {isConfigured && (
+                              <button
+                                onClick={() => handleTestAdConnection(platform)}
+                                disabled={testingPlatform === platform}
+                                className="btn-secondary flex items-center gap-2"
+                              >
+                                {testingPlatform === platform ? (
+                                  <>
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                    테스트 중...
+                                  </>
+                                ) : (
+                                  '연결 테스트'
+                                )}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => openAdModal(platform)}
+                              className={isConfigured ? 'btn-secondary' : 'btn-primary'}
+                            >
+                              {isConfigured ? '설정 수정' : '연동하기'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Toggle Active */}
+                        {isConfigured && (
+                          <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                            <span className="text-sm text-gray-600">자동 동기화 활성화</span>
+                            <button
+                              onClick={() => toggleAdActive(platform, !account.isActive)}
+                              className={`w-10 h-6 rounded-full transition-all ${
+                                account.isActive ? 'bg-purple-500' : 'bg-gray-300'
+                              }`}
+                            >
+                              <div
+                                className={`w-4 h-4 bg-white rounded-full transition-all ${
+                                  account.isActive ? 'ml-5' : 'ml-1'
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        )}
+
+                        {/* 테스트 결과 메시지 */}
+                        {adTestResult && adTestResult.platform === platform && (
+                          <div className={`mt-3 p-3 rounded-lg text-sm ${
+                            adTestResult.success
+                              ? 'bg-green-50 text-green-700 border border-green-200'
+                              : 'bg-red-50 text-red-700 border border-red-200'
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              {adTestResult.success ? (
+                                <CheckCircle className="w-4 h-4" />
+                              ) : (
+                                <XCircle className="w-4 h-4" />
+                              )}
+                              {adTestResult.message}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            </>
           )}
 
           {activeTab === 'notifications' && (
@@ -2192,6 +2456,199 @@ export default function SettingsPage() {
             className="btn-danger"
           >
             삭제
+          </button>
+        </div>
+      </Modal>
+
+      {/* 광고 계정 설정 모달 */}
+      <Modal
+        isOpen={showAdModal}
+        onClose={() => {
+          setShowAdModal(false);
+          setEditingAdPlatform(null);
+        }}
+        title={`${editingAdPlatform ? adPlatformLabels[editingAdPlatform] : ''} API 설정`}
+        size="md"
+      >
+        <div className="space-y-4">
+          {/* 메타 (Facebook/Instagram) */}
+          {editingAdPlatform === 'meta' && (
+            <>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800 space-y-1">
+                <p className="font-medium">Meta Ads API 설정 안내</p>
+                <p className="text-xs text-blue-700">
+                  Meta Business Suite에서 Long-lived Access Token과 Ad Account ID를 발급받으세요.
+                  Ad Account ID는 act_ 로 시작하는 형식입니다.
+                </p>
+              </div>
+
+              <div>
+                <label className="label">Access Token *</label>
+                <div className="relative">
+                  <input
+                    type={showSecrets['meta_token'] ? 'text' : 'password'}
+                    value={adFormData.meta.accessToken}
+                    onChange={(e) =>
+                      setAdFormData((prev) => ({
+                        ...prev,
+                        meta: { ...prev.meta, accessToken: e.target.value },
+                      }))
+                    }
+                    className="input-field pr-10"
+                    placeholder="Long-lived Access Token"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleSecretVisibility('meta_token')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showSecrets['meta_token'] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="label">Ad Account ID *</label>
+                <input
+                  type="text"
+                  value={adFormData.meta.adAccountId}
+                  onChange={(e) =>
+                    setAdFormData((prev) => ({
+                      ...prev,
+                      meta: { ...prev.meta, adAccountId: e.target.value },
+                    }))
+                  }
+                  className="input-field"
+                  placeholder="act_XXXXXXXXX"
+                />
+                <p className="text-xs text-gray-400 mt-1">act_ 로 시작하는 광고 계정 ID</p>
+              </div>
+              <div>
+                <label className="label">App ID</label>
+                <input
+                  type="text"
+                  value={adFormData.meta.appId}
+                  onChange={(e) =>
+                    setAdFormData((prev) => ({
+                      ...prev,
+                      meta: { ...prev.meta, appId: e.target.value },
+                    }))
+                  }
+                  className="input-field"
+                  placeholder="Meta App ID (선택)"
+                />
+              </div>
+              <div>
+                <label className="label">App Secret</label>
+                <div className="relative">
+                  <input
+                    type={showSecrets['meta_secret'] ? 'text' : 'password'}
+                    value={adFormData.meta.appSecret}
+                    onChange={(e) =>
+                      setAdFormData((prev) => ({
+                        ...prev,
+                        meta: { ...prev.meta, appSecret: e.target.value },
+                      }))
+                    }
+                    className="input-field pr-10"
+                    placeholder="Meta App Secret (선택)"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleSecretVisibility('meta_secret')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showSecrets['meta_secret'] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* 네이버 검색광고 */}
+          {editingAdPlatform === 'naver_sa' && (
+            <>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800 space-y-1">
+                <p className="font-medium">네이버 검색광고 API 설정 안내</p>
+                <p className="text-xs text-green-700">
+                  네이버 검색광고 API 센터에서 API License Key, Secret Key, Customer ID를 발급받으세요.
+                </p>
+              </div>
+
+              <div>
+                <label className="label">API License Key *</label>
+                <input
+                  type="text"
+                  value={adFormData.naver_sa.apiLicenseKey}
+                  onChange={(e) =>
+                    setAdFormData((prev) => ({
+                      ...prev,
+                      naver_sa: { ...prev.naver_sa, apiLicenseKey: e.target.value },
+                    }))
+                  }
+                  className="input-field"
+                  placeholder="API License Key"
+                />
+              </div>
+              <div>
+                <label className="label">Secret Key *</label>
+                <div className="relative">
+                  <input
+                    type={showSecrets['naver_sa_secret'] ? 'text' : 'password'}
+                    value={adFormData.naver_sa.secretKey}
+                    onChange={(e) =>
+                      setAdFormData((prev) => ({
+                        ...prev,
+                        naver_sa: { ...prev.naver_sa, secretKey: e.target.value },
+                      }))
+                    }
+                    className="input-field pr-10"
+                    placeholder="Secret Key"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleSecretVisibility('naver_sa_secret')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showSecrets['naver_sa_secret'] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="label">Customer ID (광고주 ID) *</label>
+                <input
+                  type="text"
+                  value={adFormData.naver_sa.customerId}
+                  onChange={(e) =>
+                    setAdFormData((prev) => ({
+                      ...prev,
+                      naver_sa: { ...prev.naver_sa, customerId: e.target.value },
+                    }))
+                  }
+                  className="input-field"
+                  placeholder="광고주 ID"
+                />
+              </div>
+            </>
+          )}
+
+          {/* 안내 */}
+          <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
+            <p>API 키는 안전하게 암호화되어 저장됩니다.</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            onClick={() => {
+              setShowAdModal(false);
+              setEditingAdPlatform(null);
+            }}
+            className="btn-secondary"
+          >
+            취소
+          </button>
+          <button onClick={handleSaveAdAccount} className="btn-primary">
+            저장
           </button>
         </div>
       </Modal>

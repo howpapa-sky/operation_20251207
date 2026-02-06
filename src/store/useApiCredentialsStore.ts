@@ -137,12 +137,11 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
       };
 
       // Upsert (있으면 업데이트, 없으면 삽입)
-      // Note: conflict constraint needs to include brand_id for multi-brand
-      // Using type assertion since brand_id column may not be in database.types.ts yet
+      // brand_id를 포함한 unique constraint 사용 (010_brand_unique_constraint.sql)
       const { error } = await (supabase as any)
         .from('api_credentials')
         .upsert(dbData, {
-          onConflict: 'user_id,channel',
+          onConflict: 'user_id,channel,brand_id',
         });
 
       if (error) throw error;
@@ -161,11 +160,19 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
     if (!user) return;
 
     try {
-      const { error } = await supabase
+      const { selectedBrandId } = useBrandStore.getState();
+
+      let query = supabase
         .from('api_credentials')
         .delete()
         .eq('user_id', user.id)
         .eq('channel', channel);
+
+      if (selectedBrandId) {
+        query = query.eq('brand_id', selectedBrandId);
+      }
+
+      const { error } = await query;
 
       if (error) throw error;
 
@@ -183,11 +190,19 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
     if (!user) return;
 
     try {
-      const { error } = await supabase
+      const { selectedBrandId } = useBrandStore.getState();
+
+      let query = supabase
         .from('api_credentials')
         .update({ is_active: isActive })
         .eq('user_id', user.id)
         .eq('channel', channel);
+
+      if (selectedBrandId) {
+        query = query.eq('brand_id', selectedBrandId);
+      }
+
+      const { error } = await query;
 
       if (error) throw error;
 
@@ -215,11 +230,19 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
         updates.last_sync_at = new Date().toISOString();
       }
 
-      await supabase
+      const { selectedBrandId } = useBrandStore.getState();
+
+      let query = supabase
         .from('api_credentials')
         .update(updates)
         .eq('user_id', user.id)
         .eq('channel', channel);
+
+      if (selectedBrandId) {
+        query = query.eq('brand_id', selectedBrandId);
+      }
+
+      await query;
 
       set((state) => ({
         credentials: state.credentials.map((c) =>
