@@ -949,18 +949,6 @@ export default function SalesDashboardPage() {
     fetchDashboardStats();
   }, []);
 
-  // Show MultiBrandDashboard as default
-  if (viewMode === 'multi-brand') {
-    return (
-      <div className="space-y-4">
-        <div className="flex justify-end">
-          <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} />
-        </div>
-        <MultiBrandDashboard />
-      </div>
-    );
-  }
-
   // Sync with global brand selector when brand changes
   useEffect(() => {
     if (selectedBrandId) {
@@ -976,6 +964,18 @@ export default function SalesDashboardPage() {
       fetchDashboardStats();
     }
   }, [selectedBrandId]);
+
+  // Show MultiBrandDashboard as default
+  if (viewMode === 'multi-brand') {
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} />
+        </div>
+        <MultiBrandDashboard />
+      </div>
+    );
+  }
 
   const handleDateRangeApply = () => {
     setDateRange({ start: startDate, end: endDate });
