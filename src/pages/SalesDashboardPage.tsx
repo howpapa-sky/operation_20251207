@@ -20,6 +20,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { useSalesDashboardStore } from '@/store/salesDashboardStore';
+import { useBrandStore } from '@/store/brandStore';
 import {
   SalesChannel,
   salesChannelLabels,
@@ -185,14 +186,34 @@ export default function SalesDashboardPage() {
     setSelectedBrand,
     fetchDashboardStats,
     calculateSummary,
+    syncWithBrandStore,
   } = useSalesDashboardStore();
+
+  const { selectedBrandId, getBrandById } = useBrandStore();
 
   const [startDate, setStartDate] = useState(selectedDateRange.start);
   const [endDate, setEndDate] = useState(selectedDateRange.end);
 
+  // Fetch dashboard data on mount
   useEffect(() => {
     fetchDashboardStats();
   }, []);
+
+  // Sync with global brand selector when brand changes
+  useEffect(() => {
+    if (selectedBrandId) {
+      const brand = getBrandById(selectedBrandId);
+      if (brand && (brand.code === 'howpapa' || brand.code === 'nuccio')) {
+        if (selectedBrand !== brand.code) {
+          setSelectedBrand(brand.code);
+          fetchDashboardStats();
+        }
+      }
+    } else if (selectedBrand !== 'all') {
+      setSelectedBrand('all');
+      fetchDashboardStats();
+    }
+  }, [selectedBrandId]);
 
   const handleDateRangeApply = () => {
     setDateRange({ start: startDate, end: endDate });
