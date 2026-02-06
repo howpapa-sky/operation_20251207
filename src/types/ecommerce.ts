@@ -1,6 +1,139 @@
 // 이커머스 수익성 관리 시스템 타입 정의
 
 // =====================================================
+// 브랜드 (Multi-brand Support)
+// =====================================================
+export type BrandCode = 'howpapa' | 'nuccio';
+
+export interface Brand {
+  id: string;
+  code: BrandCode;
+  name: string;                    // 한글명: '하우파파', '누치오'
+  displayName?: string;            // 표시명
+  primaryColor?: string;           // 브랜드 컬러
+  logoUrl?: string;
+  isActive: boolean;
+  settings?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const brandLabels: Record<BrandCode, string> = {
+  howpapa: '하우파파',
+  nuccio: '누치오',
+};
+
+export const brandColors: Record<BrandCode, string> = {
+  howpapa: '#f97316',  // orange-500
+  nuccio: '#22c55e',   // green-500
+};
+
+// =====================================================
+// 광고 계정 (Ad Accounts)
+// =====================================================
+export type AdPlatform = 'naver_sa' | 'naver_gfa' | 'meta' | 'coupang_ads';
+
+export interface AdAccount {
+  id: string;
+  brandId: string;
+  platform: AdPlatform;
+  accountName?: string;
+  isActive: boolean;
+  lastSyncAt?: string;
+  syncStatus: 'never' | 'syncing' | 'success' | 'failed';
+  syncError?: string;
+
+  // 네이버 검색광고
+  naverCustomerId?: string;
+  naverApiKey?: string;
+  naverSecretKey?: string;
+
+  // 네이버 GFA
+  naverGfaCustomerId?: string;
+  naverGfaApiKey?: string;
+  naverGfaSecretKey?: string;
+
+  // 메타 (Facebook/Instagram)
+  metaAppId?: string;
+  metaAppSecret?: string;
+  metaAccessToken?: string;
+  metaTokenExpiresAt?: string;
+  metaAdAccountId?: string;
+  metaBusinessId?: string;
+
+  // 쿠팡 광고
+  coupangAdsVendorId?: string;
+  coupangAdsAccessKey?: string;
+  coupangAdsSecretKey?: string;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const adPlatformLabels: Record<AdPlatform, string> = {
+  naver_sa: '네이버 검색광고',
+  naver_gfa: '네이버 GFA',
+  meta: '메타 (FB/IG)',
+  coupang_ads: '쿠팡 광고',
+};
+
+// =====================================================
+// 일별 광고비 (Ad Spend Daily)
+// =====================================================
+export interface AdSpendDaily {
+  id: string;
+  brandId: string;
+  date: string;
+  platform: AdPlatform;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  conversionValue: number;
+  ctr: number;
+  cpc: number;
+  roas: number;
+  syncedAt?: string;
+  rawData?: Record<string, unknown>;
+  createdAt: string;
+}
+
+// =====================================================
+// 브랜드별 이익 요약 (Brand Profit Summary)
+// =====================================================
+export interface BrandProfitSummary {
+  brandId: string;
+  brandCode: BrandCode;
+  dateRange: { start: string; end: string };
+
+  // 매출
+  totalRevenue: number;
+  orderCount: number;
+
+  // 비용
+  costOfGoods: number;
+  channelFees: number;
+  shippingFees: number;
+  adSpend: number;
+  variableCosts: number;
+  fixedCosts: number;
+
+  // 이익
+  grossProfit: number;           // 매출총이익
+  grossProfitRate: number;       // 매출총이익률 (%)
+  contributionProfit: number;    // 공헌이익
+  contributionProfitRate: number; // 공헌이익률 (%)
+  operatingProfit: number;       // 영업이익
+  operatingProfitRate: number;   // 영업이익률 (%)
+  netProfit: number;             // 순이익
+  netProfitRate: number;         // 순이익률 (%)
+
+  // 광고 지표
+  roas: number;                  // 광고수익률 (%)
+  cpa: number;                   // 전환당 비용
+}
+
+// =====================================================
 // SKU 마스터
 // =====================================================
 export interface SKUMaster {
@@ -134,10 +267,12 @@ export interface DailyChannelStats {
 // =====================================================
 // 광고 성과
 // =====================================================
-export type AdChannel = 'naver_gfa' | 'naver_sa' | 'meta' | 'coupang_ads';
+export type AdChannel = AdPlatform;  // Alias for backward compatibility
 
 export interface AdPerformance {
   id: string;
+  brandId?: string;                // Multi-brand support
+  adAccountId?: string;            // Ad account reference
   date: string;
   channel: AdChannel;
   campaignId?: string;
@@ -156,6 +291,7 @@ export interface AdPerformance {
 
 export interface DailyAdStats {
   id: string;
+  brandId?: string;                // Multi-brand support
   date: string;
   channel?: AdChannel;
   totalImpressions: number;
