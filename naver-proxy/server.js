@@ -508,9 +508,10 @@ app.post('/api/coupang/test', authenticate, async (req, res) => {
       return res.status(400).json({ success: false, message: 'vendorId, accessKey, secretKey are required' });
     }
 
+    // v4 API: searchType, status 필수, 날짜 형식 yyyy-MM-ddTHH:mm, 최대 24시간 범위
     const today = new Date().toISOString().split('T')[0];
     const path = `/v2/providers/openapi/apis/api/v4/vendors/${vendorId}/ordersheets`;
-    const query = `createdAtFrom=${today}&createdAtTo=${today}&maxPerPage=1&page=1`;
+    const query = `createdAtFrom=${today}T00:00&createdAtTo=${today}T23:59&searchType=timeFrame&status=INSTRUCT`;
 
     await coupangApiRequest('GET', path, query, accessKey, secretKey);
 
@@ -521,7 +522,10 @@ app.post('/api/coupang/test', authenticate, async (req, res) => {
   }
 });
 
-// Coupang 주문 동기화 (페이지네이션 전체 처리)
+// Coupang 주문 동기화 (v5 API, 다중 상태별 조회)
+// v5: paging by day, nextToken 기반 페이지네이션, 24시간 제한 없음
+const COUPANG_SYNC_STATUSES = ['ACCEPT', 'INSTRUCT', 'DEPARTURE', 'DELIVERING', 'FINAL_DELIVERY'];
+
 app.post('/api/coupang/sync', authenticate, async (req, res) => {
   try {
     const { vendorId, accessKey, secretKey, startDate, endDate } = req.body;
@@ -533,38 +537,47 @@ app.post('/api/coupang/sync', authenticate, async (req, res) => {
     console.log(`[coupang-sync] ${startDate} ~ ${endDate}`);
 
     const allOrders = [];
-    const path = `/v2/providers/openapi/apis/api/v4/vendors/${vendorId}/ordersheets`;
+    const path = `/v2/providers/openapi/apis/api/v5/vendors/${vendorId}/ordersheets`;
     const MAX_PER_PAGE = 50;
-    let page = 1;
 
-    while (true) {
-      if (page > 1) await new Promise(r => setTimeout(r, 300));
+    for (const status of COUPANG_SYNC_STATUSES) {
+      let nextToken = '';
+      let pageCount = 0;
 
-      const query = `createdAtFrom=${startDate}&createdAtTo=${endDate}&maxPerPage=${MAX_PER_PAGE}&page=${page}`;
+      while (true) {
+        if (pageCount > 0) await new Promise(r => setTimeout(r, 300));
 
-      let data;
-      try {
-        data = await coupangApiRequest('GET', path, query, accessKey, secretKey);
-      } catch (err) {
-        if (err.message && err.message.includes('429')) {
-          console.log('[coupang-sync] 429 Rate Limit - waiting 2s');
-          await new Promise(r => setTimeout(r, 2000));
-          continue;
+        let query = `createdAtFrom=${startDate}&createdAtTo=${endDate}&maxPerPage=${MAX_PER_PAGE}&status=${status}`;
+        if (nextToken) query += `&nextToken=${encodeURIComponent(nextToken)}`;
+
+        let data;
+        try {
+          data = await coupangApiRequest('GET', path, query, accessKey, secretKey);
+        } catch (err) {
+          if (err.message && err.message.includes('429')) {
+            console.log(`[coupang-sync] 429 Rate Limit (status=${status}) - waiting 2s`);
+            await new Promise(r => setTimeout(r, 2000));
+            continue;
+          }
+          // 특정 상태에 주문이 없으면 다음 상태로 넘어감
+          console.log(`[coupang-sync] status=${status} error: ${err.message}`);
+          break;
         }
-        throw err;
+
+        const orders = data.data || [];
+        if (orders.length === 0) break;
+
+        allOrders.push(...orders);
+        pageCount++;
+        console.log(`[coupang-sync] status=${status} page=${pageCount}: ${orders.length} orders, total=${allOrders.length}`);
+
+        // nextToken이 없으면 마지막 페이지
+        nextToken = data.nextToken || '';
+        if (!nextToken) break;
+
+        // 안전 장치: 상태별 최대 100페이지
+        if (pageCount >= 100) break;
       }
-
-      const orders = data.data || [];
-      if (orders.length === 0) break;
-
-      allOrders.push(...orders);
-      console.log(`[coupang-sync] page ${page}: ${orders.length} orders, total=${allOrders.length}`);
-
-      if (orders.length < MAX_PER_PAGE) break;
-      page++;
-
-      // 안전 장치: 최대 100페이지 (5,000건)
-      if (page > 100) break;
     }
 
     console.log(`[coupang-sync] Complete: ${allOrders.length} orders`);
