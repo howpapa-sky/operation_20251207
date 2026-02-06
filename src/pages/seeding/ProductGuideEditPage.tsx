@@ -280,7 +280,7 @@ export default function ProductGuideEditPage() {
   // Update default mention when brand changes
   useEffect(() => {
     if (!isEditing) {
-      const mention = formData.brand === 'howpapa' ? '@howpapa_official' : '@nuccio_official';
+      const mention = formData.brand === 'howpapa' ? '@howpapa_official' : '@nucio_official';
       const hasOfficialMention = formData.mentions.some((m) => m.includes('_official'));
       if (!hasOfficialMention) {
         setFormData((prev) => ({
@@ -453,9 +453,9 @@ export default function ProductGuideEditPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setFormData({ ...formData, brand: 'nuccio' })}
+                onClick={() => setFormData({ ...formData, brand: 'nucio' })}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition-all ${
-                  formData.brand === 'nuccio'
+                  formData.brand === 'nucio'
                     ? 'border-green-500 bg-green-50 text-green-700'
                     : 'border-gray-200 text-gray-600 hover:border-gray-300'
                 }`}

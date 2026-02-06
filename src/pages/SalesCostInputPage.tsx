@@ -51,13 +51,13 @@ interface SKURow {
 function deriveBrand(productName: string): string {
   const lower = productName.toLowerCase();
   if (lower.includes('하우파파') || lower.includes('howpapa')) return '하우파파';
-  if (lower.includes('누치오') || lower.includes('누씨오') || lower.includes('nuccio')) return '누씨오';
+  if (lower.includes('누치오') || lower.includes('누씨오') || lower.includes('nucio')) return '누씨오';
   return '하우파파';
 }
 
-function deriveBrandCode(productName: string): 'howpapa' | 'nuccio' {
+function deriveBrandCode(productName: string): 'howpapa' | 'nucio' {
   const lower = productName.toLowerCase();
-  if (lower.includes('누치오') || lower.includes('누씨오') || lower.includes('nuccio')) return 'nuccio';
+  if (lower.includes('누치오') || lower.includes('누씨오') || lower.includes('nucio')) return 'nucio';
   return 'howpapa';
 }
 

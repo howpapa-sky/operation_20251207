@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
 interface SeedingKPICardProps {
-  brand: 'howpapa' | 'nuccio';
+  brand: 'howpapa' | 'nucio';
   targetListup: number;      // 목표 리스트업 수
   targetAcceptance: number;  // 목표 수락 수
   actualListup: number;      // 실제 리스트업 수

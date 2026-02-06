@@ -47,7 +47,7 @@ export default function ProductGuideCard({
       textColor: 'text-orange-700',
       badgeBg: 'bg-orange-100',
     },
-    nuccio: {
+    nucio: {
       emoji: '💚',
       label: '누씨오',
       bgColor: 'bg-green-50',

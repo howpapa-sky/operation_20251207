@@ -106,8 +106,8 @@ export default function ProductGuidePublicPage() {
       accentColor: 'text-orange-600',
       borderColor: 'border-orange-200',
     },
-    nuccio: {
-      name: 'NUCCIO',
+    nucio: {
+      name: 'NUCIO',
       emoji: '💚',
       bgGradient: 'from-green-400 to-green-600',
       lightBg: 'bg-green-50',
