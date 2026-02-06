@@ -12,6 +12,7 @@ import {
   salesChannelLabels,
 } from '../types/ecommerce';
 import { useProfitSettingsStore } from './profitSettingsStore';
+import { useBrandStore } from './brandStore';
 
 // Type workaround - 새 테이블들이 아직 타입에 없음
 const db = supabase as any;
@@ -43,6 +44,7 @@ interface SalesDashboardState {
   setDateRange: (range: DateRange) => void;
   setSelectedChannel: (channel: SalesChannel | 'all') => void;
   setSelectedBrand: (brand: 'howpapa' | 'nuccio' | 'all') => void;
+  syncWithBrandStore: () => void; // Sync selectedBrand from brandStore
 
   fetchDashboardStats: (dateRange?: DateRange) => Promise<void>;
 
@@ -325,21 +327,46 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
     }
   },
 
+  // Sync with brandStore's selectedBrandId
+  syncWithBrandStore: () => {
+    const { selectedBrandId, getBrandById } = useBrandStore.getState();
+    if (selectedBrandId) {
+      const brand = getBrandById(selectedBrandId);
+      if (brand && (brand.code === 'howpapa' || brand.code === 'nuccio')) {
+        set({ selectedBrand: brand.code });
+        get().fetchDashboardStats();
+      }
+    } else {
+      set({ selectedBrand: 'all' });
+      get().fetchDashboardStats();
+    }
+  },
+
   fetchDashboardStats: async (dateRange) => {
     const range = dateRange || get().selectedDateRange;
     const prevRange = getPreviousPeriod(range);
     const brandFilter = get().selectedBrand;
 
+    // Get brand_id from brandStore for DB filtering
+    const { selectedBrandId } = useBrandStore.getState();
+
     set({ isLoading: true, error: null });
 
     try {
       // 현재 기간 주문 데이터 조회
-      const { data: rawOrders, error: ordersError } = await db
+      let ordersQuery = db
         .from('orders_raw')
         .select('*')
         .gte('order_date', range.start)
         .lte('order_date', range.end)
         .order('order_date', { ascending: false });
+
+      // Filter by brand_id if selected
+      if (selectedBrandId) {
+        ordersQuery = ordersQuery.eq('brand_id', selectedBrandId);
+      }
+
+      const { data: rawOrders, error: ordersError } = await ordersQuery;
 
       if (ordersError) throw ordersError;
 
@@ -363,11 +390,18 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
       const orders = enrichOrdersWithSKUCost(rawOrders || [], skuMap);
 
       // 이전 기간 주문 데이터 조회
-      const { data: prevRawOrders } = await db
+      let prevOrdersQuery = db
         .from('orders_raw')
         .select('*')
         .gte('order_date', prevRange.start)
         .lte('order_date', prevRange.end);
+
+      // Filter by brand_id if selected
+      if (selectedBrandId) {
+        prevOrdersQuery = prevOrdersQuery.eq('brand_id', selectedBrandId);
+      }
+
+      const { data: prevRawOrders } = await prevOrdersQuery;
 
       const prevOrders = enrichOrdersWithSKUCost(prevRawOrders || [], skuMap);
 
@@ -380,11 +414,18 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
       // 광고 데이터 조회
       let adStats: DailyAdStats[] = [];
       try {
-        const { data: adData } = await db
+        let adQuery = db
           .from('daily_ad_stats')
           .select('*')
           .gte('date', range.start)
           .lte('date', range.end);
+
+        // Filter by brand_id if selected
+        if (selectedBrandId) {
+          adQuery = adQuery.eq('brand_id', selectedBrandId);
+        }
+
+        const { data: adData } = await adQuery;
 
         if (adData && adData.length > 0) {
           adStats = adData.map((record: any) => ({

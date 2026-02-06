@@ -421,6 +421,7 @@ export interface CoupangCredentials {
 // API 자격증명 (통합)
 export interface ApiCredential {
   id: string;
+  brandId?: string;  // Multi-brand support
   channel: SalesChannel;
   isActive: boolean;
   lastSyncAt?: string;

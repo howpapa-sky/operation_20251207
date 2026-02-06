@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell,
@@ -11,16 +11,24 @@ import {
   Menu,
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
+import { useBrandStore } from '../../store/brandStore';
+import { BrandSelector } from '../common/BrandSelector';
 import { formatRelativeTime } from '../../utils/helpers';
 
 export default function Header() {
   const navigate = useNavigate();
   const { user, notifications, logout, markNotificationAsRead, setFilters, filters, toggleMobileMenu } = useStore();
+  const { fetchBrands } = useBrandStore();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState(filters.searchQuery || '');
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  // Fetch brands on mount
+  useEffect(() => {
+    fetchBrands();
+  }, [fetchBrands]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,6 +78,9 @@ export default function Header() {
 
       {/* Right Side */}
       <div className="flex items-center gap-2 md:gap-4">
+        {/* Brand Selector */}
+        <BrandSelector className="hidden md:flex" size="sm" />
+
         {/* Notifications */}
         <div className="relative">
           <button

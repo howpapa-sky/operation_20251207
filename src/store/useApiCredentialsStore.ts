@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { ApiCredential, SalesChannel, SyncStatus } from '../types';
+import { useBrandStore } from './brandStore';
 
 interface SyncResult {
   success: boolean;
@@ -49,15 +50,26 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
 
     set({ isLoading: true, error: null });
     try {
-      const { data, error } = await supabase
+      // Get selected brand from brand store
+      const { selectedBrandId } = useBrandStore.getState();
+
+      let query = supabase
         .from('api_credentials')
         .select('*')
         .eq('user_id', user.id);
 
+      // Filter by brand if selected
+      if (selectedBrandId) {
+        query = query.eq('brand_id', selectedBrandId);
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
 
-      const credentials: ApiCredential[] = (data || []).map((row) => ({
+      const credentials: ApiCredential[] = (data || []).map((row: any) => ({
         id: row.id,
+        brandId: row.brand_id || undefined,
         channel: row.channel as SalesChannel,
         isActive: row.is_active,
         lastSyncAt: row.last_sync_at || undefined,
@@ -101,11 +113,16 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
     if (!user) return false;
 
     try {
+      // Get selected brand from brand store
+      const { selectedBrandId } = useBrandStore.getState();
+
       // 기본 데이터
-      const dbData = {
+      const dbData: Record<string, unknown> = {
         user_id: user.id,
         channel,
         is_active: data.isActive ?? false,
+        // 브랜드 ID (선택된 브랜드가 있으면 설정)
+        brand_id: data.brandId || selectedBrandId || null,
         // 카페24 필드
         cafe24_mall_id: channel === 'cafe24' && data.cafe24 ? data.cafe24.mallId : null,
         cafe24_client_id: channel === 'cafe24' && data.cafe24 ? data.cafe24.clientId : null,
@@ -120,7 +137,9 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
       };
 
       // Upsert (있으면 업데이트, 없으면 삽입)
-      const { error } = await supabase
+      // Note: conflict constraint needs to include brand_id for multi-brand
+      // Using type assertion since brand_id column may not be in database.types.ts yet
+      const { error } = await (supabase as any)
         .from('api_credentials')
         .upsert(dbData, {
           onConflict: 'user_id,channel',
