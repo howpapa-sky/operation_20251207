@@ -66,7 +66,7 @@ function generateCSV(headers: string[], rows: string[][]): string {
 
 const brandOptions = [
   { value: 'howpapa', label: '하우파파', color: 'orange' },
-  { value: 'nuccio', label: '누치오', color: 'green' },
+  { value: 'nucio', label: '누씨오', color: 'green' },
 ];
 
 const categoryOptions = [
@@ -113,7 +113,7 @@ export default function SKUMasterPage() {
   const [formData, setFormData] = useState({
     skuCode: '',
     productName: '',
-    brand: 'howpapa' as 'howpapa' | 'nuccio',
+    brand: 'howpapa' as 'howpapa' | 'nucio',
     category: '',
     costPrice: 0,
     sellingPrice: 0,
@@ -211,7 +211,7 @@ export default function SKUMasterPage() {
       const parsed: Omit<SKUMaster, 'id' | 'createdAt' | 'updatedAt'>[] = dataRows.map(row => ({
         skuCode: row[0]?.trim() || '',
         productName: row[1]?.trim() || '',
-        brand: (row[2]?.trim().toLowerCase() === 'nuccio' ? 'nuccio' : 'howpapa') as 'howpapa' | 'nuccio',
+        brand: (row[2]?.trim().toLowerCase() === 'nucio' ? 'nucio' : 'howpapa') as 'howpapa' | 'nucio',
         category: row[3]?.trim() || undefined,
         costPrice: parseFloat(row[4]) || 0,
         sellingPrice: parseFloat(row[5]) || 0,
@@ -466,8 +466,8 @@ export default function SKUMasterPage() {
         <Card padding="sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">누치오</p>
-              <p className="text-2xl font-bold text-green-600">{stats.byBrand.nuccio}</p>
+              <p className="text-sm text-gray-500">누씨오</p>
+              <p className="text-2xl font-bold text-green-600">{stats.byBrand.nucio}</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
               <Package className="w-5 h-5 text-green-600" />
@@ -583,7 +583,7 @@ export default function SKUMasterPage() {
                       </td>
                       <td className="py-3 px-4">
                         <Badge variant={sku.brand === 'howpapa' ? 'warning' : 'success'}>
-                          {sku.brand === 'howpapa' ? '하우파파' : '누치오'}
+                          {sku.brand === 'howpapa' ? '하우파파' : '누씨오'}
                         </Badge>
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-600">
@@ -681,7 +681,7 @@ export default function SKUMasterPage() {
               <label className="label">브랜드 *</label>
               <select
                 value={formData.brand}
-                onChange={(e) => setFormData({ ...formData, brand: e.target.value as 'howpapa' | 'nuccio' })}
+                onChange={(e) => setFormData({ ...formData, brand: e.target.value as 'howpapa' | 'nucio' })}
                 className="select-field"
               >
                 {brandOptions.map((b) => (
@@ -1092,7 +1092,7 @@ export default function SKUMasterPage() {
                         <td className="py-2 px-3">{sku.productName}</td>
                         <td className="py-2 px-3">
                           <Badge variant={sku.brand === 'howpapa' ? 'warning' : 'success'} size="sm">
-                            {sku.brand === 'howpapa' ? '하우파파' : '누치오'}
+                            {sku.brand === 'howpapa' ? '하우파파' : '누씨오'}
                           </Badge>
                         </td>
                         <td className="py-2 px-3 text-right">{formatCurrency(sku.costPrice)}</td>

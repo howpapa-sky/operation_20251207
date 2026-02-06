@@ -218,7 +218,7 @@ export default function OutreachTemplateModal({
                   >
                     <option value="all">전체</option>
                     <option value="howpapa">하우파파</option>
-                    <option value="nuccio">누씨오</option>
+                    <option value="nucio">누씨오</option>
                   </select>
                 </div>
               </div>

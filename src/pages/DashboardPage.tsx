@@ -86,7 +86,7 @@ export default function DashboardPage() {
 
   // 오늘의 시딩 통계
   const howpapaStats = useMemo(() => getTodayStats('howpapa'), [getTodayStats]);
-  const nuccioStats = useMemo(() => getTodayStats('nuccio'), [getTodayStats]);
+  const nucioStats = useMemo(() => getTodayStats('nucio'), [getTodayStats]);
 
   // 오늘 날짜
   const todayString = useMemo(() => {
@@ -389,11 +389,11 @@ export default function DashboardPage() {
               actualAcceptance={howpapaStats.accepted}
             />
             <SeedingKPICard
-              brand="nuccio"
+              brand="nucio"
               targetListup={100}
               targetAcceptance={15}
-              actualListup={nuccioStats.listup}
-              actualAcceptance={nuccioStats.accepted}
+              actualListup={nucioStats.listup}
+              actualAcceptance={nucioStats.accepted}
             />
           </div>
         </CardContent>

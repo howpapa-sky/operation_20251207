@@ -45,7 +45,7 @@ function deriveBrand(productName: string | null): string {
   if (!productName) return '-';
   const lower = productName.toLowerCase();
   if (lower.includes('하우파파') || lower.includes('howpapa')) return '하우파파';
-  if (lower.includes('누치오') || lower.includes('누씨오') || lower.includes('nuccio')) return '누씨오';
+  if (lower.includes('누치오') || lower.includes('누씨오') || lower.includes('nucio')) return '누씨오';
   return '-';
 }
 

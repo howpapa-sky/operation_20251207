@@ -179,7 +179,7 @@ export function createDevRequestCompletedNotification(params: {
 
   const brandLabel: Record<string, string> = {
     howpapa: '하우파파',
-    nuccio: '누치오',
+    nucio: '누씨오',
     common: '공통',
   };
 

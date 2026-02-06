@@ -794,7 +794,7 @@ export default function DevRequestPage() {
                         <span className={cn(
                           'px-2.5 py-1 text-xs font-medium rounded-full',
                           req.brand === 'howpapa' ? 'bg-orange-100 text-orange-700' :
-                          req.brand === 'nuccio' ? 'bg-green-100 text-green-700' :
+                          req.brand === 'nucio' ? 'bg-green-100 text-green-700' :
                           'bg-gray-100 text-gray-700'
                         )}>
                           {devRequestBrandLabels[req.brand]}

@@ -18,6 +18,8 @@ import {
   Minus,
   BarChart3,
   Settings,
+  LayoutGrid,
+  Layers,
 } from 'lucide-react';
 import { useSalesDashboardStore } from '@/store/salesDashboardStore';
 import { useBrandStore } from '@/store/brandStore';
@@ -31,7 +33,42 @@ import { cn } from '@/lib/utils';
 import OrderSyncPanel from '@/components/sales/OrderSyncPanel';
 import ProfitBreakdownCard from '@/components/sales/ProfitBreakdownCard';
 import ChannelSummaryCard from '@/components/sales/ChannelSummaryCard';
+import MultiBrandDashboard from '@/components/dashboard/MultiBrandDashboard';
 import { useNavigate } from 'react-router-dom';
+
+type ViewMode = 'multi-brand' | 'single-brand';
+
+// View Mode Toggle Component
+function ViewModeToggle({
+  viewMode,
+  setViewMode,
+}: {
+  viewMode: ViewMode;
+  setViewMode: (mode: ViewMode) => void;
+}) {
+  return (
+    <div className="inline-flex rounded-lg border border-gray-200 p-1 bg-gray-50">
+      <Button
+        variant={viewMode === 'multi-brand' ? 'default' : 'ghost'}
+        size="sm"
+        onClick={() => setViewMode('multi-brand')}
+        className="flex items-center gap-2"
+      >
+        <LayoutGrid className="w-4 h-4" />
+        멀티브랜드
+      </Button>
+      <Button
+        variant={viewMode === 'single-brand' ? 'default' : 'ghost'}
+        size="sm"
+        onClick={() => setViewMode('single-brand')}
+        className="flex items-center gap-2"
+      >
+        <Layers className="w-4 h-4" />
+        상세보기
+      </Button>
+    </div>
+  );
+}
 
 // 숫자 포맷팅
 function formatCurrency(value: number, showSign = false): string {
@@ -170,6 +207,8 @@ function AdPerformanceCard({
 
 export default function SalesDashboardPage() {
   const navigate = useNavigate();
+  const [viewMode, setViewMode] = useState<ViewMode>('multi-brand');
+
   const {
     dashboardStats,
     channelStats,
@@ -199,11 +238,24 @@ export default function SalesDashboardPage() {
     fetchDashboardStats();
   }, []);
 
+  // Show MultiBrandDashboard as default
+  if (viewMode === 'multi-brand') {
+    return (
+      <div className="space-y-4">
+        {/* View Mode Toggle */}
+        <div className="flex justify-end">
+          <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} />
+        </div>
+        <MultiBrandDashboard />
+      </div>
+    );
+  }
+
   // Sync with global brand selector when brand changes
   useEffect(() => {
     if (selectedBrandId) {
       const brand = getBrandById(selectedBrandId);
-      if (brand && (brand.code === 'howpapa' || brand.code === 'nuccio')) {
+      if (brand && (brand.code === 'howpapa' || brand.code === 'nucio')) {
         if (selectedBrand !== brand.code) {
           setSelectedBrand(brand.code);
           fetchDashboardStats();
@@ -273,12 +325,17 @@ export default function SalesDashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* View Mode Toggle */}
+      <div className="flex justify-end">
+        <ViewModeToggle viewMode={viewMode} setViewMode={setViewMode} />
+      </div>
+
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <BarChart3 className="w-7 h-7 text-orange-500" />
-            매출 대시보드
+            매출 대시보드 (상세)
           </h1>
           <p className="text-gray-500 mt-1">채널별 매출 현황 및 수익성 분석</p>
         </div>
@@ -339,7 +396,7 @@ export default function SalesDashboardPage() {
             {/* 브랜드 필터 */}
             <Select
               value={selectedBrand}
-              onValueChange={(v) => setSelectedBrand(v as 'howpapa' | 'nuccio' | 'all')}
+              onValueChange={(v) => setSelectedBrand(v as 'howpapa' | 'nucio' | 'all')}
             >
               <SelectTrigger className="w-32">
                 <SelectValue />
@@ -347,7 +404,7 @@ export default function SalesDashboardPage() {
               <SelectContent>
                 <SelectItem value="all">전체 브랜드</SelectItem>
                 <SelectItem value="howpapa">하우파파</SelectItem>
-                <SelectItem value="nuccio">누치오</SelectItem>
+                <SelectItem value="nucio">누씨오</SelectItem>
               </SelectContent>
             </Select>
 

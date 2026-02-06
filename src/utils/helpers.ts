@@ -93,12 +93,12 @@ export const priorityColors: Record<Priority, string> = {
 // 브랜드 관련
 export const brandLabels: Record<Brand, string> = {
   howpapa: '하우파파',
-  nuccio: '누씨오',
+  nucio: '누씨오',
 };
 
 export const brandColors: Record<Brand, string> = {
   howpapa: 'bg-howpapa-100 text-howpapa-700',
-  nuccio: 'bg-nuccio-100 text-nuccio-700',
+  nucio: 'bg-nucio-100 text-nucio-700',
 };
 
 // 금액 포맷팅
