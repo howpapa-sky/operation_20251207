@@ -867,7 +867,7 @@ async function syncCafe24Orders(params: { startDate: string; endDate: string }) 
   // 자격증명 조회 + 토큰 확보
   let creds;
   try {
-    creds = await getCafe24Credentials();
+    creds = await getCafe24Credentials(request.brandId);
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -1458,7 +1458,7 @@ const handler: Handler = async (
           };
         }
         try {
-          const creds = await getCafe24Credentials();
+          const creds = await getCafe24Credentials(request.brandId);
           const authUrl = getCafe24AuthUrl(creds.mallId, creds.clientId, redirectUri);
           return {
             statusCode: 200,
@@ -1536,7 +1536,7 @@ const handler: Handler = async (
           };
         }
         try {
-          const creds = await getCafe24Credentials();
+          const creds = await getCafe24Credentials(request.brandId);
           const tokens = await exchangeCafe24Token(
             creds.mallId, creds.clientId, creds.clientSecret, request.code, request.redirectUri
           );
@@ -1616,7 +1616,7 @@ const handler: Handler = async (
 
         if (ch === "cafe24") {
           try {
-            const creds = await getCafe24Credentials();
+            const creds = await getCafe24Credentials(request.brandId);
             const token = await ensureCafe24Token(creds);
             // Cafe24 API 직접 호출 (IP 제한 없음)
             const testRes = await fetch(
