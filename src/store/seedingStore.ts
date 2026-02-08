@@ -315,6 +315,9 @@ export const useSeedingStore = create<SeedingStore>()(
               status: project.status,
               description: project.description || null,
               assignee_id: project.assignee_id || null,
+              listup_sheet_url: project.listup_sheet_url || null,
+              listup_sheet_name: project.listup_sheet_name || 'Sheet1',
+              auto_sync_enabled: project.auto_sync_enabled || false,
             })
             .select()
             .single();
