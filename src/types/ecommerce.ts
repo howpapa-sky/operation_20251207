@@ -3,7 +3,7 @@
 // =====================================================
 // 브랜드 (Multi-brand Support)
 // =====================================================
-export type BrandCode = 'howpapa' | 'nucio';
+export type BrandCode = 'howpapa' | 'nuccio';
 
 export interface Brand {
   id: string;
@@ -20,12 +20,12 @@ export interface Brand {
 
 export const brandLabels: Record<BrandCode, string> = {
   howpapa: '하우파파',
-  nucio: '누씨오',
+  nuccio: '누씨오',
 };
 
 export const brandColors: Record<BrandCode, string> = {
   howpapa: '#f97316',  // orange-500
-  nucio: '#22c55e',    // green-500
+  nuccio: '#22c55e',    // green-500
 };
 
 // =====================================================
@@ -140,7 +140,7 @@ export interface SKUMaster {
   id: string;
   skuCode: string;
   productName: string;
-  brand: 'howpapa' | 'nucio';
+  brand: 'howpapa' | 'nuccio';
   category?: string;
   costPrice: number;  // 원가 (VAT 포함)
   sellingPrice: number;  // 기본 판매가
@@ -250,7 +250,7 @@ export interface DailyChannelStats {
   id: string;
   date: string;
   channel: SalesChannel | 'all';
-  brand?: 'howpapa' | 'nucio';
+  brand?: 'howpapa' | 'nuccio';
   totalOrders: number;
   totalQuantity: number;
   totalRevenue: number;  // 총 결제금액
@@ -321,7 +321,7 @@ export interface GroupPurchaseRound {
   id: string;
   roundNumber: number;
   title: string;
-  brand: 'howpapa' | 'nucio';
+  brand: 'howpapa' | 'nuccio';
   influencerName?: string;
   influencerHandle?: string;
   platform?: string;
