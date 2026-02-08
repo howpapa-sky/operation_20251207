@@ -746,7 +746,7 @@ async function ensureCafe24Token(creds: {
   clientSecret: string;
   accessToken?: string;
   refreshToken?: string;
-}): Promise<string> {
+}, brandId?: string): Promise<string> {
   if (!creds.accessToken || !creds.refreshToken) {
     throw new Error("Cafe24 인증이 필요합니다. 설정에서 OAuth 인증을 진행해주세요.");
   }
@@ -767,8 +767,8 @@ async function ensureCafe24Token(creds: {
     creds.mallId, creds.clientId, creds.clientSecret, creds.refreshToken
   );
 
-  // DB에 새 토큰 저장
-  await supabase
+  // DB에 새 토큰 저장 (브랜드별 필터링)
+  let updateQuery = supabase
     .from("api_credentials")
     .update({
       cafe24_access_token: newTokens.accessToken,
@@ -776,6 +776,12 @@ async function ensureCafe24Token(creds: {
       cafe24_token_expires_at: newTokens.expiresAt,
     })
     .eq("channel", "cafe24");
+
+  if (brandId) {
+    updateQuery = updateQuery.eq("brand_id", brandId);
+  }
+
+  await updateQuery;
 
   return newTokens.accessToken;
 }
@@ -916,7 +922,7 @@ async function syncCafe24Orders(params: { startDate: string; endDate: string; br
 
   let accessToken: string;
   try {
-    accessToken = await ensureCafe24Token(creds);
+    accessToken = await ensureCafe24Token(creds, brandId);
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -1550,8 +1556,8 @@ const handler: Handler = async (
           const tokens = await exchangeCafe24Token(
             request.mallId, request.clientId, request.clientSecret, request.code, request.redirectUri
           );
-          // DB에 토큰 저장
-          await supabase
+          // DB에 토큰 저장 (브랜드별 필터링)
+          let exchangeQuery = supabase
             .from("api_credentials")
             .update({
               cafe24_access_token: tokens.accessToken,
@@ -1559,6 +1565,12 @@ const handler: Handler = async (
               cafe24_token_expires_at: tokens.expiresAt,
             })
             .eq("channel", "cafe24");
+
+          if (request.brandId) {
+            exchangeQuery = exchangeQuery.eq("brand_id", request.brandId);
+          }
+
+          await exchangeQuery;
 
           return {
             statusCode: 200,
@@ -1588,8 +1600,8 @@ const handler: Handler = async (
           const tokens = await exchangeCafe24Token(
             creds.mallId, creds.clientId, creds.clientSecret, request.code, request.redirectUri
           );
-          // DB에 토큰 저장
-          await supabase
+          // DB에 토큰 저장 (브랜드별 필터링)
+          let completeQuery = supabase
             .from("api_credentials")
             .update({
               cafe24_access_token: tokens.accessToken,
@@ -1597,6 +1609,12 @@ const handler: Handler = async (
               cafe24_token_expires_at: tokens.expiresAt,
             })
             .eq("channel", "cafe24");
+
+          if (request.brandId) {
+            completeQuery = completeQuery.eq("brand_id", request.brandId);
+          }
+
+          await completeQuery;
 
           return {
             statusCode: 200,
@@ -1665,7 +1683,7 @@ const handler: Handler = async (
         if (ch === "cafe24") {
           try {
             const creds = await getCafe24Credentials(request.brandId);
-            const token = await ensureCafe24Token(creds);
+            const token = await ensureCafe24Token(creds, request.brandId);
             // Cafe24 API 직접 호출 (IP 제한 없음)
             const testRes = await fetch(
               `https://${creds.mallId}.cafe24api.com/api/v2/admin/store`,

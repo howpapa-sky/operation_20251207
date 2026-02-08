@@ -10,6 +10,7 @@ export default function Cafe24CallbackPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
+    const brandId = params.get('brandId') || undefined;
 
     if (!code) {
       setStatus('error');
@@ -28,6 +29,7 @@ export default function Cafe24CallbackPage() {
             action: 'cafe24-complete-oauth',
             code,
             redirectUri,
+            brandId,
           }),
         });
 

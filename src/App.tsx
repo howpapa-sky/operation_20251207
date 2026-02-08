@@ -90,8 +90,11 @@ function Cafe24OAuthInterceptor() {
     // Case 1: OAuth 콜백 - Cafe24에서 인증 코드를 받아 돌아온 경우
     const code = searchParams.get('code');
     const state = searchParams.get('state');
-    if (code && state === 'cafe24auth' && location.pathname !== '/auth/cafe24') {
-      navigate(`/auth/cafe24?code=${code}`, { replace: true });
+    if (code && state?.startsWith('cafe24auth') && location.pathname !== '/auth/cafe24') {
+      // state 형식: cafe24auth 또는 cafe24auth_브랜드ID
+      const brandId = state.includes('_') ? state.split('_').slice(1).join('_') : '';
+      const brandParam = brandId ? `&brandId=${brandId}` : '';
+      navigate(`/auth/cafe24?code=${code}${brandParam}`, { replace: true });
       return;
     }
 
