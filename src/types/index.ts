@@ -418,6 +418,23 @@ export interface CoupangCredentials {
   secretKey: string;
 }
 
+// 메타 (Facebook/Instagram) 광고 자격증명
+export interface MetaAdsCredentials {
+  accessToken: string;
+  adAccountId: string;       // act_XXXXXXXXX 형식
+  appId?: string;
+  appSecret?: string;
+  businessId?: string;
+  tokenExpiresAt?: string;
+}
+
+// 네이버 검색광고 자격증명
+export interface NaverSearchAdsCredentials {
+  apiLicenseKey: string;     // API License Key
+  secretKey: string;         // Secret Key
+  customerId: string;        // 광고주 ID
+}
+
 // API 자격증명 (통합)
 export interface ApiCredential {
   id: string;

@@ -41,7 +41,7 @@ function formatDateStr(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-export function useAutoSync(channels: string | string[], onSyncComplete?: () => void) {
+export function useAutoSync(channels: string | string[], onSyncComplete?: () => void, brandId?: string) {
   const channelList = Array.isArray(channels) ? channels : [channels];
   const stored = getStoredState();
   const [state, setState] = useState<AutoSyncState>({
@@ -71,6 +71,7 @@ export function useAutoSync(channels: string | string[], onSyncComplete?: () => 
           channel: ch,
           startDate: formatDateStr(startDate),
           endDate: formatDateStr(endDate),
+          brandId,
         });
         lastResult = result;
         if (result.success) anySuccess = true;
@@ -93,7 +94,7 @@ export function useAutoSync(channels: string | string[], onSyncComplete?: () => 
       onSyncComplete();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelList.join(','), onSyncComplete]);
+  }, [channelList.join(','), onSyncComplete, brandId]);
 
   const setEnabled = useCallback((enabled: boolean) => {
     setState(prev => {

@@ -60,12 +60,18 @@ interface SalesDashboardState {
   };
 }
 
-// 브랜드 추정 (product_name 패턴 매칭)
-function deriveBrand(productName: string | undefined): 'howpapa' | 'nucio' | undefined {
+// 브랜드 추정 (brand_id 우선, product_name 패턴 매칭 폴백)
+function deriveBrand(productName: string | undefined, brandId?: string | null): 'howpapa' | 'nucio' | undefined {
+  // 1. brand_id가 있으면 brands 테이블에서 코드 조회
+  if (brandId) {
+    const brand = useBrandStore.getState().getBrandById(brandId);
+    if (brand) return brand.code as 'howpapa' | 'nucio';
+  }
+  // 2. 폴백: 상품명 패턴 매칭
   if (!productName) return undefined;
   const lower = productName.toLowerCase();
   if (lower.includes('하우파파') || lower.includes('howpapa')) return 'howpapa';
-  if (lower.includes('누치오') || lower.includes('누씨오') || lower.includes('nucio')) return 'nucio';
+  if (lower.includes('누치오') || lower.includes('누씨오') || lower.includes('nucio') || lower.includes('nuccio')) return 'nucio';
   return undefined;
 }
 
@@ -119,7 +125,7 @@ function aggregateOrdersByDateChannel(
       continue;
     }
 
-    const brand = deriveBrand(o.product_name as string);
+    const brand = deriveBrand(o.product_name as string, o.brand_id as string | null);
 
     // 브랜드 필터
     if (brandFilter && brandFilter !== 'all' && brand !== brandFilter) continue;
@@ -188,7 +194,7 @@ function buildChannelSummaries(
     }>();
 
     for (const o of orders) {
-      const brand = deriveBrand(o.product_name as string);
+      const brand = deriveBrand(o.product_name as string, o.brand_id as string | null);
       if (brandFilter && brandFilter !== 'all' && brand !== brandFilter) continue;
 
       const channel = o.channel as SalesChannel;
@@ -361,9 +367,9 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
         .lte('order_date', range.end)
         .order('order_date', { ascending: false });
 
-      // Filter by brand_id if selected
+      // Filter by brand_id if selected (brand_id IS NULL인 쿠팡 등 공용 채널도 항상 포함)
       if (selectedBrandId) {
-        ordersQuery = ordersQuery.eq('brand_id', selectedBrandId);
+        ordersQuery = ordersQuery.or(`brand_id.eq.${selectedBrandId},brand_id.is.null`);
       }
 
       const { data: rawOrders, error: ordersError } = await ordersQuery;
@@ -396,9 +402,9 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
         .gte('order_date', prevRange.start)
         .lte('order_date', prevRange.end);
 
-      // Filter by brand_id if selected
+      // Filter by brand_id if selected (brand_id IS NULL인 공용 채널도 포함)
       if (selectedBrandId) {
-        prevOrdersQuery = prevOrdersQuery.eq('brand_id', selectedBrandId);
+        prevOrdersQuery = prevOrdersQuery.or(`brand_id.eq.${selectedBrandId},brand_id.is.null`);
       }
 
       const { data: prevRawOrders } = await prevOrdersQuery;

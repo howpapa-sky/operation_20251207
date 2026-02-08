@@ -10,6 +10,11 @@ export default function Cafe24CallbackPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
+    // brandId: App.tsx에서 쿼리파라미터로 전달 또는 Cafe24 state에서 추출
+    const state = params.get('state');
+    const brandId = params.get('brandId')
+      || (state?.startsWith('cafe24auth_') ? state.split('_').slice(1).join('_') : undefined)
+      || undefined;
 
     if (!code) {
       setStatus('error');
@@ -19,7 +24,6 @@ export default function Cafe24CallbackPage() {
 
     (async () => {
       try {
-        // 서버에서 DB 자격증명으로 토큰 교환 (프론트엔드 로그인 불필요)
         const redirectUri = window.location.origin;
         const res = await fetch('/.netlify/functions/commerce-proxy', {
           method: 'POST',
@@ -28,6 +32,7 @@ export default function Cafe24CallbackPage() {
             action: 'cafe24-complete-oauth',
             code,
             redirectUri,
+            brandId,
           }),
         });
 
@@ -35,7 +40,6 @@ export default function Cafe24CallbackPage() {
         if (data.success) {
           setStatus('success');
           setMessage('Cafe24 OAuth 인증이 완료되었습니다!');
-          // 3초 후 설정 페이지로 이동
           setTimeout(() => navigate('/settings', { replace: true }), 3000);
         } else {
           setStatus('error');
@@ -46,7 +50,7 @@ export default function Cafe24CallbackPage() {
         setMessage(`인증 처리 중 오류: ${(err as Error).message}`);
       }
     })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -60,28 +64,11 @@ export default function Cafe24CallbackPage() {
         {status === 'error' && (
           <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
         )}
-
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">
-          Cafe24 인증
-        </h2>
-        <p className={`text-sm ${
-          status === 'success' ? 'text-green-600' :
-          status === 'error' ? 'text-red-600' :
-          'text-gray-500'
-        }`}>
-          {message}
-        </p>
-
-        {status === 'success' && (
-          <p className="text-xs text-gray-400 mt-3">잠시 후 설정 페이지로 이동합니다...</p>
-        )}
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Cafe24 인증</h2>
+        <p className={`text-sm ${status === 'success' ? 'text-green-600' : status === 'error' ? 'text-red-600' : 'text-gray-500'}`}>{message}</p>
+        {status === 'success' && <p className="text-xs text-gray-400 mt-3">잠시 후 설정 페이지로 이동합니다...</p>}
         {status === 'error' && (
-          <button
-            onClick={() => navigate('/settings', { replace: true })}
-            className="mt-4 bg-blue-600 text-white text-sm font-medium py-2 px-6 rounded-lg hover:bg-blue-700"
-          >
-            설정으로 돌아가기
-          </button>
+          <button onClick={() => navigate('/settings', { replace: true })} className="mt-4 bg-blue-600 text-white text-sm font-medium py-2 px-6 rounded-lg hover:bg-blue-700">설정으로 돌아가기</button>
         )}
       </div>
     </div>

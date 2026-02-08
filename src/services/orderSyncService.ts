@@ -53,6 +53,7 @@ async function syncOrdersChunk(params: {
   channel: string;
   startDate: string;
   endDate: string;
+  brandId?: string;
 }): Promise<SyncResult> {
   try {
     const response = await fetch(FUNCTION_URL, {
@@ -63,6 +64,7 @@ async function syncOrdersChunk(params: {
         channel: params.channel,
         startDate: params.startDate,
         endDate: params.endDate,
+        brandId: params.brandId,
       }),
     });
 
@@ -103,6 +105,7 @@ export async function syncOrders(params: {
   channel: string;
   startDate: string;
   endDate: string;
+  brandId?: string;
   onProgress?: (progress: SyncProgress) => void;
 }): Promise<SyncResult & { elapsedMs?: number }> {
   const startTime = Date.now();
@@ -141,6 +144,7 @@ export async function syncOrders(params: {
       channel: params.channel,
       startDate: chunks[0].start,
       endDate: chunks[0].end,
+      brandId: params.brandId,
     });
 
     return { ...result, elapsedMs: Date.now() - startTime };
@@ -167,6 +171,7 @@ export async function syncOrders(params: {
       channel: params.channel,
       startDate: chunk.start,
       endDate: chunk.end,
+      brandId: params.brandId,
     });
 
     if (!result.success) {
@@ -208,7 +213,7 @@ export async function syncOrders(params: {
 /**
  * 연결 테스트
  */
-export async function testChannelConnection(channel: string): Promise<ConnectionTestResult> {
+export async function testChannelConnection(channel: string, brandId?: string): Promise<ConnectionTestResult> {
   try {
     const response = await fetch(FUNCTION_URL, {
       method: 'POST',
@@ -216,6 +221,7 @@ export async function testChannelConnection(channel: string): Promise<Connection
       body: JSON.stringify({
         action: 'test-connection',
         channel,
+        brandId,
       }),
     });
 
