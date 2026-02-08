@@ -1220,7 +1220,7 @@ export default function SalesDashboardPage() {
       </Card>
 
       {/* Order Sync Panel */}
-      <OrderSyncPanel onSyncComplete={() => fetchDashboardStats()} />
+      <OrderSyncPanel onSyncComplete={() => fetchDashboardStats()} brandId={selectedBrandId || undefined} />
 
       {/* Error */}
       {error && (

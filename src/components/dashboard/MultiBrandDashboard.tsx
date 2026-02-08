@@ -534,8 +534,16 @@ export default function MultiBrandDashboard() {
       const brandStatsMap: Record<string, BrandStats> = {};
 
       for (const brand of brands) {
+        // brand_id 매칭 우선, brand_id가 NULL이면 상품명으로 폴백
         const brandOrders = (orders || []).filter(
-          (o: any) => o.brand_id === brand.id
+          (o: any) => {
+            if (o.brand_id) return o.brand_id === brand.id;
+            // brand_id가 없는 기존 데이터: 상품명 패턴 매칭
+            const pn = ((o.product_name as string) || '').toLowerCase();
+            if (brand.code === 'howpapa') return pn.includes('하우파파') || pn.includes('howpapa');
+            if (brand.code === 'nucio') return pn.includes('누치오') || pn.includes('누씨오') || pn.includes('nucio') || pn.includes('nuccio');
+            return false;
+          }
         );
 
         const revenue = brandOrders.reduce(

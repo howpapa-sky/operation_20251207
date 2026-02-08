@@ -2085,7 +2085,7 @@ export default function SettingsPage() {
                         const authUrl = `https://${mallId}.cafe24api.com/api/v2/oauth/authorize`
                           + `?response_type=code`
                           + `&client_id=${clientId}`
-                          + `&state=cafe24auth`
+                          + `&state=cafe24auth${selectedBrandId ? `_${selectedBrandId}` : ''}`
                           + `&redirect_uri=${encodeURIComponent(redirectUri)}`
                           + `&scope=${scope}`;
                         console.log('[Cafe24 OAuth] Auth URL:', authUrl);

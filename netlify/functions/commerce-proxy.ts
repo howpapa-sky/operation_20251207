@@ -22,6 +22,8 @@ interface CommerceProxyRequest {
     | "naver_token" | "naver_api" | "proxy"
     | "test-connection" | "sync-orders"
     | "cafe24-auth-url" | "cafe24-exchange-token" | "cafe24-init-oauth" | "cafe24-complete-oauth";
+  // Brand (multi-brand support)
+  brandId?: string;
   // Naver token
   clientId?: string;
   clientSecret?: string;
@@ -79,7 +81,41 @@ function toNumber(value: unknown, defaultVal = 0): number {
 }
 
 // ========== 네이버 자격증명 조회 ==========
-async function getNaverCredentials(): Promise<{ clientId: string; clientSecret: string }> {
+async function getNaverCredentials(brandId?: string): Promise<{ clientId: string; clientSecret: string }> {
+  // 브랜드별 자격증명이 api_credentials에 있으면 우선 사용
+  if (brandId) {
+    const { data: brandCreds } = await supabase
+      .from("api_credentials")
+      .select("naver_client_id, naver_client_secret")
+      .eq("channel", "naver_smartstore")
+      .eq("brand_id", brandId)
+      .limit(1)
+      .single();
+
+    if (brandCreds?.naver_client_id && brandCreds?.naver_client_secret) {
+      return {
+        clientId: brandCreds.naver_client_id,
+        clientSecret: brandCreds.naver_client_secret,
+      };
+    }
+  }
+
+  // 브랜드 미지정 또는 브랜드별 자격증명 없으면 api_credentials에서 첫 번째 조회
+  const { data: creds } = await supabase
+    .from("api_credentials")
+    .select("naver_client_id, naver_client_secret")
+    .eq("channel", "naver_smartstore")
+    .limit(1)
+    .single();
+
+  if (creds?.naver_client_id && creds?.naver_client_secret) {
+    return {
+      clientId: creds.naver_client_id,
+      clientSecret: creds.naver_client_secret,
+    };
+  }
+
+  // 하위호환: app_secrets 테이블 폴백
   const { data: clientIdData } = await supabase
     .from("app_secrets")
     .select("value")
@@ -93,7 +129,7 @@ async function getNaverCredentials(): Promise<{ clientId: string; clientSecret: 
     .single();
 
   if (!clientIdData?.value || !clientSecretData?.value) {
-    throw new Error("네이버 API 자격증명이 설정되지 않았습니다. app_secrets에 NAVER_CLIENT_ID, NAVER_CLIENT_SECRET을 등록해주세요.");
+    throw new Error("네이버 API 자격증명이 설정되지 않았습니다. 설정 > API 연동에서 등록해주세요.");
   }
 
   return {
@@ -103,10 +139,10 @@ async function getNaverCredentials(): Promise<{ clientId: string; clientSecret: 
 }
 
 // ========== 연결 테스트 ==========
-async function testConnection(channel: string) {
+async function testConnection(channel: string, brandId?: string) {
   if (channel === "smartstore") {
     try {
-      const { clientId, clientSecret } = await getNaverCredentials();
+      const { clientId, clientSecret } = await getNaverCredentials(brandId);
 
       const response = await fetch(`${PROXY_URL}/api/naver/test`, {
         method: "POST",
@@ -143,7 +179,7 @@ async function testConnection(channel: string) {
 
   if (channel === "coupang") {
     try {
-      const creds = await getCoupangCredentials();
+      const creds = await getCoupangCredentials(brandId);
 
       const response = await fetch(`${PROXY_URL}/api/coupang/test`, {
         method: "POST",
@@ -334,8 +370,9 @@ async function syncOrders(params: {
   channel: string;
   startDate: string;
   endDate: string;
+  brandId?: string;
 }) {
-  const { channel, startDate, endDate } = params;
+  const { channel, startDate, endDate, brandId } = params;
 
   if (!startDate || !endDate) {
     return { success: false, error: "시작일과 종료일을 입력해주세요." };
@@ -357,7 +394,7 @@ async function syncOrders(params: {
 
   if (channel === "smartstore") {
     try {
-      const { clientId, clientSecret } = await getNaverCredentials();
+      const { clientId, clientSecret } = await getNaverCredentials(brandId);
 
       // NCP 프록시 서버의 /api/naver/sync 엔드포인트 호출
       // 프록시가 토큰 발급 + 변경주문 조회 + 상세조회를 일괄 처리
@@ -399,7 +436,7 @@ async function syncOrders(params: {
     }
   } else if (channel === "coupang") {
     // 쿠팡은 별도 syncCoupangOrders에서 전체 처리
-    return await syncCoupangOrders({ startDate, endDate });
+    return await syncCoupangOrders({ startDate, endDate, brandId });
   } else {
     return {
       success: false,
@@ -457,6 +494,7 @@ async function syncOrders(params: {
 
     validOrders.push({
       channel,
+      brand_id: brandId || null,
       order_id: uniqueOrderId,
       order_date: toDateStr(order.orderDate),
       order_datetime: order.orderDatetime || null,
@@ -583,20 +621,24 @@ async function syncOrders(params: {
 // ========== Cafe24 API ==========
 
 // Cafe24 자격증명 조회
-async function getCafe24Credentials(): Promise<{
+async function getCafe24Credentials(brandId?: string): Promise<{
   mallId: string;
   clientId: string;
   clientSecret: string;
   accessToken?: string;
   refreshToken?: string;
 }> {
-  // api_credentials 테이블에서 cafe24 자격증명 조회
-  const { data } = await supabase
+  // 브랜드별 자격증명 우선 조회
+  let query = supabase
     .from("api_credentials")
     .select("cafe24_mall_id, cafe24_client_id, cafe24_client_secret, cafe24_access_token, cafe24_refresh_token")
-    .eq("channel", "cafe24")
-    .limit(1)
-    .single();
+    .eq("channel", "cafe24");
+
+  if (brandId) {
+    query = query.eq("brand_id", brandId);
+  }
+
+  const { data } = await query.limit(1).single();
 
   if (!data?.cafe24_mall_id || !data?.cafe24_client_id || !data?.cafe24_client_secret) {
     throw new Error("Cafe24 자격증명이 설정되지 않았습니다. 설정 > API 연동에서 등록해주세요.");
@@ -704,7 +746,7 @@ async function ensureCafe24Token(creds: {
   clientSecret: string;
   accessToken?: string;
   refreshToken?: string;
-}): Promise<string> {
+}, brandId?: string): Promise<string> {
   if (!creds.accessToken || !creds.refreshToken) {
     throw new Error("Cafe24 인증이 필요합니다. 설정에서 OAuth 인증을 진행해주세요.");
   }
@@ -725,8 +767,8 @@ async function ensureCafe24Token(creds: {
     creds.mallId, creds.clientId, creds.clientSecret, creds.refreshToken
   );
 
-  // DB에 새 토큰 저장
-  await supabase
+  // DB에 새 토큰 저장 (브랜드별 필터링)
+  let updateQuery = supabase
     .from("api_credentials")
     .update({
       cafe24_access_token: newTokens.accessToken,
@@ -734,6 +776,12 @@ async function ensureCafe24Token(creds: {
       cafe24_token_expires_at: newTokens.expiresAt,
     })
     .eq("channel", "cafe24");
+
+  if (brandId) {
+    updateQuery = updateQuery.eq("brand_id", brandId);
+  }
+
+  await updateQuery;
 
   return newTokens.accessToken;
 }
@@ -858,23 +906,23 @@ function transformCafe24Order(raw: Record<string, unknown>): NaverOrder[] {
 }
 
 // Cafe24 주문 동기화
-async function syncCafe24Orders(params: { startDate: string; endDate: string }) {
-  const { startDate, endDate } = params;
+async function syncCafe24Orders(params: { startDate: string; endDate: string; brandId?: string }) {
+  const { startDate, endDate, brandId } = params;
   const channel = "cafe24";
 
-  console.log(`[cafe24] Syncing orders: ${startDate} ~ ${endDate}`);
+  console.log(`[cafe24] Syncing orders: ${startDate} ~ ${endDate} (brand: ${brandId || 'default'})`);
 
   // 자격증명 조회 + 토큰 확보
   let creds;
   try {
-    creds = await getCafe24Credentials(request.brandId);
+    creds = await getCafe24Credentials(brandId);
   } catch (error: any) {
     return { success: false, error: error.message };
   }
 
   let accessToken: string;
   try {
-    accessToken = await ensureCafe24Token(creds);
+    accessToken = await ensureCafe24Token(creds, brandId);
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -937,6 +985,7 @@ async function syncCafe24Orders(params: { startDate: string; endDate: string }) 
 
       validOrders.push({
         channel,
+        brand_id: brandId || null,
         order_id: uniqueOrderId,
         order_date: toDateStr(order.orderDate),
         order_datetime: null,
@@ -1025,17 +1074,21 @@ async function syncCafe24Orders(params: { startDate: string; endDate: string }) 
 // ========== Coupang API ==========
 
 // Coupang 자격증명 조회
-async function getCoupangCredentials(): Promise<{
+async function getCoupangCredentials(brandId?: string): Promise<{
   vendorId: string;
   accessKey: string;
   secretKey: string;
 }> {
-  const { data } = await supabase
+  let query = supabase
     .from("api_credentials")
     .select("coupang_vendor_id, coupang_access_key, coupang_secret_key")
-    .eq("channel", "coupang")
-    .limit(1)
-    .single();
+    .eq("channel", "coupang");
+
+  if (brandId) {
+    query = query.eq("brand_id", brandId);
+  }
+
+  const { data } = await query.limit(1).single();
 
   if (!data?.coupang_vendor_id || !data?.coupang_access_key || !data?.coupang_secret_key) {
     throw new Error("쿠팡 자격증명이 설정되지 않았습니다. 설정 > API 연동에서 Vendor ID, Access Key, Secret Key를 등록해주세요.");
@@ -1130,16 +1183,16 @@ function transformCoupangOrder(raw: Record<string, unknown>): NaverOrder[] {
 }
 
 // Coupang 주문 동기화
-async function syncCoupangOrders(params: { startDate: string; endDate: string }) {
-  const { startDate, endDate } = params;
+async function syncCoupangOrders(params: { startDate: string; endDate: string; brandId?: string }) {
+  const { startDate, endDate, brandId } = params;
   const channel = "coupang";
 
-  console.log(`[coupang] Syncing orders: ${startDate} ~ ${endDate}`);
+  console.log(`[coupang] Syncing orders: ${startDate} ~ ${endDate} (brand: ${brandId || 'default'})`);
 
   // 자격증명 조회
   let creds;
   try {
-    creds = await getCoupangCredentials();
+    creds = await getCoupangCredentials(brandId);
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -1237,6 +1290,7 @@ async function syncCoupangOrders(params: { startDate: string; endDate: string })
 
       validOrders.push({
         channel,
+        brand_id: null, // 쿠팡은 하우파파/누씨오 공용 → 브랜드 필터 무관하게 항상 표시
         order_id: uniqueOrderId,
         order_date: toDateStr(order.orderDate),
         order_datetime: order.orderDate || null,
@@ -1502,8 +1556,8 @@ const handler: Handler = async (
           const tokens = await exchangeCafe24Token(
             request.mallId, request.clientId, request.clientSecret, request.code, request.redirectUri
           );
-          // DB에 토큰 저장
-          await supabase
+          // DB에 토큰 저장 (브랜드별 필터링)
+          let exchangeQuery = supabase
             .from("api_credentials")
             .update({
               cafe24_access_token: tokens.accessToken,
@@ -1511,6 +1565,12 @@ const handler: Handler = async (
               cafe24_token_expires_at: tokens.expiresAt,
             })
             .eq("channel", "cafe24");
+
+          if (request.brandId) {
+            exchangeQuery = exchangeQuery.eq("brand_id", request.brandId);
+          }
+
+          await exchangeQuery;
 
           return {
             statusCode: 200,
@@ -1540,8 +1600,8 @@ const handler: Handler = async (
           const tokens = await exchangeCafe24Token(
             creds.mallId, creds.clientId, creds.clientSecret, request.code, request.redirectUri
           );
-          // DB에 토큰 저장
-          await supabase
+          // DB에 토큰 저장 (브랜드별 필터링)
+          let completeQuery = supabase
             .from("api_credentials")
             .update({
               cafe24_access_token: tokens.accessToken,
@@ -1549,6 +1609,12 @@ const handler: Handler = async (
               cafe24_token_expires_at: tokens.expiresAt,
             })
             .eq("channel", "cafe24");
+
+          if (request.brandId) {
+            completeQuery = completeQuery.eq("brand_id", request.brandId);
+          }
+
+          await completeQuery;
 
           return {
             statusCode: 200,
@@ -1570,7 +1636,7 @@ const handler: Handler = async (
 
         if (ch === "coupang") {
           try {
-            const coupangCreds = await getCoupangCredentials();
+            const coupangCreds = await getCoupangCredentials(request.brandId);
 
             const coupangTestRes = await fetch(`${PROXY_URL}/api/coupang/test`, {
               method: "POST",
@@ -1617,7 +1683,7 @@ const handler: Handler = async (
         if (ch === "cafe24") {
           try {
             const creds = await getCafe24Credentials(request.brandId);
-            const token = await ensureCafe24Token(creds);
+            const token = await ensureCafe24Token(creds, request.brandId);
             // Cafe24 API 직접 호출 (IP 제한 없음)
             const testRes = await fetch(
               `https://${creds.mallId}.cafe24api.com/api/v2/admin/store`,
@@ -1651,7 +1717,7 @@ const handler: Handler = async (
           }
         }
 
-        const result = await testConnection(ch);
+        const result = await testConnection(ch, request.brandId);
         return {
           statusCode: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -1666,6 +1732,7 @@ const handler: Handler = async (
           const cafe24Result = await syncCafe24Orders({
             startDate: request.startDate || "",
             endDate: request.endDate || "",
+            brandId: request.brandId,
           });
           return {
             statusCode: 200,
@@ -1678,6 +1745,7 @@ const handler: Handler = async (
           const coupangResult = await syncCoupangOrders({
             startDate: request.startDate || "",
             endDate: request.endDate || "",
+            brandId: request.brandId,
           });
           return {
             statusCode: 200,
@@ -1690,6 +1758,7 @@ const handler: Handler = async (
           channel: syncChannel,
           startDate: request.startDate || "",
           endDate: request.endDate || "",
+          brandId: request.brandId,
         });
         return {
           statusCode: 200,

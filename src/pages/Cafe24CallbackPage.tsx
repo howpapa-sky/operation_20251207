@@ -10,9 +10,11 @@ export default function Cafe24CallbackPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
-    const state = params.get('state'); // Cafe24가 state로 돌려줌
-    // state 형식: "cafe24auth" 또는 "cafe24auth_브랜드ID"
-    const brandId = state?.startsWith('cafe24auth_') ? state.split('_')[1] : null;
+    // brandId: App.tsx에서 쿼리파라미터로 전달 또는 Cafe24 state에서 추출
+    const state = params.get('state');
+    const brandId = params.get('brandId')
+      || (state?.startsWith('cafe24auth_') ? state.split('_').slice(1).join('_') : undefined)
+      || undefined;
 
     if (!code) {
       setStatus('error');
