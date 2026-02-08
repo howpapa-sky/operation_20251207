@@ -33,6 +33,23 @@ import {
 } from 'recharts';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { Store } from 'lucide-react';
+
+// Channel & Ad platform labels
+const CHANNEL_LABELS: Record<string, string> = {
+  smartstore: '스마트스토어',
+  coupang: '쿠팡',
+  coupang_rocket: '쿠팡 제트배송',
+  cafe24: 'Cafe24',
+  qoo10: '큐텐 재팬',
+};
+
+const AD_PLATFORM_LABELS: Record<string, string> = {
+  naver_sa: '네이버 검색광고',
+  naver_gfa: '네이버 GFA',
+  meta: '메타 (FB/IG)',
+  coupang_ads: '쿠팡 광고',
+};
 
 // Types
 interface BrandStats {
@@ -48,6 +65,29 @@ interface BrandStats {
   adCost: number;
   contributionProfit: number;
   contributionProfitRate: number;
+}
+
+interface ChannelBreakdown {
+  channel: string;
+  channelLabel: string;
+  revenue: number;
+  orders: number;
+  avgOrderValue: number;
+}
+
+interface AdPlatformCost {
+  platform: string;
+  platformLabel: string;
+  cost: number;
+  isConfigured: boolean;
+}
+
+interface BrandDetailData {
+  brandCode: string;
+  brandName: string;
+  brandColor: string;
+  channels: ChannelBreakdown[];
+  adPlatforms: AdPlatformCost[];
 }
 
 interface DateRange {
@@ -364,6 +404,200 @@ function TotalKPISummary({
   );
 }
 
+// Channel Breakdown Section
+function ChannelBreakdownSection({ details }: { details: BrandDetailData[] }) {
+  if (details.length === 0) return null;
+
+  // 전체 채널 합산 (모든 브랜드)
+  const totalChannelMap = new Map<string, { label: string; revenue: number; orders: number }>();
+  for (const brand of details) {
+    for (const ch of brand.channels) {
+      const entry = totalChannelMap.get(ch.channel) || { label: ch.channelLabel, revenue: 0, orders: 0 };
+      entry.revenue += ch.revenue;
+      entry.orders += ch.orders;
+      totalChannelMap.set(ch.channel, entry);
+    }
+  }
+  const totalRevenue = Array.from(totalChannelMap.values()).reduce((s, c) => s + c.revenue, 0);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Store className="w-5 h-5 text-gray-500" />
+          매출처별 현황
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-3 px-2 font-medium text-gray-500">매출처</th>
+                {details.map((b) => (
+                  <th key={b.brandCode} className="text-right py-3 px-2 font-medium" style={{ color: b.brandColor }}>
+                    {b.brandName}
+                  </th>
+                ))}
+                <th className="text-right py-3 px-2 font-medium text-gray-700">합계</th>
+                <th className="text-right py-3 px-2 font-medium text-gray-500">비중</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from(totalChannelMap.entries())
+                .sort((a, b) => b[1].revenue - a[1].revenue)
+                .map(([channel, total]) => (
+                  <tr key={channel} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-3 px-2 font-medium text-gray-800">{total.label}</td>
+                    {details.map((b) => {
+                      const ch = b.channels.find((c) => c.channel === channel);
+                      return (
+                        <td key={b.brandCode} className="text-right py-3 px-2">
+                          <div className="font-medium">{formatCurrency(ch?.revenue || 0)}원</div>
+                          <div className="text-xs text-gray-400">{ch?.orders || 0}건</div>
+                        </td>
+                      );
+                    })}
+                    <td className="text-right py-3 px-2 font-semibold text-gray-800">
+                      {formatCurrency(total.revenue)}원
+                      <div className="text-xs text-gray-400 font-normal">{total.orders}건</div>
+                    </td>
+                    <td className="text-right py-3 px-2 text-gray-600">
+                      {totalRevenue > 0 ? ((total.revenue / totalRevenue) * 100).toFixed(1) : '0'}%
+                    </td>
+                  </tr>
+                ))}
+              {/* 합계 row */}
+              <tr className="bg-gray-50 font-semibold">
+                <td className="py-3 px-2 text-gray-800">합계</td>
+                {details.map((b) => {
+                  const brandTotal = b.channels.reduce((s, c) => s + c.revenue, 0);
+                  const brandOrders = b.channels.reduce((s, c) => s + c.orders, 0);
+                  return (
+                    <td key={b.brandCode} className="text-right py-3 px-2" style={{ color: b.brandColor }}>
+                      <div>{formatCurrency(brandTotal)}원</div>
+                      <div className="text-xs font-normal" style={{ opacity: 0.7 }}>{brandOrders}건</div>
+                    </td>
+                  );
+                })}
+                <td className="text-right py-3 px-2 text-gray-900">
+                  {formatCurrency(totalRevenue)}원
+                </td>
+                <td className="text-right py-3 px-2 text-gray-600">100%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Ad Platform Cost Section
+function AdCostSection({ details }: { details: BrandDetailData[] }) {
+  if (details.length === 0) return null;
+
+  const hasAnyConfig = details.some((b) => b.adPlatforms.some((p) => p.isConfigured));
+  const hasAnySpend = details.some((b) => b.adPlatforms.some((p) => p.cost > 0));
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Target className="w-5 h-5 text-gray-500" />
+          광고비 매체별 현황
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-3 px-2 font-medium text-gray-500">광고 매체</th>
+                {details.map((b) => (
+                  <th key={b.brandCode} className="text-right py-3 px-2 font-medium" style={{ color: b.brandColor }}>
+                    {b.brandName}
+                  </th>
+                ))}
+                <th className="text-right py-3 px-2 font-medium text-gray-700">합계</th>
+                <th className="text-center py-3 px-2 font-medium text-gray-500">상태</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(AD_PLATFORM_LABELS).map(([platform, label]) => {
+                const totalCost = details.reduce((sum, b) => {
+                  const p = b.adPlatforms.find((ap) => ap.platform === platform);
+                  return sum + (p?.cost || 0);
+                }, 0);
+                const isAnyConfigured = details.some((b) =>
+                  b.adPlatforms.find((ap) => ap.platform === platform)?.isConfigured
+                );
+
+                return (
+                  <tr key={platform} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-3 px-2 font-medium text-gray-800">{label}</td>
+                    {details.map((b) => {
+                      const p = b.adPlatforms.find((ap) => ap.platform === platform);
+                      return (
+                        <td key={b.brandCode} className="text-right py-3 px-2">
+                          {p?.cost ? (
+                            <span className="font-medium">{formatCurrency(p.cost)}원</span>
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="text-right py-3 px-2 font-semibold text-gray-800">
+                      {totalCost > 0 ? `${formatCurrency(totalCost)}원` : '-'}
+                    </td>
+                    <td className="text-center py-3 px-2">
+                      {isAnyConfigured ? (
+                        <Badge className="text-xs bg-green-100 text-green-700 border-green-200">연동됨</Badge>
+                      ) : (
+                        <Badge className="text-xs bg-gray-100 text-gray-500 border-gray-200">미연동</Badge>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {/* 합계 row */}
+              <tr className="bg-gray-50 font-semibold">
+                <td className="py-3 px-2 text-gray-800">합계</td>
+                {details.map((b) => {
+                  const brandTotal = b.adPlatforms.reduce((s, p) => s + p.cost, 0);
+                  return (
+                    <td key={b.brandCode} className="text-right py-3 px-2" style={{ color: b.brandColor }}>
+                      {brandTotal > 0 ? `${formatCurrency(brandTotal)}원` : '-'}
+                    </td>
+                  );
+                })}
+                <td className="text-right py-3 px-2 text-gray-900">
+                  {(() => {
+                    const grand = details.reduce((s, b) => s + b.adPlatforms.reduce((s2, p) => s2 + p.cost, 0), 0);
+                    return grand > 0 ? `${formatCurrency(grand)}원` : '-';
+                  })()}
+                </td>
+                <td />
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        {!hasAnySpend && hasAnyConfig && (
+          <p className="text-xs text-gray-400 mt-3 text-center">
+            광고 계정이 연동되었습니다. 광고비 데이터 수집 기능은 추후 업데이트 예정입니다.
+          </p>
+        )}
+        {!hasAnyConfig && (
+          <p className="text-xs text-gray-400 mt-3 text-center">
+            설정 &gt; 광고 API에서 광고 계정을 연동해주세요.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // Brand Comparison Chart
 function BrandComparisonChart({
   howpapa,
@@ -504,6 +738,7 @@ export default function MultiBrandDashboard() {
 
   const [howpapaStats, setHowpapaStats] = useState<BrandStats | null>(null);
   const [nucioStats, setNucioStats] = useState<BrandStats | null>(null);
+  const [brandDetails, setBrandDetails] = useState<BrandDetailData[]>([]);
 
   // Fetch brand stats
   const fetchStats = async (range: DateRange) => {
@@ -585,6 +820,89 @@ export default function MultiBrandDashboard() {
         };
       }
 
+      // 브랜드별 채널 분석 + 광고 매체별 비용
+      const detailsList: BrandDetailData[] = [];
+
+      for (const brand of brands) {
+        const brandOrders = (orders || []).filter(
+          (o: any) => {
+            if (o.brand_id) return o.brand_id === brand.id;
+            const pn = ((o.product_name as string) || '').toLowerCase();
+            if (brand.code === 'howpapa') return pn.includes('하우파파') || pn.includes('howpapa');
+            if (brand.code === 'nuccio') return pn.includes('누치오') || pn.includes('누씨오') || pn.includes('nucio') || pn.includes('nuccio');
+            return false;
+          }
+        );
+
+        // 채널별 집계
+        const channelMap = new Map<string, { revenue: number; orders: number }>();
+        for (const o of brandOrders) {
+          const ch = (o.channel as string) || 'unknown';
+          const entry = channelMap.get(ch) || { revenue: 0, orders: 0 };
+          entry.revenue += Number(o.total_price) || 0;
+          entry.orders += 1;
+          channelMap.set(ch, entry);
+        }
+
+        const channels: ChannelBreakdown[] = Array.from(channelMap.entries())
+          .map(([ch, data]) => ({
+            channel: ch,
+            channelLabel: CHANNEL_LABELS[ch] || ch,
+            revenue: data.revenue,
+            orders: data.orders,
+            avgOrderValue: data.orders > 0 ? data.revenue / data.orders : 0,
+          }))
+          .sort((a, b) => b.revenue - a.revenue);
+
+        // 광고 계정 조회
+        let adPlatforms: AdPlatformCost[] = [];
+        try {
+          const { data: adAccounts } = await (supabase as any)
+            .from('ad_accounts')
+            .select('platform, is_active')
+            .eq('brand_id', brand.id);
+
+          // 광고비 데이터 조회 (ad_spend_daily 테이블)
+          let adSpendMap = new Map<string, number>();
+          try {
+            const { data: adSpend } = await (supabase as any)
+              .from('ad_spend_daily')
+              .select('platform, spend')
+              .eq('brand_id', brand.id)
+              .gte('date', range.start)
+              .lte('date', range.end);
+
+            if (adSpend) {
+              for (const row of adSpend) {
+                const p = row.platform as string;
+                adSpendMap.set(p, (adSpendMap.get(p) || 0) + (Number(row.spend) || 0));
+              }
+            }
+          } catch {
+            // ad_spend_daily 테이블 미존재 - 무시
+          }
+
+          const configuredPlatforms = new Set((adAccounts || []).map((a: any) => a.platform));
+          adPlatforms = Object.entries(AD_PLATFORM_LABELS).map(([platform, label]) => ({
+            platform,
+            platformLabel: label,
+            cost: adSpendMap.get(platform) || 0,
+            isConfigured: configuredPlatforms.has(platform),
+          }));
+        } catch {
+          // ad_accounts 테이블 오류 - 무시
+        }
+
+        detailsList.push({
+          brandCode: brand.code,
+          brandName: brand.name,
+          brandColor: brand.primary_color || '#666',
+          channels,
+          adPlatforms,
+        });
+      }
+
+      setBrandDetails(detailsList);
       setHowpapaStats(brandStatsMap['howpapa'] || null);
       setNucioStats(brandStatsMap['nuccio'] || null);
     } catch (err: any) {
@@ -709,6 +1027,12 @@ export default function MultiBrandDashboard() {
           </Card>
         )}
       </div>
+
+      {/* Channel Breakdown */}
+      <ChannelBreakdownSection details={brandDetails} />
+
+      {/* Ad Cost Breakdown */}
+      <AdCostSection details={brandDetails} />
 
       {/* Comparison Charts */}
       <BrandComparisonChart howpapa={howpapaStats} nucio={nucioStats} />
