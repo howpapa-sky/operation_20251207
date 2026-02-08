@@ -1290,7 +1290,7 @@ async function syncCoupangOrders(params: { startDate: string; endDate: string; b
 
       validOrders.push({
         channel,
-        brand_id: brandId || null,
+        brand_id: null, // 쿠팡은 하우파파/누씨오 공용 → 브랜드 필터 무관하게 항상 표시
         order_id: uniqueOrderId,
         order_date: toDateStr(order.orderDate),
         order_datetime: order.orderDate || null,

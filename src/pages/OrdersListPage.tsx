@@ -115,7 +115,7 @@ export default function OrdersListPage() {
         .order('created_at', { ascending: false });
 
       if (selectedBrandId) {
-        query = query.eq('brand_id', selectedBrandId);
+        query = query.or(`brand_id.eq.${selectedBrandId},brand_id.is.null`);
       }
 
       if (channelFilter !== 'all') {

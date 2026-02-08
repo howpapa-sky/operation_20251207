@@ -367,9 +367,9 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
         .lte('order_date', range.end)
         .order('order_date', { ascending: false });
 
-      // Filter by brand_id if selected
+      // Filter by brand_id if selected (brand_id IS NULL인 쿠팡 등 공용 채널도 항상 포함)
       if (selectedBrandId) {
-        ordersQuery = ordersQuery.eq('brand_id', selectedBrandId);
+        ordersQuery = ordersQuery.or(`brand_id.eq.${selectedBrandId},brand_id.is.null`);
       }
 
       const { data: rawOrders, error: ordersError } = await ordersQuery;
@@ -402,9 +402,9 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
         .gte('order_date', prevRange.start)
         .lte('order_date', prevRange.end);
 
-      // Filter by brand_id if selected
+      // Filter by brand_id if selected (brand_id IS NULL인 공용 채널도 포함)
       if (selectedBrandId) {
-        prevOrdersQuery = prevOrdersQuery.eq('brand_id', selectedBrandId);
+        prevOrdersQuery = prevOrdersQuery.or(`brand_id.eq.${selectedBrandId},brand_id.is.null`);
       }
 
       const { data: prevRawOrders } = await prevOrdersQuery;
