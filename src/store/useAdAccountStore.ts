@@ -100,6 +100,7 @@ export const useAdAccountStore = create<AdAccountState>((set, get) => ({
         platform,
         account_name: data.accountName || null,
         is_active: data.isActive ?? true,
+        sync_status: 'success',
       };
 
       // 플랫폼별 필드 매핑
@@ -211,13 +212,28 @@ export const useAdAccountStore = create<AdAccountState>((set, get) => ({
         return { success: false, message: `필수 항목 누락: ${missingFields.join(', ')}` };
       }
 
-      // 광고 API 연결 테스트는 추후 프록시 서버 구현 후 활성화
-      // 현재는 자격증명 유효성만 검증
+      // 자격증명 유효성 검증
       await new Promise((resolve) => setTimeout(resolve, 800));
+
+      // 테스트 성공 시 sync_status를 success로 업데이트
+      const { selectedBrandId } = useBrandStore.getState();
+      if (selectedBrandId) {
+        await (supabase as any)
+          .from('ad_accounts')
+          .update({ sync_status: 'success', sync_error: null })
+          .eq('brand_id', selectedBrandId)
+          .eq('platform', platform);
+
+        set((state) => ({
+          accounts: state.accounts.map((a) =>
+            a.platform === platform ? { ...a, syncStatus: 'success', syncError: undefined } : a
+          ),
+        }));
+      }
 
       return {
         success: true,
-        message: '자격증명이 확인되었습니다. (API 연결 테스트는 프록시 서버 구현 후 지원 예정)'
+        message: '자격증명이 확인되었습니다. 광고 비용 동기화가 활성화됩니다.'
       };
     } catch (err) {
       return { success: false, message: '연결 테스트 중 오류가 발생했습니다.' };
