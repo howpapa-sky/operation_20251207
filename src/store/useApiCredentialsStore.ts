@@ -308,12 +308,14 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
       if (channel === 'naver_smartstore' || channel === 'cafe24' || channel === 'coupang') {
         try {
           const channelParam = channel === 'naver_smartstore' ? 'smartstore' : channel;
+          const { selectedBrandId: testBrandId } = useBrandStore.getState();
           const response = await fetch('/.netlify/functions/commerce-proxy', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               action: 'test-connection',
               channel: channelParam,
+              brandId: testBrandId || undefined,
             }),
           });
 
@@ -367,6 +369,7 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
       // commerce-proxy의 sync-orders 액션 호출
       // 자격증명은 서버 사이드에서 읽으므로 클라이언트에서 전송 불필요
       const channelParam = channel === 'naver_smartstore' ? 'smartstore' : channel;
+      const { selectedBrandId: syncBrandId } = useBrandStore.getState();
       const response = await fetch('/.netlify/functions/commerce-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -375,6 +378,7 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
           channel: channelParam,
           startDate,
           endDate,
+          brandId: syncBrandId || undefined,
         }),
       });
 

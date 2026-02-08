@@ -46,7 +46,7 @@ function formatElapsedTime(ms: number): string {
   return `${mins}분 ${remainSecs}초`;
 }
 
-export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: () => void }) {
+export default function OrderSyncPanel({ onSyncComplete, brandId }: { onSyncComplete?: () => void; brandId?: string }) {
   const [channel, setChannel] = useState('smartstore');
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
@@ -68,7 +68,7 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef(0);
 
-  const autoSync = useAutoSync(['smartstore', 'cafe24', 'coupang'], onSyncComplete);
+  const autoSync = useAutoSync(['smartstore', 'cafe24', 'coupang'], onSyncComplete, brandId);
 
   const startTimer = () => {
     startTimeRef.current = Date.now();
@@ -99,6 +99,7 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
       channel,
       startDate,
       endDate,
+      brandId,
       onProgress: (progress) => setSyncProgress(progress),
     });
 
@@ -116,7 +117,7 @@ export default function OrderSyncPanel({ onSyncComplete }: { onSyncComplete?: ()
     setIsTesting(true);
     setTestResult(null);
 
-    const result = await testChannelConnection(channel);
+    const result = await testChannelConnection(channel, brandId);
     setTestResult(result);
     setIsTesting(false);
   };
