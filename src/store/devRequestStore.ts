@@ -221,7 +221,7 @@ export const useDevRequestStore = create<DevRequestState>((set, get) => ({
       },
       byBrand: {
         howpapa: requests.filter((r) => r.brand === 'howpapa').length,
-        nucio: requests.filter((r) => r.brand === 'nucio').length,
+        nucio: requests.filter((r) => r.brand === 'nuccio').length,
         common: requests.filter((r) => r.brand === 'common').length,
       },
       byType: {

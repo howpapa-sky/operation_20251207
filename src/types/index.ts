@@ -28,7 +28,7 @@ export interface User {
 }
 
 // 브랜드 타입
-export type Brand = 'howpapa' | 'nucio';
+export type Brand = 'howpapa' | 'nuccio';
 
 // 카테고리 타입
 export type ProductCategory =
@@ -1149,7 +1149,7 @@ export interface AlertSettings {
 // ========== 개발 요청서 ==========
 
 // 개발 요청 브랜드
-export type DevRequestBrand = 'howpapa' | 'nucio' | 'common';
+export type DevRequestBrand = 'howpapa' | 'nuccio' | 'common';
 
 export const devRequestBrandLabels: Record<DevRequestBrand, string> = {
   howpapa: 'HOWPAPA',

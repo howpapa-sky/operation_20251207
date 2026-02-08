@@ -53,12 +53,12 @@ const channelColors: Record<SalesChannel, string> = {
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#6B7280'];
 
 type ViewTab = 'overview' | 'by-channel' | 'by-product' | 'by-period';
-type BrandFilter = 'all' | 'howpapa' | 'nucio';
+type BrandFilter = 'all' | 'howpapa' | 'nuccio';
 
 const BRAND_TABS: { id: BrandFilter; label: string }[] = [
   { id: 'all', label: '전체' },
   { id: 'howpapa', label: '하우파파' },
-  { id: 'nucio', label: '누씨오' },
+  { id: 'nuccio', label: '누씨오' },
 ];
 
 // 전월 문자열 계산
@@ -338,7 +338,7 @@ export default function SalesPage() {
               brandFilter === tab.id
                 ? tab.id === 'howpapa'
                   ? 'bg-orange-100 text-orange-700'
-                  : tab.id === 'nucio'
+                  : tab.id === 'nuccio'
                     ? 'bg-green-100 text-green-700'
                     : 'bg-gray-900 text-white'
                 : 'bg-gray-100 text-gray-500 hover:bg-gray-200'

@@ -55,9 +55,9 @@ function deriveBrand(productName: string): string {
   return '하우파파';
 }
 
-function deriveBrandCode(productName: string): 'howpapa' | 'nucio' {
+function deriveBrandCode(productName: string): 'howpapa' | 'nuccio' {
   const lower = productName.toLowerCase();
-  if (lower.includes('누치오') || lower.includes('누씨오') || lower.includes('nucio')) return 'nucio';
+  if (lower.includes('누치오') || lower.includes('누씨오') || lower.includes('nucio') || lower.includes('nuccio')) return 'nuccio';
   return 'howpapa';
 }
 

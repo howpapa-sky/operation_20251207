@@ -953,7 +953,7 @@ export default function SalesDashboardPage() {
   useEffect(() => {
     if (selectedBrandId) {
       const brand = getBrandById(selectedBrandId);
-      if (brand && (brand.code === 'howpapa' || brand.code === 'nucio')) {
+      if (brand && (brand.code === 'howpapa' || brand.code === 'nuccio')) {
         if (selectedBrand !== brand.code) {
           setSelectedBrand(brand.code);
           fetchDashboardStats();
@@ -1184,7 +1184,7 @@ export default function SalesDashboardPage() {
             <Select
               value={selectedBrand}
               onValueChange={(v) =>
-                setSelectedBrand(v as 'howpapa' | 'nucio' | 'all')
+                setSelectedBrand(v as 'howpapa' | 'nuccio' | 'all')
               }
             >
               <SelectTrigger className="w-32">

@@ -148,9 +148,9 @@ export default function ReportFilters({
             🧡 하우파파
           </button>
           <button
-            onClick={() => onBrandChange('nucio')}
+            onClick={() => onBrandChange('nuccio')}
             className={`flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-              selectedBrand === 'nucio'
+              selectedBrand === 'nuccio'
                 ? 'bg-green-500 text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}

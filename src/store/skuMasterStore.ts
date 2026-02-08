@@ -411,7 +411,7 @@ export const useSKUMasterStore = create<SKUMasterState>((set, get) => ({
       total: skus.length,
       byBrand: {
         howpapa: skus.filter((s) => s.brand === 'howpapa').length,
-        nucio: skus.filter((s) => s.brand === 'nucio').length,
+        nucio: skus.filter((s) => s.brand === 'nuccio').length,
       },
       totalCostValue: activeSkus.reduce((sum, s) => sum + (s.costPrice * (s.currentStock || 0)), 0),
     };

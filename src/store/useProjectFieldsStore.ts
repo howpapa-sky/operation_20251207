@@ -5,14 +5,14 @@ import { ProjectFieldSetting, ProjectType, FieldType } from '../types';
 // 기본 필드 설정 (DB에 데이터가 없을 때 사용)
 export const defaultFieldSettings: Record<ProjectType, Omit<ProjectFieldSetting, 'id' | 'createdAt' | 'updatedAt'>[]> = {
   sampling: [
-    { projectType: 'sampling', fieldKey: 'brand', fieldLabel: '브랜드', fieldType: 'select', fieldOptions: ['howpapa', 'nucio'], isRequired: true, isVisible: true, displayOrder: 1 },
+    { projectType: 'sampling', fieldKey: 'brand', fieldLabel: '브랜드', fieldType: 'select', fieldOptions: ['howpapa', 'nuccio'], isRequired: true, isVisible: true, displayOrder: 1 },
     { projectType: 'sampling', fieldKey: 'category', fieldLabel: '카테고리', fieldType: 'select', fieldOptions: ['크림', '패드', '로션', '스틱', '앰플', '세럼', '미스트', '클렌저', '선크림', '마스크팩', '기타'], isRequired: true, isVisible: true, displayOrder: 2 },
     { projectType: 'sampling', fieldKey: 'manufacturer', fieldLabel: '제조사', fieldType: 'select', fieldOptions: ['콜마', '코스맥스', '기타'], isRequired: true, isVisible: true, displayOrder: 3 },
     { projectType: 'sampling', fieldKey: 'sampleCode', fieldLabel: '샘플 코드', fieldType: 'text', isRequired: false, isVisible: true, displayOrder: 4 },
     { projectType: 'sampling', fieldKey: 'round', fieldLabel: '회차', fieldType: 'number', isRequired: false, isVisible: true, displayOrder: 5 },
   ],
   detail_page: [
-    { projectType: 'detail_page', fieldKey: 'brand', fieldLabel: '브랜드', fieldType: 'select', fieldOptions: ['howpapa', 'nucio'], isRequired: true, isVisible: true, displayOrder: 1 },
+    { projectType: 'detail_page', fieldKey: 'brand', fieldLabel: '브랜드', fieldType: 'select', fieldOptions: ['howpapa', 'nuccio'], isRequired: true, isVisible: true, displayOrder: 1 },
     { projectType: 'detail_page', fieldKey: 'category', fieldLabel: '카테고리', fieldType: 'select', fieldOptions: ['크림', '패드', '로션', '스틱', '앰플', '세럼', '미스트', '클렌저', '선크림', '마스크팩', '기타'], isRequired: true, isVisible: true, displayOrder: 2 },
     { projectType: 'detail_page', fieldKey: 'productName', fieldLabel: '제품명', fieldType: 'text', isRequired: false, isVisible: true, displayOrder: 3 },
     { projectType: 'detail_page', fieldKey: 'productionCompany', fieldLabel: '제작 업체', fieldType: 'text', isRequired: false, isVisible: true, displayOrder: 4 },
@@ -28,7 +28,7 @@ export const defaultFieldSettings: Record<ProjectType, Omit<ProjectFieldSetting,
     { projectType: 'influencer', fieldKey: 'budget', fieldLabel: '예산', fieldType: 'number', isRequired: false, isVisible: true, displayOrder: 4 },
   ],
   product_order: [
-    { projectType: 'product_order', fieldKey: 'brand', fieldLabel: '브랜드', fieldType: 'select', fieldOptions: ['howpapa', 'nucio'], isRequired: true, isVisible: true, displayOrder: 1 },
+    { projectType: 'product_order', fieldKey: 'brand', fieldLabel: '브랜드', fieldType: 'select', fieldOptions: ['howpapa', 'nuccio'], isRequired: true, isVisible: true, displayOrder: 1 },
     { projectType: 'product_order', fieldKey: 'manufacturer', fieldLabel: '제조사', fieldType: 'select', fieldOptions: ['콜마', '코스맥스', '기타'], isRequired: true, isVisible: true, displayOrder: 2 },
     { projectType: 'product_order', fieldKey: 'containerMaterial', fieldLabel: '용기 부자재', fieldType: 'text', isRequired: false, isVisible: true, displayOrder: 3 },
     { projectType: 'product_order', fieldKey: 'boxMaterial', fieldLabel: '단상자 부자재', fieldType: 'text', isRequired: false, isVisible: true, displayOrder: 4 },
@@ -36,7 +36,7 @@ export const defaultFieldSettings: Record<ProjectType, Omit<ProjectFieldSetting,
     { projectType: 'product_order', fieldKey: 'unitPrice', fieldLabel: '단가', fieldType: 'number', isRequired: false, isVisible: true, displayOrder: 6 },
   ],
   group_purchase: [
-    { projectType: 'group_purchase', fieldKey: 'brand', fieldLabel: '브랜드', fieldType: 'select', fieldOptions: ['howpapa', 'nucio'], isRequired: true, isVisible: true, displayOrder: 1 },
+    { projectType: 'group_purchase', fieldKey: 'brand', fieldLabel: '브랜드', fieldType: 'select', fieldOptions: ['howpapa', 'nuccio'], isRequired: true, isVisible: true, displayOrder: 1 },
     { projectType: 'group_purchase', fieldKey: 'sellerName', fieldLabel: '셀러', fieldType: 'text', isRequired: false, isVisible: true, displayOrder: 2 },
     { projectType: 'group_purchase', fieldKey: 'revenue', fieldLabel: '매출', fieldType: 'number', isRequired: false, isVisible: true, displayOrder: 3 },
     { projectType: 'group_purchase', fieldKey: 'contributionProfit', fieldLabel: '공헌 이익', fieldType: 'number', isRequired: false, isVisible: true, displayOrder: 4 },

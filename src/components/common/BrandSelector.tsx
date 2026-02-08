@@ -160,7 +160,7 @@ export function BrandBadge({ brandId, brandCode, size = 'default', showLabel = t
   const brand = brandId
     ? getBrandById(brandId)
     : brandCode
-      ? getBrandByCode(brandCode as 'howpapa' | 'nucio')
+      ? getBrandByCode(brandCode as 'howpapa' | 'nuccio')
       : null;
 
   if (!brand) return null;

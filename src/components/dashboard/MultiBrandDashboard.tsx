@@ -37,7 +37,7 @@ import { cn } from '@/lib/utils';
 // Types
 interface BrandStats {
   brandId: string;
-  brandCode: 'howpapa' | 'nucio';
+  brandCode: 'howpapa' | 'nuccio';
   brandName: string;
   brandColor: string;
   revenue: number;
@@ -65,7 +65,7 @@ const BRAND_COLORS = {
     border: 'border-orange-200',
     light: '#fff7ed',
   },
-  nucio: {
+  nuccio: {
     primary: '#22c55e',
     gradient: 'from-green-500 to-green-600',
     bg: 'bg-green-50',
@@ -541,7 +541,7 @@ export default function MultiBrandDashboard() {
             // brand_id가 없는 기존 데이터: 상품명 패턴 매칭
             const pn = ((o.product_name as string) || '').toLowerCase();
             if (brand.code === 'howpapa') return pn.includes('하우파파') || pn.includes('howpapa');
-            if (brand.code === 'nucio') return pn.includes('누치오') || pn.includes('누씨오') || pn.includes('nucio') || pn.includes('nuccio');
+            if (brand.code === 'nuccio') return pn.includes('누치오') || pn.includes('누씨오') || pn.includes('nucio') || pn.includes('nuccio');
             return false;
           }
         );
@@ -570,7 +570,7 @@ export default function MultiBrandDashboard() {
 
         brandStatsMap[brand.code] = {
           brandId: brand.id,
-          brandCode: brand.code as 'howpapa' | 'nucio',
+          brandCode: brand.code as 'howpapa' | 'nuccio',
           brandName: brand.name,
           brandColor: brand.primary_color || '#666',
           revenue,
@@ -586,7 +586,7 @@ export default function MultiBrandDashboard() {
       }
 
       setHowpapaStats(brandStatsMap['howpapa'] || null);
-      setNucioStats(brandStatsMap['nucio'] || null);
+      setNucioStats(brandStatsMap['nuccio'] || null);
     } catch (err: any) {
       console.error('MultiBrandDashboard fetch error:', err);
       setError(err.message);
