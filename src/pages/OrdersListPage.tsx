@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { SalesChannel, salesChannelLabels } from '@/types/ecommerce';
+import { useBrandStore } from '@/store/brandStore';
 import { cn } from '@/lib/utils';
 
 const db = supabase as any;
@@ -34,6 +35,7 @@ interface OrderRow {
   order_id: string;
   order_status: string | null;
   channel: SalesChannel;
+  brand_id: string | null;
   product_name: string | null;
   option_name: string | null;
   unit_price: number;
@@ -41,11 +43,15 @@ interface OrderRow {
   quantity: number;
 }
 
-function deriveBrand(productName: string | null): string {
+function deriveBrand(productName: string | null, brandId?: string | null): string {
+  if (brandId) {
+    const brand = useBrandStore.getState().getBrandById(brandId);
+    if (brand) return brand.name;
+  }
   if (!productName) return '-';
   const lower = productName.toLowerCase();
   if (lower.includes('하우파파') || lower.includes('howpapa')) return '하우파파';
-  if (lower.includes('누치오') || lower.includes('누씨오') || lower.includes('nucio')) return '누씨오';
+  if (lower.includes('누치오') || lower.includes('누씨오') || lower.includes('nucio') || lower.includes('nuccio')) return '누씨오';
   return '-';
 }
 
@@ -98,13 +104,19 @@ export default function OrdersListPage() {
     setIsLoading(true);
     setError(null);
     try {
+      const { selectedBrandId } = useBrandStore.getState();
+
       let query = db
         .from('orders_raw')
-        .select('id, order_date, order_id, order_status, channel, product_name, option_name, unit_price, total_price, quantity', { count: 'exact' })
+        .select('id, order_date, order_id, order_status, channel, brand_id, product_name, option_name, unit_price, total_price, quantity', { count: 'exact' })
         .gte('order_date', startDate)
         .lte('order_date', endDate)
         .order('order_date', { ascending: false })
         .order('created_at', { ascending: false });
+
+      if (selectedBrandId) {
+        query = query.eq('brand_id', selectedBrandId);
+      }
 
       if (channelFilter !== 'all') {
         query = query.eq('channel', channelFilter);
@@ -194,7 +206,7 @@ export default function OrdersListPage() {
       o.order_date,
       o.order_id,
       o.order_status || '정상',
-      deriveBrand(o.product_name),
+      deriveBrand(o.product_name, o.brand_id),
       salesChannelLabels[o.channel] || o.channel,
       o.product_name || '',
       o.option_name || '',
@@ -365,7 +377,7 @@ export default function OrdersListPage() {
                         {getStatusBadge(order.order_status)}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {deriveBrand(order.product_name)}
+                        {deriveBrand(order.product_name, order.brand_id)}
                       </TableCell>
                       <TableCell className="text-sm">
                         {salesChannelLabels[order.channel] || order.channel}
