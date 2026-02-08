@@ -728,6 +728,15 @@ function BrandComparisonChart({
   );
 }
 
+// brand_id가 없는 주문의 브랜드를 상품명에서 추출 (salesDashboardStore와 동일 로직)
+function deriveBrand(productName: string | undefined): 'howpapa' | 'nuccio' | undefined {
+  if (!productName) return undefined;
+  const lower = productName.toLowerCase();
+  if (lower.includes('하우파파') || lower.includes('howpapa')) return 'howpapa';
+  if (lower.includes('누치오') || lower.includes('누씨오') || lower.includes('nucio') || lower.includes('nuccio')) return 'nuccio';
+  return undefined;
+}
+
 // Main Component
 export default function MultiBrandDashboard() {
   const [isLoading, setIsLoading] = useState(false);
@@ -756,6 +765,12 @@ export default function MultiBrandDashboard() {
         throw new Error('브랜드 데이터가 없습니다');
       }
 
+      // Build brand_id → brand_code lookup
+      const brandIdToCode: Record<string, string> = {};
+      for (const brand of brands) {
+        brandIdToCode[brand.id] = brand.code;
+      }
+
       // Get orders for date range
       const { data: orders, error: ordersError } = await (supabase as any)
         .from('orders_raw')
@@ -765,7 +780,7 @@ export default function MultiBrandDashboard() {
 
       if (ordersError) throw ordersError;
 
-      // Aggregate by brand
+      // Aggregate by brand (brand_id 우선, 없으면 product_name에서 추출)
       const brandStatsMap: Record<string, BrandStats> = {};
 
       for (const brand of brands) {
