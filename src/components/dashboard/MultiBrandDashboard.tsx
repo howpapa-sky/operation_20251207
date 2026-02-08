@@ -494,6 +494,15 @@ function BrandComparisonChart({
   );
 }
 
+// brand_id가 없는 주문의 브랜드를 상품명에서 추출 (salesDashboardStore와 동일 로직)
+function deriveBrand(productName: string | undefined): 'howpapa' | 'nucio' | undefined {
+  if (!productName) return undefined;
+  const lower = productName.toLowerCase();
+  if (lower.includes('하우파파') || lower.includes('howpapa')) return 'howpapa';
+  if (lower.includes('누치오') || lower.includes('누씨오') || lower.includes('nucio') || lower.includes('nuccio')) return 'nucio';
+  return undefined;
+}
+
 // Main Component
 export default function MultiBrandDashboard() {
   const [isLoading, setIsLoading] = useState(false);
@@ -521,6 +530,12 @@ export default function MultiBrandDashboard() {
         throw new Error('브랜드 데이터가 없습니다');
       }
 
+      // Build brand_id → brand_code lookup
+      const brandIdToCode: Record<string, string> = {};
+      for (const brand of brands) {
+        brandIdToCode[brand.id] = brand.code;
+      }
+
       // Get orders for date range
       const { data: orders, error: ordersError } = await (supabase as any)
         .from('orders_raw')
@@ -530,21 +545,19 @@ export default function MultiBrandDashboard() {
 
       if (ordersError) throw ordersError;
 
-      // Aggregate by brand
+      // Aggregate by brand (brand_id 우선, 없으면 product_name에서 추출)
       const brandStatsMap: Record<string, BrandStats> = {};
 
       for (const brand of brands) {
-        // brand_id 매칭 우선, brand_id가 NULL이면 상품명으로 폴백
-        const brandOrders = (orders || []).filter(
-          (o: any) => {
-            if (o.brand_id) return o.brand_id === brand.id;
-            // brand_id가 없는 기존 데이터: 상품명 패턴 매칭
-            const pn = ((o.product_name as string) || '').toLowerCase();
-            if (brand.code === 'howpapa') return pn.includes('하우파파') || pn.includes('howpapa');
-            if (brand.code === 'nucio') return pn.includes('누치오') || pn.includes('누씨오') || pn.includes('nucio') || pn.includes('nuccio');
-            return false;
+        const brandOrders = (orders || []).filter((o: any) => {
+          // 1순위: brand_id가 정확히 일치
+          if (o.brand_id === brand.id) return true;
+          // 2순위: brand_id가 없으면 product_name에서 브랜드 추출
+          if (!o.brand_id || !brandIdToCode[o.brand_id]) {
+            return deriveBrand(o.product_name) === brand.code;
           }
-        );
+          return false;
+        });
 
         const revenue = brandOrders.reduce(
           (sum: number, o: any) => sum + (Number(o.total_price) || 0),
