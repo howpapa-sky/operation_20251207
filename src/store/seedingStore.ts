@@ -412,20 +412,36 @@ export const useSeedingStore = create<SeedingStore>()(
       fetchInfluencers: async (projectId) => {
         set({ isLoading: true, error: null });
         try {
-          let query = supabase
-            .from('seeding_influencers')
-            .select('*')
-            .order('created_at', { ascending: false });
+          const allData: any[] = [];
+          const pageSize = 1000;
+          let from = 0;
+          let hasMore = true;
 
-          if (projectId) {
-            query = query.eq('project_id', projectId);
+          while (hasMore) {
+            let query = supabase
+              .from('seeding_influencers')
+              .select('*')
+              .order('created_at', { ascending: false })
+              .range(from, from + pageSize - 1);
+
+            if (projectId) {
+              query = query.eq('project_id', projectId);
+            }
+
+            const { data, error } = await query;
+
+            if (error) throw error;
+
+            allData.push(...(data || []));
+
+            if (!data || data.length < pageSize) {
+              hasMore = false;
+            } else {
+              from += pageSize;
+            }
           }
 
-          const { data, error } = await query;
-
-          if (error) throw error;
-
-          const influencers = (data || []).map(dbToInfluencer);
+          const influencers = allData.map(dbToInfluencer);
 
           if (projectId) {
             // 특정 프로젝트의 인플루언서만 업데이트

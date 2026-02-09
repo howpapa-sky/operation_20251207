@@ -36,10 +36,9 @@ export default function TopInfluencersTable({
   isLoading,
   limit = 10,
 }: TopInfluencersTableProps) {
-  // 포스팅 완료된 인플루언서만 필터링하고 조회수 순으로 정렬
+  // 포스팅 완료된 인플루언서만 필터링하고 조회수 순(없으면 팔로워순)으로 정렬
   const topInfluencers: TopInfluencer[] = influencers
     .filter((inf) => inf.status === 'posted' || inf.status === 'completed')
-    .filter((inf) => inf.performance?.views || inf.performance?.story_views)
     .map((inf) => {
       const views = (inf.performance?.views || 0) + (inf.performance?.story_views || 0);
       const engagement =
@@ -62,7 +61,7 @@ export default function TopInfluencersTable({
         postingUrl: inf.posting_url,
       };
     })
-    .sort((a, b) => b.views - a.views)
+    .sort((a, b) => b.views - a.views || b.followerCount - a.followerCount)
     .slice(0, limit)
     .map((inf, index) => ({ ...inf, rank: index + 1 }));
 
