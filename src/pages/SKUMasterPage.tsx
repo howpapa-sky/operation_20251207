@@ -66,7 +66,7 @@ function generateCSV(headers: string[], rows: string[][]): string {
 
 const brandOptions = [
   { value: 'howpapa', label: '하우파파', color: 'orange' },
-  { value: 'nuccio', label: '누씨오', color: 'green' },
+  { value: 'nucio', label: '누씨오', color: 'green' },
 ];
 
 const categoryOptions = [
@@ -113,7 +113,7 @@ export default function SKUMasterPage() {
   const [formData, setFormData] = useState({
     skuCode: '',
     productName: '',
-    brand: 'howpapa' as 'howpapa' | 'nuccio',
+    brand: 'howpapa' as 'howpapa' | 'nucio',
     category: '',
     costPrice: 0,
     sellingPrice: 0,
@@ -211,7 +211,7 @@ export default function SKUMasterPage() {
       const parsed: Omit<SKUMaster, 'id' | 'createdAt' | 'updatedAt'>[] = dataRows.map(row => ({
         skuCode: row[0]?.trim() || '',
         productName: row[1]?.trim() || '',
-        brand: (row[2]?.trim().toLowerCase() === 'nuccio' ? 'nuccio' : 'howpapa') as 'howpapa' | 'nuccio',
+        brand: (row[2]?.trim().toLowerCase() === 'nucio' ? 'nucio' : 'howpapa') as 'howpapa' | 'nucio',
         category: row[3]?.trim() || undefined,
         costPrice: parseFloat(row[4]) || 0,
         sellingPrice: parseFloat(row[5]) || 0,
@@ -681,7 +681,7 @@ export default function SKUMasterPage() {
               <label className="label">브랜드 *</label>
               <select
                 value={formData.brand}
-                onChange={(e) => setFormData({ ...formData, brand: e.target.value as 'howpapa' | 'nuccio' })}
+                onChange={(e) => setFormData({ ...formData, brand: e.target.value as 'howpapa' | 'nucio' })}
                 className="select-field"
               >
                 {brandOptions.map((b) => (

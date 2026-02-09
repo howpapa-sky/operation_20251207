@@ -44,7 +44,7 @@ BEGIN
   -- 샘플링 기본 필드
   INSERT INTO public.project_field_settings (user_id, project_type, field_key, field_label, field_type, field_options, is_required, display_order)
   VALUES
-    (p_user_id, 'sampling', 'brand', '브랜드', 'select', '["howpapa", "nuccio"]', true, 1),
+    (p_user_id, 'sampling', 'brand', '브랜드', 'select', '["howpapa", "nucio"]', true, 1),
     (p_user_id, 'sampling', 'category', '카테고리', 'select', '["크림", "패드", "로션", "스틱", "앰플", "세럼", "미스트", "클렌저", "선크림", "마스크팩", "기타"]', true, 2),
     (p_user_id, 'sampling', 'manufacturer', '제조사', 'select', '["콜마", "코스맥스", "기타"]', true, 3),
     (p_user_id, 'sampling', 'sampleCode', '샘플 코드', 'text', NULL, false, 4),
@@ -54,7 +54,7 @@ BEGIN
   -- 상세페이지 제작 기본 필드
   INSERT INTO public.project_field_settings (user_id, project_type, field_key, field_label, field_type, field_options, is_required, display_order)
   VALUES
-    (p_user_id, 'detail_page', 'brand', '브랜드', 'select', '["howpapa", "nuccio"]', true, 1),
+    (p_user_id, 'detail_page', 'brand', '브랜드', 'select', '["howpapa", "nucio"]', true, 1),
     (p_user_id, 'detail_page', 'category', '카테고리', 'select', '["크림", "패드", "로션", "스틱", "앰플", "세럼", "미스트", "클렌저", "선크림", "마스크팩", "기타"]', true, 2),
     (p_user_id, 'detail_page', 'productName', '제품명', 'text', NULL, false, 3),
     (p_user_id, 'detail_page', 'productionCompany', '제작 업체', 'text', NULL, false, 4),
@@ -76,7 +76,7 @@ BEGIN
   -- 제품 발주 기본 필드
   INSERT INTO public.project_field_settings (user_id, project_type, field_key, field_label, field_type, field_options, is_required, display_order)
   VALUES
-    (p_user_id, 'product_order', 'brand', '브랜드', 'select', '["howpapa", "nuccio"]', true, 1),
+    (p_user_id, 'product_order', 'brand', '브랜드', 'select', '["howpapa", "nucio"]', true, 1),
     (p_user_id, 'product_order', 'manufacturer', '제조사', 'select', '["콜마", "코스맥스", "기타"]', true, 2),
     (p_user_id, 'product_order', 'containerMaterial', '용기 부자재', 'text', NULL, false, 3),
     (p_user_id, 'product_order', 'boxMaterial', '단상자 부자재', 'text', NULL, false, 4),
@@ -87,7 +87,7 @@ BEGIN
   -- 공동구매 기본 필드
   INSERT INTO public.project_field_settings (user_id, project_type, field_key, field_label, field_type, field_options, is_required, display_order)
   VALUES
-    (p_user_id, 'group_purchase', 'brand', '브랜드', 'select', '["howpapa", "nuccio"]', true, 1),
+    (p_user_id, 'group_purchase', 'brand', '브랜드', 'select', '["howpapa", "nucio"]', true, 1),
     (p_user_id, 'group_purchase', 'sellerName', '셀러', 'text', NULL, false, 2),
     (p_user_id, 'group_purchase', 'revenue', '매출', 'number', NULL, false, 3),
     (p_user_id, 'group_purchase', 'contributionProfit', '공헌 이익', 'number', NULL, false, 4)

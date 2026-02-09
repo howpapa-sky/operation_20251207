@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS sku_master (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sku_code VARCHAR(50) NOT NULL UNIQUE,
   product_name VARCHAR(200) NOT NULL,
-  brand VARCHAR(20) NOT NULL CHECK (brand IN ('howpapa', 'nuccio')),
+  brand VARCHAR(20) NOT NULL CHECK (brand IN ('howpapa', 'nucio')),
   category VARCHAR(50),
   cost_price DECIMAL(10,2) NOT NULL DEFAULT 0,  -- 원가 (VAT 포함)
   selling_price DECIMAL(10,2) NOT NULL DEFAULT 0,  -- 기본 판매가
@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS daily_channel_stats (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   date DATE NOT NULL,
   channel VARCHAR(50) NOT NULL,
-  brand VARCHAR(20),  -- howpapa, nuccio, null(전체)
+  brand VARCHAR(20),  -- howpapa, nucio, null(전체)
   total_orders INT DEFAULT 0,
   total_quantity INT DEFAULT 0,
   total_revenue DECIMAL(15,2) DEFAULT 0,  -- 총 결제금액
@@ -174,7 +174,7 @@ CREATE TABLE IF NOT EXISTS group_purchase_rounds (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   round_number INT NOT NULL,
   title VARCHAR(200) NOT NULL,
-  brand VARCHAR(20) NOT NULL CHECK (brand IN ('howpapa', 'nuccio')),
+  brand VARCHAR(20) NOT NULL CHECK (brand IN ('howpapa', 'nucio')),
   influencer_name VARCHAR(100),
   influencer_handle VARCHAR(100),  -- @xxx
   platform VARCHAR(50),  -- instagram, youtube, blog, etc.

@@ -50,7 +50,7 @@ export default {
   				'800': '#9a3412',
   				'900': '#7c2d12'
   			},
-  			nuccio: {
+  			nucio: {
   				'50': '#f0fdf4',
   				'100': '#dcfce7',
   				'200': '#bbf7d0',

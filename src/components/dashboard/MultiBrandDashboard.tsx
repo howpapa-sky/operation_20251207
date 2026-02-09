@@ -74,9 +74,9 @@ const BRAND_CONFIG = {
     borderColor: 'border-orange-200',
     ringColor: 'ring-orange-500/20',
   },
-  nuccio: {
+  nucio: {
     name: '누씨오',
-    code: 'NUCCIO',
+    code: 'NUCIO',
     primary: '#22c55e',
     gradient: 'from-green-500 to-emerald-500',
     bgLight: 'bg-green-50',
@@ -95,7 +95,7 @@ interface DateRange {
 
 interface BrandStats {
   brandId: string;
-  brandCode: 'howpapa' | 'nuccio';
+  brandCode: 'howpapa' | 'nucio';
   brandName: string;
   revenue: number;
   orders: number;
@@ -111,7 +111,7 @@ interface DailyTrendData {
   date: string;
   label: string;
   howpapa: number;
-  nuccio: number;
+  nucio: number;
   total: number;
 }
 
@@ -119,7 +119,7 @@ interface ChannelRow {
   channel: string;
   label: string;
   howpapa: number;
-  nuccio: number;
+  nucio: number;
   total: number;
   orders: number;
   share: number;
@@ -129,7 +129,7 @@ interface AdPlatformRow {
   platform: string;
   label: string;
   howpapa: number;
-  nuccio: number;
+  nucio: number;
   total: number;
   isConfigured: boolean;
 }
@@ -163,11 +163,11 @@ function formatPct(value: number, showSign = false): string {
   return `${f}%`;
 }
 
-function deriveBrand(productName: string | undefined): 'howpapa' | 'nuccio' | undefined {
+function deriveBrand(productName: string | undefined): 'howpapa' | 'nucio' | undefined {
   if (!productName) return undefined;
   const l = productName.toLowerCase();
   if (l.includes('하우파파') || l.includes('howpapa')) return 'howpapa';
-  if (l.includes('누치오') || l.includes('누씨오') || l.includes('nucio') || l.includes('nuccio')) return 'nuccio';
+  if (l.includes('누치오') || l.includes('누씨오') || l.includes('nucio') || l.includes('nucio')) return 'nucio';
   return undefined;
 }
 
@@ -287,16 +287,16 @@ function RevenueTrendSection({
   const chartData = useMemo(() => {
     if (period === 'daily') return trendData;
 
-    const weekMap = new Map<string, { howpapa: number; nuccio: number; total: number }>();
+    const weekMap = new Map<string, { howpapa: number; nucio: number; total: number }>();
     for (const d of trendData) {
       const dt = new Date(d.date + 'T00:00:00');
       const day = dt.getDay();
       const monday = new Date(dt);
       monday.setDate(dt.getDate() - ((day + 6) % 7));
       const key = fmtDate(monday);
-      const entry = weekMap.get(key) || { howpapa: 0, nuccio: 0, total: 0 };
+      const entry = weekMap.get(key) || { howpapa: 0, nucio: 0, total: 0 };
       entry.howpapa += d.howpapa;
-      entry.nuccio += d.nuccio;
+      entry.nucio += d.nucio;
       entry.total += d.total;
       weekMap.set(key, entry);
     }
@@ -374,9 +374,9 @@ function RevenueTrendSection({
                   <stop offset="0%" stopColor={BRAND_CONFIG.howpapa.primary} stopOpacity={0.2} />
                   <stop offset="100%" stopColor={BRAND_CONFIG.howpapa.primary} stopOpacity={0} />
                 </linearGradient>
-                <linearGradient id="grad-nuccio" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={BRAND_CONFIG.nuccio.primary} stopOpacity={0.2} />
-                  <stop offset="100%" stopColor={BRAND_CONFIG.nuccio.primary} stopOpacity={0} />
+                <linearGradient id="grad-nucio" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={BRAND_CONFIG.nucio.primary} stopOpacity={0.2} />
+                  <stop offset="100%" stopColor={BRAND_CONFIG.nucio.primary} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
@@ -407,11 +407,11 @@ function RevenueTrendSection({
               />
               <Area
                 type="monotone"
-                dataKey="nuccio"
-                name="nuccio"
+                dataKey="nucio"
+                name="nucio"
                 stackId="revenue"
-                stroke={BRAND_CONFIG.nuccio.primary}
-                fill="url(#grad-nuccio)"
+                stroke={BRAND_CONFIG.nucio.primary}
+                fill="url(#grad-nucio)"
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 4, strokeWidth: 2, fill: '#fff' }}
@@ -650,7 +650,7 @@ function ChannelBreakdownSection({ channels, totalRevenue }: { channels: Channel
                       <div className="font-medium text-gray-900">{ch.howpapa > 0 ? `${formatCompact(ch.howpapa)}원` : '-'}</div>
                     </td>
                     <td className="text-right py-3 px-4">
-                      <div className="font-medium text-gray-900">{ch.nuccio > 0 ? `${formatCompact(ch.nuccio)}원` : '-'}</div>
+                      <div className="font-medium text-gray-900">{ch.nucio > 0 ? `${formatCompact(ch.nucio)}원` : '-'}</div>
                     </td>
                     <td className="text-right py-3 px-4 font-semibold text-gray-900">
                       {formatCompact(ch.total)}원
@@ -680,7 +680,7 @@ function ChannelBreakdownSection({ channels, totalRevenue }: { channels: Channel
                     {formatCompact(channels.reduce((s, c) => s + c.howpapa, 0))}원
                   </td>
                   <td className="text-right py-3 px-4 font-semibold text-green-600">
-                    {formatCompact(channels.reduce((s, c) => s + c.nuccio, 0))}원
+                    {formatCompact(channels.reduce((s, c) => s + c.nucio, 0))}원
                   </td>
                   <td className="text-right py-3 px-4 font-bold text-gray-900">{formatCompact(totalRevenue)}원</td>
                   <td className="text-right py-3 px-4 text-xs text-gray-500">100%</td>
@@ -726,7 +726,7 @@ function AdCostBreakdown({ adPlatforms }: { adPlatforms: AdPlatformRow[] }) {
                     {p.howpapa > 0 ? <span className="font-medium">{formatCompact(p.howpapa)}원</span> : <span className="text-gray-300">-</span>}
                   </td>
                   <td className="text-right py-3 px-3">
-                    {p.nuccio > 0 ? <span className="font-medium">{formatCompact(p.nuccio)}원</span> : <span className="text-gray-300">-</span>}
+                    {p.nucio > 0 ? <span className="font-medium">{formatCompact(p.nucio)}원</span> : <span className="text-gray-300">-</span>}
                   </td>
                   <td className="text-right py-3 px-3 font-semibold text-gray-900">
                     {p.total > 0 ? `${formatCompact(p.total)}원` : '-'}
@@ -748,7 +748,7 @@ function AdCostBreakdown({ adPlatforms }: { adPlatforms: AdPlatformRow[] }) {
                   {(() => { const t = adPlatforms.reduce((s, p) => s + p.howpapa, 0); return t > 0 ? `${formatCompact(t)}원` : '-'; })()}
                 </td>
                 <td className="text-right py-3 px-3 font-semibold text-green-600">
-                  {(() => { const t = adPlatforms.reduce((s, p) => s + p.nuccio, 0); return t > 0 ? `${formatCompact(t)}원` : '-'; })()}
+                  {(() => { const t = adPlatforms.reduce((s, p) => s + p.nucio, 0); return t > 0 ? `${formatCompact(t)}원` : '-'; })()}
                 </td>
                 <td className="text-right py-3 px-3 font-bold text-gray-900">
                   {totalCost > 0 ? `${formatCompact(totalCost)}원` : '-'}
@@ -770,15 +770,15 @@ function AdCostBreakdown({ adPlatforms }: { adPlatforms: AdPlatformRow[] }) {
 
 function BrandComparisonBar({
   howpapa,
-  nuccio,
+  nucio,
 }: {
   howpapa: BrandStats | null;
-  nuccio: BrandStats | null;
+  nucio: BrandStats | null;
 }) {
   const data = [
-    { metric: '결제금액', 하우파파: howpapa?.revenue || 0, 누씨오: nuccio?.revenue || 0 },
-    { metric: '매출총이익', 하우파파: howpapa?.grossProfit || 0, 누씨오: nuccio?.grossProfit || 0 },
-    { metric: '공헌이익', 하우파파: howpapa?.contributionProfit || 0, 누씨오: nuccio?.contributionProfit || 0 },
+    { metric: '결제금액', 하우파파: howpapa?.revenue || 0, 누씨오: nucio?.revenue || 0 },
+    { metric: '매출총이익', 하우파파: howpapa?.grossProfit || 0, 누씨오: nucio?.grossProfit || 0 },
+    { metric: '공헌이익', 하우파파: howpapa?.contributionProfit || 0, 누씨오: nucio?.contributionProfit || 0 },
   ];
 
   return (
@@ -801,7 +801,7 @@ function BrandComparisonBar({
                 contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', fontSize: '12px' }}
               />
               <Bar dataKey="하우파파" fill={BRAND_CONFIG.howpapa.primary} radius={[0, 6, 6, 0]} barSize={16} />
-              <Bar dataKey="누씨오" fill={BRAND_CONFIG.nuccio.primary} radius={[0, 6, 6, 0]} barSize={16} />
+              <Bar dataKey="누씨오" fill={BRAND_CONFIG.nucio.primary} radius={[0, 6, 6, 0]} barSize={16} />
               <Legend
                 formatter={(v: string) => <span className="text-xs text-gray-500">{v}</span>}
               />
@@ -870,7 +870,7 @@ export default function MultiBrandDashboard() {
           if (o.brand_id) return o.brand_id === brand.id;
           const pn = ((o.product_name as string) || '').toLowerCase();
           if (brand.code === 'howpapa') return pn.includes('하우파파') || pn.includes('howpapa');
-          if (brand.code === 'nuccio') return pn.includes('누치오') || pn.includes('누씨오') || pn.includes('nucio') || pn.includes('nuccio');
+          if (brand.code === 'nucio') return pn.includes('누치오') || pn.includes('누씨오') || pn.includes('nucio') || pn.includes('nucio');
           return false;
         });
 
@@ -884,7 +884,7 @@ export default function MultiBrandDashboard() {
 
         return {
           brandId: brand.id,
-          brandCode: brand.code as 'howpapa' | 'nuccio',
+          brandCode: brand.code as 'howpapa' | 'nucio',
           brandName: brand.name,
           revenue,
           orders: orderCount,
@@ -906,15 +906,15 @@ export default function MultiBrandDashboard() {
       }
 
       // Daily trend data
-      const dailyMap = new Map<string, { howpapa: number; nuccio: number }>();
+      const dailyMap = new Map<string, { howpapa: number; nucio: number }>();
       for (const o of (orders || [])) {
         const date = o.order_date as string;
         if (!date) continue;
-        const entry = dailyMap.get(date) || { howpapa: 0, nuccio: 0 };
+        const entry = dailyMap.get(date) || { howpapa: 0, nucio: 0 };
         const brand = o.brand_id ? brandIdToCode[o.brand_id] : deriveBrand(o.product_name as string);
         const price = Number(o.total_price) || 0;
         if (brand === 'howpapa') entry.howpapa += price;
-        else if (brand === 'nuccio') entry.nuccio += price;
+        else if (brand === 'nucio') entry.nucio += price;
         dailyMap.set(date, entry);
       }
 
@@ -924,33 +924,33 @@ export default function MultiBrandDashboard() {
           date,
           label: date.substring(5),
           howpapa: vals.howpapa,
-          nuccio: vals.nuccio,
-          total: vals.howpapa + vals.nuccio,
+          nucio: vals.nucio,
+          total: vals.howpapa + vals.nucio,
         }));
 
       // Channel breakdown
-      const channelMap = new Map<string, { howpapa: number; nuccio: number; orders: number }>();
+      const channelMap = new Map<string, { howpapa: number; nucio: number; orders: number }>();
       for (const o of (orders || [])) {
         const ch = (o.channel as string) || 'unknown';
-        const entry = channelMap.get(ch) || { howpapa: 0, nuccio: 0, orders: 0 };
+        const entry = channelMap.get(ch) || { howpapa: 0, nucio: 0, orders: 0 };
         const brand = o.brand_id ? brandIdToCode[o.brand_id] : deriveBrand(o.product_name as string);
         const price = Number(o.total_price) || 0;
         if (brand === 'howpapa') entry.howpapa += price;
-        else if (brand === 'nuccio') entry.nuccio += price;
+        else if (brand === 'nucio') entry.nucio += price;
         entry.orders += 1;
         channelMap.set(ch, entry);
       }
 
-      const totalRev = Array.from(channelMap.values()).reduce((s, c) => s + c.howpapa + c.nuccio, 0);
+      const totalRev = Array.from(channelMap.values()).reduce((s, c) => s + c.howpapa + c.nucio, 0);
       const channelRows: ChannelRow[] = Array.from(channelMap.entries())
         .map(([ch, d]) => ({
           channel: ch,
           label: CHANNEL_LABELS[ch] || ch,
           howpapa: d.howpapa,
-          nuccio: d.nuccio,
-          total: d.howpapa + d.nuccio,
+          nucio: d.nucio,
+          total: d.howpapa + d.nucio,
           orders: d.orders,
-          share: totalRev > 0 ? ((d.howpapa + d.nuccio) / totalRev) * 100 : 0,
+          share: totalRev > 0 ? ((d.howpapa + d.nucio) / totalRev) * 100 : 0,
         }))
         .sort((a, b) => b.total - a.total);
 
@@ -992,8 +992,8 @@ export default function MultiBrandDashboard() {
           platform,
           label,
           howpapa: brandAdData['howpapa']?.get(platform) || 0,
-          nuccio: brandAdData['nuccio']?.get(platform) || 0,
-          total: (brandAdData['howpapa']?.get(platform) || 0) + (brandAdData['nuccio']?.get(platform) || 0),
+          nucio: brandAdData['nucio']?.get(platform) || 0,
+          total: (brandAdData['howpapa']?.get(platform) || 0) + (brandAdData['nucio']?.get(platform) || 0),
           isConfigured: configuredPlatforms.has(platform),
         }));
 
@@ -1007,9 +1007,9 @@ export default function MultiBrandDashboard() {
       } catch { /* ignore */ }
 
       setHowpapaStats(currentStats['howpapa'] || null);
-      setNucioStats(currentStats['nuccio'] || null);
+      setNucioStats(currentStats['nucio'] || null);
       setPrevHowpapaStats(previousStats['howpapa'] || null);
-      setPrevNucioStats(previousStats['nuccio'] || null);
+      setPrevNucioStats(previousStats['nucio'] || null);
       setTrendData(trend);
       setChannels(channelRows);
       setAdPlatforms(adPlatformRows);
@@ -1064,7 +1064,7 @@ export default function MultiBrandDashboard() {
   }, [trendData]);
 
   const howpapaDailyRevenue = trendData.map((d) => d.howpapa);
-  const nuccioDailyRevenue = trendData.map((d) => d.nuccio);
+  const nucioDailyRevenue = trendData.map((d) => d.nucio);
 
   return (
     <div className="space-y-6 pb-8">
@@ -1181,7 +1181,7 @@ export default function MultiBrandDashboard() {
           </Card>
         )}
         {nucioStats ? (
-          <BrandCard stats={nucioStats} prevStats={prevNucioStats || undefined} dailyRevenue={nuccioDailyRevenue} />
+          <BrandCard stats={nucioStats} prevStats={prevNucioStats || undefined} dailyRevenue={nucioDailyRevenue} />
         ) : (
           <Card className="border-0 shadow-sm p-8 text-center">
             <Award className="w-10 h-10 mx-auto mb-2 text-gray-200" />
@@ -1197,7 +1197,7 @@ export default function MultiBrandDashboard() {
       <AdCostBreakdown adPlatforms={adPlatforms} />
 
       {/* ── Brand Comparison Chart ── */}
-      <BrandComparisonBar howpapa={howpapaStats} nuccio={nucioStats} />
+      <BrandComparisonBar howpapa={howpapaStats} nucio={nucioStats} />
 
       {/* ── Empty State ── */}
       {!isLoading && !howpapaStats && !nucioStats && channels.length === 0 && (

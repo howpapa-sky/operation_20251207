@@ -211,9 +211,9 @@ export default function SeedingProjectModal({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setFormData({ ...formData, brand: 'nuccio' })}
+                    onClick={() => setFormData({ ...formData, brand: 'nucio' })}
                     className={`flex-1 py-2.5 px-4 rounded-xl font-medium transition-all ${
-                      formData.brand === 'nuccio'
+                      formData.brand === 'nucio'
                         ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}

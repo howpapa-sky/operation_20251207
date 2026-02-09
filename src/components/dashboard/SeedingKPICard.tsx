@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
 interface SeedingKPICardProps {
-  brand: 'howpapa' | 'nuccio';
+  brand: 'howpapa' | 'nucio';
   targetListup: number;      // 목표 리스트업 수
   targetAcceptance: number;  // 목표 수락 수
   actualListup: number;      // 실제 리스트업 수
@@ -58,7 +58,7 @@ export default function SeedingKPICard({
 }: SeedingKPICardProps) {
   const navigate = useNavigate();
   const isHowpapa = brand === 'howpapa';
-  const brandName = isHowpapa ? 'HOWPAPA' : 'NUCCIO';
+  const brandName = isHowpapa ? 'HOWPAPA' : 'NUCIO';
   const brandEmoji = isHowpapa ? '🧡' : '💚';
   const brandColor = isHowpapa ? 'border-orange-400' : 'border-green-400';
   const brandBgColor = isHowpapa ? 'bg-orange-50' : 'bg-green-50';

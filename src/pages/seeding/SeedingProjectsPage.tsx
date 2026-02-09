@@ -313,11 +313,11 @@ export default function SeedingProjectsPage() {
                     하우파파
                   </Button>
                   <Button
-                    variant={brandFilter === 'nuccio' ? 'default' : 'outline'}
+                    variant={brandFilter === 'nucio' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => setBrandFilter('nuccio')}
+                    onClick={() => setBrandFilter('nucio')}
                     className={cn(
-                      brandFilter === 'nuccio' && 'bg-green-500 hover:bg-green-600'
+                      brandFilter === 'nucio' && 'bg-green-500 hover:bg-green-600'
                     )}
                   >
                     누씨오

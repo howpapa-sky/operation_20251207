@@ -10,7 +10,7 @@ type BrandFilter = Brand | 'all';
 const brandTabs: { value: BrandFilter; label: string; emoji?: string }[] = [
   { value: 'all', label: '전체' },
   { value: 'howpapa', label: '하우파파', emoji: '🧡' },
-  { value: 'nuccio', label: '누씨오', emoji: '💚' },
+  { value: 'nucio', label: '누씨오', emoji: '💚' },
 ];
 
 export default function ProductGuidesPage() {
@@ -57,7 +57,7 @@ export default function ProductGuidesPage() {
     return {
       all: guides.length,
       howpapa: guides.filter((g) => g.brand === 'howpapa').length,
-      nucio: guides.filter((g) => g.brand === 'nuccio').length,
+      nucio: guides.filter((g) => g.brand === 'nucio').length,
     };
   }, [guides]);
 
@@ -124,7 +124,7 @@ export default function ProductGuidesPage() {
                   brandFilter === tab.value
                     ? tab.value === 'howpapa'
                       ? 'bg-orange-500 text-white'
-                      : tab.value === 'nuccio'
+                      : tab.value === 'nucio'
                       ? 'bg-green-500 text-white'
                       : 'bg-gray-900 text-white'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'

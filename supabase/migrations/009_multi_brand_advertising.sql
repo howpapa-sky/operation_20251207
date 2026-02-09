@@ -7,7 +7,7 @@
 -- =====================================================
 CREATE TABLE IF NOT EXISTS brands (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code VARCHAR(20) NOT NULL UNIQUE,           -- 'howpapa', 'nuccio'
+  code VARCHAR(20) NOT NULL UNIQUE,           -- 'howpapa', 'nucio'
   name VARCHAR(100) NOT NULL,                 -- '하우파파', '누치오'
   display_name VARCHAR(100),                  -- 표시명
   primary_color VARCHAR(20),                  -- 브랜드 컬러 (#f97316, #22c55e)
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS brands (
 -- 기본 브랜드 삽입
 INSERT INTO brands (code, name, display_name, primary_color) VALUES
   ('howpapa', '하우파파', 'HOWPAPA', '#f97316'),
-  ('nuccio', '누치오', 'NUCCIO', '#22c55e')
+  ('nucio', '누치오', 'NUCIO', '#22c55e')
 ON CONFLICT (code) DO NOTHING;
 
 -- =====================================================
@@ -224,7 +224,7 @@ GROUP BY b.id, b.code, b.name, o.order_date, ads.total_spend;
 -- =====================================================
 -- 주석: 마이그레이션 완료 후 확인 사항
 -- =====================================================
--- 1. brands 테이블에 howpapa, nuccio 생성 확인
+-- 1. brands 테이블에 howpapa, nucio 생성 확인
 -- 2. 기존 테이블들에 brand_id 컬럼 추가 확인
 -- 3. 기존 데이터가 howpapa 브랜드로 할당 확인
 -- 4. 새 브랜드 추가 시: INSERT INTO brands (code, name, ...) VALUES (...)

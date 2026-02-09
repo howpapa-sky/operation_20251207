@@ -1,7 +1,7 @@
-# Howpapa & Nuccio Operation System
+# Howpapa & Nucio Operation System
 
 ## 프로젝트 개요
-하우파파(howpapa)와 누치오(nuccio) 브랜드의 운영 관리 시스템
+하우파파(howpapa)와 누치오(nucio) 브랜드의 운영 관리 시스템
 
 ## 기술 스택
 - **프론트엔드**: React 19 + TypeScript + Vite
@@ -16,7 +16,7 @@
 | 브랜드 | Primary Color | 사용처 |
 |--------|---------------|--------|
 | howpapa | `orange-500` / `#f97316` | 메인 브랜드 |
-| nuccio | `green-500` / `#22c55e` | 서브 브랜드 |
+| nucio | `green-500` / `#22c55e` | 서브 브랜드 |
 
 ## 디렉토리 구조
 ```
