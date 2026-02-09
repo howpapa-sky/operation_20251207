@@ -181,6 +181,42 @@ async function testConnection(channel: string, brandId?: string) {
     }
   }
 
+  if (channel === "cafe24") {
+    try {
+      const creds = await getCafe24Credentials(brandId);
+
+      if (!creds.accessToken && !creds.refreshToken) {
+        return {
+          success: false,
+          message: "Cafe24 OAuth 인증이 필요합니다. 설정에서 OAuth 인증을 진행해주세요.",
+        };
+      }
+
+      // 토큰 유효성 확인 (갱신 포함)
+      const accessToken = await ensureCafe24Token(creds, brandId);
+
+      // 스토어 정보 조회로 연결 테스트
+      const testRes = await fetch(`https://${creds.mallId}.cafe24api.com/api/v2/admin/store`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (testRes.ok) {
+        return { success: true, message: "Cafe24 API 연결 성공!" };
+      } else {
+        const errText = await testRes.text();
+        return { success: false, message: `Cafe24 API 오류 (${testRes.status}): ${errText.substring(0, 200)}` };
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        message: `Cafe24 연결 실패: ${error.message}`,
+      };
+    }
+  }
+
   if (channel === "coupang") {
     try {
       const creds = await getCoupangCredentials(brandId);
@@ -632,17 +668,36 @@ async function getCafe24Credentials(brandId?: string): Promise<{
   accessToken?: string;
   refreshToken?: string;
 }> {
-  // 브랜드별 자격증명 우선 조회
-  let query = supabase
-    .from("api_credentials")
-    .select("cafe24_mall_id, cafe24_client_id, cafe24_client_secret, cafe24_access_token, cafe24_refresh_token")
-    .eq("channel", "cafe24");
+  const selectFields = "cafe24_mall_id, cafe24_client_id, cafe24_client_secret, cafe24_access_token, cafe24_refresh_token";
 
+  // 브랜드별 자격증명 우선 조회
   if (brandId) {
-    query = query.eq("brand_id", brandId);
+    const { data: brandData } = await supabase
+      .from("api_credentials")
+      .select(selectFields)
+      .eq("channel", "cafe24")
+      .eq("brand_id", brandId)
+      .limit(1)
+      .single();
+
+    if (brandData?.cafe24_mall_id && brandData?.cafe24_client_id && brandData?.cafe24_client_secret) {
+      return {
+        mallId: brandData.cafe24_mall_id,
+        clientId: brandData.cafe24_client_id,
+        clientSecret: brandData.cafe24_client_secret,
+        accessToken: brandData.cafe24_access_token || undefined,
+        refreshToken: brandData.cafe24_refresh_token || undefined,
+      };
+    }
   }
 
-  const { data } = await query.limit(1).single();
+  // 폴백: 브랜드 필터 없이 조회 (브랜드별 자격증명이 없을 때)
+  const { data } = await supabase
+    .from("api_credentials")
+    .select(selectFields)
+    .eq("channel", "cafe24")
+    .limit(1)
+    .single();
 
   if (!data?.cafe24_mall_id || !data?.cafe24_client_id || !data?.cafe24_client_secret) {
     throw new Error("Cafe24 자격증명이 설정되지 않았습니다. 설정 > API 연동에서 등록해주세요.");
@@ -1083,16 +1138,34 @@ async function getCoupangCredentials(brandId?: string): Promise<{
   accessKey: string;
   secretKey: string;
 }> {
-  let query = supabase
-    .from("api_credentials")
-    .select("coupang_vendor_id, coupang_access_key, coupang_secret_key")
-    .eq("channel", "coupang");
+  const selectFields = "coupang_vendor_id, coupang_access_key, coupang_secret_key";
 
+  // 브랜드별 자격증명 우선 조회
   if (brandId) {
-    query = query.eq("brand_id", brandId);
+    const { data: brandData } = await supabase
+      .from("api_credentials")
+      .select(selectFields)
+      .eq("channel", "coupang")
+      .eq("brand_id", brandId)
+      .limit(1)
+      .single();
+
+    if (brandData?.coupang_vendor_id && brandData?.coupang_access_key && brandData?.coupang_secret_key) {
+      return {
+        vendorId: brandData.coupang_vendor_id,
+        accessKey: brandData.coupang_access_key,
+        secretKey: brandData.coupang_secret_key,
+      };
+    }
   }
 
-  const { data } = await query.limit(1).single();
+  // 폴백: 브랜드 필터 없이 조회
+  const { data } = await supabase
+    .from("api_credentials")
+    .select(selectFields)
+    .eq("channel", "coupang")
+    .limit(1)
+    .single();
 
   if (!data?.coupang_vendor_id || !data?.coupang_access_key || !data?.coupang_secret_key) {
     throw new Error("쿠팡 자격증명이 설정되지 않았습니다. 설정 > API 연동에서 Vendor ID, Access Key, Secret Key를 등록해주세요.");
