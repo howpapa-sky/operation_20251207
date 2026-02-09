@@ -197,7 +197,7 @@ export const useAdAccountStore = create<AdAccountState>((set, get) => ({
 
     try {
       // 필수 필드 검사
-      let missingFields: string[] = [];
+      const missingFields: string[] = [];
 
       if (platform === 'meta') {
         if (!account.metaAccessToken) missingFields.push('Access Token');
@@ -206,37 +206,69 @@ export const useAdAccountStore = create<AdAccountState>((set, get) => ({
         if (!account.naverApiKey) missingFields.push('API License Key');
         if (!account.naverSecretKey) missingFields.push('Secret Key');
         if (!account.naverCustomerId) missingFields.push('Customer ID');
+      } else if (platform === 'naver_gfa') {
+        if (!account.naverGfaApiKey) missingFields.push('API License Key');
+        if (!account.naverGfaSecretKey) missingFields.push('Secret Key');
+        if (!account.naverGfaCustomerId) missingFields.push('Customer ID');
+      } else if (platform === 'coupang_ads') {
+        if (!account.coupangAdsVendorId) missingFields.push('Vendor ID');
+        if (!account.coupangAdsAccessKey) missingFields.push('Access Key');
+        if (!account.coupangAdsSecretKey) missingFields.push('Secret Key');
       }
 
       if (missingFields.length > 0) {
         return { success: false, message: `필수 항목 누락: ${missingFields.join(', ')}` };
       }
 
-      // 자격증명 유효성 검증
-      await new Promise((resolve) => setTimeout(resolve, 800));
-
-      // 테스트 성공 시 sync_status를 success로 업데이트
+      // 실제 API 연결 테스트: 최근 1일 데이터 동기화 시도
       const { selectedBrandId } = useBrandStore.getState();
-      if (selectedBrandId) {
-        await (supabase as any)
-          .from('ad_accounts')
-          .update({ sync_status: 'success', sync_error: null })
-          .eq('brand_id', selectedBrandId)
-          .eq('platform', platform);
+      if (!selectedBrandId) {
+        return { success: false, message: '브랜드를 선택해주세요.' };
+      }
 
+      const today = new Date().toISOString().split('T')[0];
+      const response = await fetch('/.netlify/functions/commerce-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'ad-sync',
+          platform,
+          brandId: selectedBrandId,
+          startDate: today,
+          endDate: today,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
         set((state) => ({
           accounts: state.accounts.map((a) =>
             a.platform === platform ? { ...a, syncStatus: 'success', syncError: undefined } : a
           ),
         }));
-      }
+        return {
+          success: true,
+          message: `API 연결 성공! ${result.recordsCreated || 0}건의 데이터가 확인되었습니다.`
+        };
+      } else {
+        // 실패 시 sync_status를 failed로 업데이트
+        await (supabase as any)
+          .from('ad_accounts')
+          .update({ sync_status: 'failed', sync_error: result.error })
+          .eq('brand_id', selectedBrandId)
+          .eq('platform', platform);
 
-      return {
-        success: true,
-        message: '자격증명이 확인되었습니다. 광고 비용 동기화가 활성화됩니다.'
-      };
+        set((state) => ({
+          accounts: state.accounts.map((a) =>
+            a.platform === platform ? { ...a, syncStatus: 'failed', syncError: result.error } : a
+          ),
+        }));
+
+        return { success: false, message: result.error || 'API 연결 실패' };
+      }
     } catch (err) {
-      return { success: false, message: '연결 테스트 중 오류가 발생했습니다.' };
+      return { success: false, message: `연결 테스트 오류: ${(err as Error).message}` };
     } finally {
       set({ testingPlatform: null });
     }
