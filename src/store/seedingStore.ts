@@ -412,20 +412,43 @@ export const useSeedingStore = create<SeedingStore>()(
       fetchInfluencers: async (projectId) => {
         set({ isLoading: true, error: null });
         try {
-          let query = supabase
-            .from('seeding_influencers')
-            .select('*')
-            .order('created_at', { ascending: false });
+          // cursor-based pagination (id 기준)
+          // Supabase max_rows 제한으로 .range() offset이 무시될 수 있으므로
+          // id 기반 커서로 전체 데이터를 안정적으로 가져옴
+          const allData: any[] = [];
+          const pageSize = 1000;
+          let hasMore = true;
+          let lastId: string | null = null;
 
-          if (projectId) {
-            query = query.eq('project_id', projectId);
+          while (hasMore) {
+            let query = supabase
+              .from('seeding_influencers')
+              .select('*')
+              .order('id', { ascending: true })
+              .limit(pageSize);
+
+            if (projectId) {
+              query = query.eq('project_id', projectId);
+            }
+
+            if (lastId) {
+              query = query.gt('id', lastId);
+            }
+
+            const { data, error } = await query;
+
+            if (error) throw error;
+
+            allData.push(...(data || []));
+
+            if (!data || data.length < pageSize) {
+              hasMore = false;
+            } else {
+              lastId = data[data.length - 1].id;
+            }
           }
 
-          const { data, error } = await query;
-
-          if (error) throw error;
-
-          const influencers = (data || []).map(dbToInfluencer);
+          const influencers = allData.map(dbToInfluencer);
 
           if (projectId) {
             // 특정 프로젝트의 인플루언서만 업데이트

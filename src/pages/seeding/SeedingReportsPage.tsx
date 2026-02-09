@@ -74,7 +74,6 @@ export default function SeedingReportsPage() {
       const endStr = dateRange.end;     // "YYYY-MM-DD"
 
       filteredInfluencers = filteredInfluencers.filter((i) => {
-        // listed_at 우선 사용, 없으면 created_at 폴백
         const dateField = i.listed_at || i.created_at;
         const dateStr = dateField.split('T')[0]; // "YYYY-MM-DD" 부분만 추출
         return dateStr >= startStr && dateStr <= endStr;
@@ -129,8 +128,8 @@ export default function SeedingReportsPage() {
   const costData = useMemo(() => {
     const { influencers: filtered } = filteredData;
 
-    // 발송 완료 이후 상태 (비용 계산 대상)
-    const shippedStatuses = ['shipped', 'posted', 'completed'];
+    // 발송 완료 이후 상태 (비용 계산 대상) - store/ProductSeedingTable과 동일
+    const shippedStatuses = ['shipped', 'guide_sent', 'posted', 'completed'];
 
     let totalSeedingCost = 0;
     let totalFee = 0;
@@ -204,8 +203,8 @@ export default function SeedingReportsPage() {
   const seedingTypeData = useMemo(() => {
     const { influencers: filtered } = filteredData;
 
-    // 발송 완료 이후 상태 (비용 계산 대상)
-    const shippedStatuses = ['shipped', 'posted', 'completed'];
+    // 발송 완료 이후 상태 (비용 계산 대상) - store/ProductSeedingTable과 동일
+    const shippedStatuses = ['shipped', 'guide_sent', 'posted', 'completed'];
 
     let freeCount = 0;
     let paidCount = 0;
