@@ -212,28 +212,69 @@ export const useAdAccountStore = create<AdAccountState>((set, get) => ({
         return { success: false, message: `필수 항목 누락: ${missingFields.join(', ')}` };
       }
 
-      // 자격증명 유효성 검증
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      // NCP 프록시를 통한 실제 API 연결 테스트
+      let testUrl = '';
+      let testBody: Record<string, unknown> = {};
 
-      // 테스트 성공 시 sync_status를 success로 업데이트
+      if (platform === 'naver_sa') {
+        testUrl = '/.netlify/functions/commerce-proxy';
+        testBody = {
+          action: 'ad-test',
+          platform: 'naver_sa',
+          brandId: useBrandStore.getState().selectedBrandId,
+        };
+      } else if (platform === 'meta') {
+        // Meta 테스트는 아직 미구현 - 필드 검증만
+        const { selectedBrandId } = useBrandStore.getState();
+        if (selectedBrandId) {
+          await (supabase as any)
+            .from('ad_accounts')
+            .update({ sync_status: 'success', sync_error: null })
+            .eq('brand_id', selectedBrandId)
+            .eq('platform', platform);
+          set((state) => ({
+            accounts: state.accounts.map((a) =>
+              a.platform === platform ? { ...a, syncStatus: 'success', syncError: undefined } : a
+            ),
+          }));
+        }
+        return { success: true, message: '자격증명이 확인되었습니다.' };
+      } else {
+        return { success: true, message: '자격증명이 확인되었습니다.' };
+      }
+
+      const response = await fetch(testUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(testBody),
+      });
+
+      const result = await response.json();
+
+      // 테스트 결과 DB 업데이트
       const { selectedBrandId } = useBrandStore.getState();
       if (selectedBrandId) {
         await (supabase as any)
           .from('ad_accounts')
-          .update({ sync_status: 'success', sync_error: null })
+          .update({
+            sync_status: result.success ? 'success' : 'failed',
+            sync_error: result.success ? null : result.message,
+          })
           .eq('brand_id', selectedBrandId)
           .eq('platform', platform);
 
         set((state) => ({
           accounts: state.accounts.map((a) =>
-            a.platform === platform ? { ...a, syncStatus: 'success', syncError: undefined } : a
+            a.platform === platform
+              ? { ...a, syncStatus: result.success ? 'success' as const : 'failed' as const, syncError: result.success ? undefined : result.message }
+              : a
           ),
         }));
       }
 
       return {
-        success: true,
-        message: '자격증명이 확인되었습니다. 광고 비용 동기화가 활성화됩니다.'
+        success: result.success,
+        message: result.message || (result.success ? '연결 성공' : '연결 실패'),
       };
     } catch (err) {
       return { success: false, message: '연결 테스트 중 오류가 발생했습니다.' };

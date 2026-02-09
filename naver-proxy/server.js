@@ -594,6 +594,186 @@ app.post('/api/coupang/sync', authenticate, async (req, res) => {
 });
 
 // ==========================================
+// Naver Search Ads API endpoints
+// ==========================================
+
+// Generate HMAC-SHA256 signature for Naver Search Ads API
+function generateNaverSASignature(timestamp, method, uri, secretKey) {
+  const message = `${timestamp}.${method}.${uri}`;
+  return crypto.createHmac('sha256', secretKey).update(message).digest('base64');
+}
+
+// Naver Search Ads 연결 테스트
+app.post('/api/naver-sa/test', authenticate, async (req, res) => {
+  try {
+    const { apiKey, secretKey, customerId } = req.body;
+
+    if (!apiKey || !secretKey || !customerId) {
+      return res.status(400).json({ success: false, message: 'apiKey, secretKey, customerId are required' });
+    }
+
+    const timestamp = Date.now().toString();
+    const method = 'GET';
+    const uri = '/ncc/campaigns';
+    const signature = generateNaverSASignature(timestamp, method, uri, secretKey);
+
+    const response = await fetch(`https://api.searchad.naver.com${uri}`, {
+      method,
+      headers: {
+        'X-API-KEY': apiKey,
+        'X-Customer': customerId,
+        'X-Timestamp': timestamp,
+        'X-Signature': signature,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.json({ success: false, message: `API 오류 (${response.status}): ${errorText.substring(0, 200)}` });
+    }
+
+    const data = await response.json();
+    const count = Array.isArray(data) ? data.length : 0;
+    res.json({ success: true, message: `네이버 검색광고 연결 성공! (캠페인 ${count}개)`, data: { campaignCount: count } });
+  } catch (error) {
+    console.error('[Naver SA Test Error]', error.message);
+    res.json({ success: false, message: `연결 실패: ${error.message}` });
+  }
+});
+
+// Naver Search Ads 통계 동기화
+app.post('/api/naver-sa/stats', authenticate, async (req, res) => {
+  try {
+    const { apiKey, secretKey, customerId, startDate, endDate } = req.body;
+
+    if (!apiKey || !secretKey || !customerId || !startDate || !endDate) {
+      return res.status(400).json({ success: false, message: 'apiKey, secretKey, customerId, startDate, endDate are required' });
+    }
+
+    console.log(`[naver-sa-stats] ${startDate} ~ ${endDate}`);
+
+    // 1. Get all campaign IDs
+    let timestamp = Date.now().toString();
+    const campaignUri = '/ncc/campaigns';
+    const campaignSig = generateNaverSASignature(timestamp, 'GET', campaignUri, secretKey);
+
+    const campaignsRes = await fetch(`https://api.searchad.naver.com${campaignUri}`, {
+      method: 'GET',
+      headers: {
+        'X-API-KEY': apiKey,
+        'X-Customer': customerId,
+        'X-Timestamp': timestamp,
+        'X-Signature': campaignSig,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!campaignsRes.ok) {
+      const errText = await campaignsRes.text();
+      throw new Error(`캠페인 조회 실패 (${campaignsRes.status}): ${errText.substring(0, 200)}`);
+    }
+
+    const campaigns = await campaignsRes.json();
+    const campaignIds = Array.isArray(campaigns) ? campaigns.map(c => c.nccCampaignId) : [];
+
+    if (campaignIds.length === 0) {
+      return res.json({ success: true, data: [], message: '캠페인이 없습니다.' });
+    }
+
+    console.log(`[naver-sa-stats] Found ${campaignIds.length} campaigns`);
+
+    // 2. Get stats for each campaign (batch in groups of 10)
+    const allStats = [];
+    const BATCH_SIZE = 10;
+
+    for (let i = 0; i < campaignIds.length; i += BATCH_SIZE) {
+      const batchIds = campaignIds.slice(i, i + BATCH_SIZE);
+
+      // Stats API: query each campaign
+      for (const campaignId of batchIds) {
+        try {
+          timestamp = Date.now().toString();
+          const statsUri = '/stats';
+          const statsSig = generateNaverSASignature(timestamp, 'GET', statsUri, secretKey);
+
+          const timeRange = JSON.stringify({ since: startDate, until: endDate });
+          const fields = JSON.stringify(['impCnt', 'clkCnt', 'salesAmt', 'ccnt', 'viewCnt', 'reachCnt', 'cpConv', 'totalCost', 'avgRnk']);
+          const statsUrl = `https://api.searchad.naver.com${statsUri}?id=${encodeURIComponent(campaignId)}&fields=${encodeURIComponent(fields)}&timeRange=${encodeURIComponent(timeRange)}&breakdown=date`;
+
+          const statsRes = await fetch(statsUrl, {
+            method: 'GET',
+            headers: {
+              'X-API-KEY': apiKey,
+              'X-Customer': customerId,
+              'X-Timestamp': timestamp,
+              'X-Signature': statsSig,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (statsRes.ok) {
+            const statsData = await statsRes.json();
+            const records = Array.isArray(statsData) ? statsData : (statsData.data || []);
+            allStats.push(...records);
+          } else {
+            console.warn(`[naver-sa-stats] Stats failed for campaign ${campaignId}: ${statsRes.status}`);
+          }
+        } catch (err) {
+          console.warn(`[naver-sa-stats] Error for campaign ${campaignId}:`, err.message);
+        }
+      }
+
+      // Rate limit: 300ms between batches
+      if (i + BATCH_SIZE < campaignIds.length) {
+        await new Promise(r => setTimeout(r, 300));
+      }
+    }
+
+    // 3. Aggregate by date across all campaigns
+    const dateMap = new Map();
+
+    for (const stat of allStats) {
+      const date = stat.statDt || stat.date;
+      if (!date) continue;
+
+      const dateStr = date.split('T')[0]; // Normalize to YYYY-MM-DD
+      const existing = dateMap.get(dateStr) || {
+        date: dateStr,
+        spend: 0,
+        impressions: 0,
+        clicks: 0,
+        conversions: 0,
+        conversionValue: 0,
+      };
+
+      existing.spend += Number(stat.totalCost || 0);
+      existing.impressions += Number(stat.impCnt || 0);
+      existing.clicks += Number(stat.clkCnt || 0);
+      existing.conversions += Number(stat.ccnt || 0);
+      existing.conversionValue += Number(stat.salesAmt || 0);
+
+      dateMap.set(dateStr, existing);
+    }
+
+    // Calculate derived metrics
+    const results = Array.from(dateMap.values()).map(d => ({
+      ...d,
+      ctr: d.impressions > 0 ? Math.round((d.clicks / d.impressions) * 10000) / 100 : 0,
+      cpc: d.clicks > 0 ? Math.round(d.spend / d.clicks) : 0,
+      roas: d.spend > 0 ? Math.round((d.conversionValue / d.spend) * 10000) / 100 : 0,
+    })).sort((a, b) => a.date.localeCompare(b.date));
+
+    console.log(`[naver-sa-stats] Aggregated ${results.length} daily records from ${allStats.length} raw stats`);
+
+    res.json({ success: true, data: results });
+  } catch (error) {
+    console.error('[Naver SA Stats Error]', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ==========================================
 // Generic proxy endpoint (범용)
 // ==========================================
 

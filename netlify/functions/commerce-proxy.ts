@@ -20,7 +20,7 @@ const corsHeaders = {
 interface CommerceProxyRequest {
   action:
     | "naver_token" | "naver_api" | "proxy"
-    | "test-connection" | "sync-orders"
+    | "test-connection" | "sync-orders" | "ad-sync" | "ad-test"
     | "cafe24-auth-url" | "cafe24-exchange-token" | "cafe24-init-oauth" | "cafe24-complete-oauth";
   // Brand (multi-brand support)
   brandId?: string;
@@ -40,6 +40,8 @@ interface CommerceProxyRequest {
   channel?: string;
   startDate?: string;
   endDate?: string;
+  // Ad sync
+  platform?: string;
   // Cafe24 OAuth
   mallId?: string;
   code?: string;
@@ -1764,6 +1766,165 @@ const handler: Handler = async (
           statusCode: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           body: JSON.stringify(result),
+        };
+      }
+
+      case "ad-test": {
+        const adTestPlatform = request.platform;
+        const adTestBrandId = request.brandId;
+
+        if (adTestPlatform === "naver_sa") {
+          try {
+            // ad_accounts에서 자격증명 조회
+            let testQuery = supabase
+              .from("ad_accounts")
+              .select("naver_api_key, naver_secret_key, naver_customer_id")
+              .eq("platform", "naver_sa")
+              .eq("is_active", true);
+
+            if (adTestBrandId) {
+              testQuery = testQuery.eq("brand_id", adTestBrandId);
+            }
+
+            const { data: testCreds } = await testQuery.limit(1).single();
+
+            if (!testCreds?.naver_api_key || !testCreds?.naver_secret_key || !testCreds?.naver_customer_id) {
+              return {
+                statusCode: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                body: JSON.stringify({ success: false, message: "네이버 검색광고 자격증명이 설정되지 않았습니다." }),
+              };
+            }
+
+            // NCP 프록시로 테스트
+            const testRes = await fetch(`${PROXY_URL}/api/naver-sa/test`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": PROXY_API_KEY,
+              },
+              body: JSON.stringify({
+                apiKey: testCreds.naver_api_key,
+                secretKey: testCreds.naver_secret_key,
+                customerId: testCreds.naver_customer_id,
+              }),
+            });
+
+            const testResultText = await testRes.text();
+            let testResult: any;
+            try {
+              testResult = JSON.parse(testResultText);
+            } catch {
+              return {
+                statusCode: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                body: JSON.stringify({ success: false, message: `프록시 응답 파싱 실패` }),
+              };
+            }
+
+            return {
+              statusCode: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              body: JSON.stringify(testResult),
+            };
+          } catch (error: any) {
+            return {
+              statusCode: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              body: JSON.stringify({ success: false, message: `연결 테스트 실패: ${error.message}` }),
+            };
+          }
+        }
+
+        return {
+          statusCode: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ success: true, message: "자격증명이 확인되었습니다." }),
+        };
+      }
+
+      case "ad-sync": {
+        const adPlatform = request.platform;
+        const adBrandId = request.brandId;
+
+        if (!adPlatform) {
+          return {
+            statusCode: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ success: false, error: "platform 파라미터가 필요합니다." }),
+          };
+        }
+
+        if (adPlatform === "naver_sa") {
+          try {
+            // ad_accounts 테이블에서 자격증명 조회
+            let adQuery = supabase
+              .from("ad_accounts")
+              .select("naver_api_key, naver_secret_key, naver_customer_id")
+              .eq("platform", "naver_sa")
+              .eq("is_active", true);
+
+            if (adBrandId) {
+              adQuery = adQuery.eq("brand_id", adBrandId);
+            }
+
+            const { data: adCreds } = await adQuery.limit(1).single();
+
+            if (!adCreds?.naver_api_key || !adCreds?.naver_secret_key || !adCreds?.naver_customer_id) {
+              return {
+                statusCode: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                body: JSON.stringify({ success: false, error: "네이버 검색광고 자격증명이 설정되지 않았습니다." }),
+              };
+            }
+
+            // NCP 프록시 서버 경유
+            const naverSaRes = await fetch(`${PROXY_URL}/api/naver-sa/stats`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": PROXY_API_KEY,
+              },
+              body: JSON.stringify({
+                apiKey: adCreds.naver_api_key,
+                secretKey: adCreds.naver_secret_key,
+                customerId: adCreds.naver_customer_id,
+                startDate: request.startDate,
+                endDate: request.endDate,
+              }),
+            });
+
+            const naverSaText = await naverSaRes.text();
+            let naverSaResult: any;
+            try {
+              naverSaResult = JSON.parse(naverSaText);
+            } catch {
+              return {
+                statusCode: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                body: JSON.stringify({ success: false, error: `프록시 응답 파싱 실패: ${naverSaText.substring(0, 100)}` }),
+              };
+            }
+
+            return {
+              statusCode: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              body: JSON.stringify(naverSaResult),
+            };
+          } catch (error: any) {
+            return {
+              statusCode: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              body: JSON.stringify({ success: false, error: `네이버 검색광고 동기화 실패: ${error.message}` }),
+            };
+          }
+        }
+
+        // 미지원 광고 플랫폼
+        return {
+          statusCode: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({ success: false, error: `${adPlatform} 광고 플랫폼은 아직 지원되지 않습니다.` }),
         };
       }
 
