@@ -1005,29 +1005,29 @@ export default function MultiBrandDashboard() {
         for (const brand of brands) {
           brandAdData[brand.code] = new Map();
 
-          try {
-            const { data: adAccounts } = await (supabase as any)
-              .from('ad_accounts').select('platform, is_active').eq('brand_id', brand.id);
-            if (adAccounts) {
-              for (const a of adAccounts) {
-                if (a.is_active) configuredPlatforms.add(a.platform);
-              }
+          const { data: adAccounts, error: adAccountsErr } = await (supabase as any)
+            .from('ad_accounts').select('platform, is_active').eq('brand_id', brand.id);
+          if (adAccountsErr) {
+            console.warn(`[ad] ad_accounts 조회 실패 (${brand.code}):`, adAccountsErr.message);
+          } else if (adAccounts) {
+            for (const a of adAccounts) {
+              if (a.is_active) configuredPlatforms.add(a.platform);
             }
-          } catch { /* ignore */ }
+          }
 
-          try {
-            const { data: adSpend } = await (supabase as any)
-              .from('ad_spend_daily').select('platform, spend')
-              .eq('brand_id', brand.id)
-              .gte('date', range.start).lte('date', range.end);
-            if (adSpend) {
-              for (const row of adSpend) {
-                const p = row.platform as string;
-                const map = brandAdData[brand.code];
-                map.set(p, (map.get(p) || 0) + (Number(row.spend) || 0));
-              }
+          const { data: adSpend, error: adSpendErr } = await (supabase as any)
+            .from('ad_spend_daily').select('platform, spend')
+            .eq('brand_id', brand.id)
+            .gte('date', range.start).lte('date', range.end);
+          if (adSpendErr) {
+            console.warn(`[ad] ad_spend_daily 조회 실패 (${brand.code}):`, adSpendErr.message);
+          } else if (adSpend) {
+            for (const row of adSpend) {
+              const p = row.platform as string;
+              const map = brandAdData[brand.code];
+              map.set(p, (map.get(p) || 0) + (Number(row.spend) || 0));
             }
-          } catch { /* ignore */ }
+          }
         }
 
         adPlatformRows = Object.entries(AD_PLATFORM_LABELS).map(([platform, label]) => ({
@@ -1046,7 +1046,9 @@ export default function MultiBrandDashboard() {
             currentStats[brand.code].adCost = totalAdCost;
           }
         }
-      } catch { /* ignore */ }
+      } catch (adError: any) {
+        console.warn('[ad] 광고비 데이터 로드 실패:', adError?.message || adError);
+      }
 
       setHowpapaStats(currentStats['howpapa'] || null);
       setNucioStats(currentStats['nucio'] || null);
@@ -1167,6 +1169,19 @@ export default function MultiBrandDashboard() {
     // 5초 후 메시지 제거
     setTimeout(() => setAdSyncMessage(''), 5000);
   }, [isAdSyncing, brandMap, adPlatforms, dateRange, fetchStats]);
+
+  // 대시보드 로드 시 연동된 광고 계정이 있으면 자동 동기화
+  const [autoSynced, setAutoSynced] = useState(false);
+  useEffect(() => {
+    if (autoSynced || isLoading || brandMap.length === 0) return;
+    const configured = adPlatforms.filter((p) => p.isConfigured);
+    if (configured.length === 0) return;
+    const hasData = configured.some((p) => p.total > 0);
+    if (hasData) return;
+
+    setAutoSynced(true);
+    handleAdSync();
+  }, [autoSynced, isLoading, brandMap, adPlatforms, handleAdSync]);
 
   return (
     <div className="space-y-6 pb-8">
