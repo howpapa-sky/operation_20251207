@@ -37,6 +37,8 @@ import {
 } from 'recharts';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { syncAdSpend } from '@/services/adSyncService';
+import type { AdPlatform } from '@/types/ecommerce';
 
 // ─── Constants ───────────────────────────────────────────
 
@@ -694,17 +696,49 @@ function ChannelBreakdownSection({ channels, totalRevenue }: { channels: Channel
   );
 }
 
-function AdCostBreakdown({ adPlatforms }: { adPlatforms: AdPlatformRow[] }) {
+function AdCostBreakdown({
+  adPlatforms,
+  onSync,
+  isSyncing,
+  syncMessage,
+}: {
+  adPlatforms: AdPlatformRow[];
+  onSync?: () => void;
+  isSyncing?: boolean;
+  syncMessage?: string;
+}) {
   const totalCost = adPlatforms.reduce((s, p) => s + p.total, 0);
   const hasAnyConfig = adPlatforms.some((p) => p.isConfigured);
 
   return (
     <Card className="border-0 shadow-sm">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-          <Target className="w-4 h-4 text-violet-500" />
-          광고비 매체별 현황
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+            <Target className="w-4 h-4 text-violet-500" />
+            광고비 매체별 현황
+          </CardTitle>
+          {hasAnyConfig && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onSync}
+              disabled={isSyncing}
+              className="h-7 text-xs gap-1.5"
+            >
+              <RefreshCw className={cn('w-3 h-3', isSyncing && 'animate-spin')} />
+              {isSyncing ? '동기화 중...' : '광고비 동기화'}
+            </Button>
+          )}
+        </div>
+        {syncMessage && (
+          <p className={cn(
+            'text-xs mt-1',
+            syncMessage.includes('실패') || syncMessage.includes('오류') ? 'text-red-500' : 'text-emerald-600'
+          )}>
+            {syncMessage}
+          </p>
+        )}
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -830,6 +864,13 @@ export default function MultiBrandDashboard() {
   const [trendData, setTrendData] = useState<DailyTrendData[]>([]);
   const [channels, setChannels] = useState<ChannelRow[]>([]);
   const [adPlatforms, setAdPlatforms] = useState<AdPlatformRow[]>([]);
+  const [isAdSyncing, setIsAdSyncing] = useState(false);
+  const [adSyncMessage, setAdSyncMessage] = useState<string>('');
+
+  // 브랜드 ID → code 매핑 (sync에서 사용)
+  const [brandMap, setBrandMap] = useState<{ id: string; code: string }[]>([]);
+  // 브랜드별 설정된 플랫폼 (sync에서 brand별로 맞는 플랫폼만 호출)
+  const [brandPlatformConfig, setBrandPlatformConfig] = useState<Record<string, string[]>>({});
 
   const fetchStats = useCallback(async (range: DateRange) => {
     setIsLoading(true);
@@ -841,6 +882,9 @@ export default function MultiBrandDashboard() {
 
       const brandIdToCode: Record<string, string> = {};
       for (const b of brands) brandIdToCode[b.id] = b.code;
+
+      // 브랜드 맵 저장 (ad sync에서 사용)
+      setBrandMap(brands.map((b: any) => ({ id: b.id, code: b.code })));
 
       // Current period orders
       const { data: orders, error: ordersError } = await (supabase as any)
@@ -959,34 +1003,45 @@ export default function MultiBrandDashboard() {
       try {
         const brandAdData: Record<string, Map<string, number>> = {};
         const configuredPlatforms = new Set<string>();
+        const perBrandConfig: Record<string, string[]> = {};
 
         for (const brand of brands) {
           brandAdData[brand.code] = new Map();
+          const brandConfiguredList: string[] = [];
 
-          try {
-            const { data: adAccounts } = await (supabase as any)
-              .from('ad_accounts').select('platform, is_active').eq('brand_id', brand.id);
-            if (adAccounts) {
-              for (const a of adAccounts) {
-                if (a.is_active) configuredPlatforms.add(a.platform);
+          const { data: adAccounts, error: adAccountsErr } = await (supabase as any)
+            .from('ad_accounts').select('platform, is_active').eq('brand_id', brand.id);
+          if (adAccountsErr) {
+            console.warn(`[ad] ad_accounts 조회 실패 (${brand.code}):`, adAccountsErr.message);
+          } else if (adAccounts) {
+            for (const a of adAccounts) {
+              if (a.is_active) {
+                configuredPlatforms.add(a.platform);
+                brandConfiguredList.push(a.platform);
               }
             }
-          } catch { /* ignore */ }
+          }
+          perBrandConfig[brand.id] = brandConfiguredList;
 
-          try {
-            const { data: adSpend } = await (supabase as any)
-              .from('ad_spend_daily').select('platform, spend')
-              .eq('brand_id', brand.id)
-              .gte('date', range.start).lte('date', range.end);
-            if (adSpend) {
-              for (const row of adSpend) {
-                const p = row.platform as string;
-                const map = brandAdData[brand.code];
-                map.set(p, (map.get(p) || 0) + (Number(row.spend) || 0));
-              }
+          const { data: adSpend, error: adSpendErr } = await (supabase as any)
+            .from('ad_spend_daily').select('platform, spend')
+            .eq('brand_id', brand.id)
+            .gte('date', range.start).lte('date', range.end);
+          if (adSpendErr) {
+            console.warn(`[ad] ad_spend_daily 조회 실패 (${brand.code}):`, adSpendErr.message);
+          } else if (adSpend) {
+            console.log(`[ad] ${brand.code}: ad_spend_daily ${adSpend.length}건 조회됨`, adSpend);
+            for (const row of adSpend) {
+              const p = row.platform as string;
+              const map = brandAdData[brand.code];
+              map.set(p, (map.get(p) || 0) + (Number(row.spend) || 0));
             }
-          } catch { /* ignore */ }
+          } else {
+            console.log(`[ad] ${brand.code}: ad_spend_daily 0건 (빈 결과)`);
+          }
         }
+
+        setBrandPlatformConfig(perBrandConfig);
 
         adPlatformRows = Object.entries(AD_PLATFORM_LABELS).map(([platform, label]) => ({
           platform,
@@ -1004,7 +1059,9 @@ export default function MultiBrandDashboard() {
             currentStats[brand.code].adCost = totalAdCost;
           }
         }
-      } catch { /* ignore */ }
+      } catch (adError: any) {
+        console.warn('[ad] 광고비 데이터 로드 실패:', adError?.message || adError);
+      }
 
       setHowpapaStats(currentStats['howpapa'] || null);
       setNucioStats(currentStats['nucio'] || null);
@@ -1065,6 +1122,86 @@ export default function MultiBrandDashboard() {
 
   const howpapaDailyRevenue = trendData.map((d) => d.howpapa);
   const nucioDailyRevenue = trendData.map((d) => d.nucio);
+
+  // 광고비 동기화 핸들러
+  const handleAdSync = useCallback(async () => {
+    if (isAdSyncing || brandMap.length === 0) return;
+
+    setIsAdSyncing(true);
+    setAdSyncMessage('광고비 데이터 동기화 중...');
+
+    const configuredPlatforms = adPlatforms.filter((p) => p.isConfigured);
+    if (configuredPlatforms.length === 0) {
+      setAdSyncMessage('연동된 광고 계정이 없습니다.');
+      setIsAdSyncing(false);
+      return;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+    const errors: string[] = [];
+
+    // 각 브랜드별 실제 설정된 플랫폼만 동기화
+    const syncTasks: Promise<void>[] = [];
+
+    for (const brand of brandMap) {
+      const brandPlatforms = brandPlatformConfig[brand.id] || [];
+      for (const platformKey of brandPlatforms) {
+        const platformInfo = configuredPlatforms.find((p) => p.platform === platformKey);
+        if (!platformInfo) continue;
+        syncTasks.push(
+          syncAdSpend(
+            platformKey as AdPlatform,
+            brand.id,
+            dateRange.start,
+            dateRange.end
+          ).then((result) => {
+            if (result.success) {
+              successCount++;
+            } else {
+              failCount++;
+              errors.push(`${platformInfo.label}: ${result.message}`);
+            }
+          })
+        );
+      }
+    }
+
+    if (syncTasks.length === 0) {
+      setAdSyncMessage('동기화할 광고 플랫폼이 없습니다.');
+      setIsAdSyncing(false);
+      return;
+    }
+
+    await Promise.all(syncTasks);
+
+    if (failCount === 0) {
+      setAdSyncMessage(`광고비 동기화 완료 (${successCount}건 성공)`);
+    } else if (successCount > 0) {
+      setAdSyncMessage(`일부 동기화 완료 (성공 ${successCount}, 실패 ${failCount})`);
+    } else {
+      setAdSyncMessage(`동기화 실패: ${errors[0] || '알 수 없는 오류'}`);
+    }
+
+    setIsAdSyncing(false);
+
+    // 동기화 완료 후 대시보드 새로고침
+    fetchStats(dateRange);
+
+    // 5초 후 메시지 제거
+    setTimeout(() => setAdSyncMessage(''), 5000);
+  }, [isAdSyncing, brandMap, brandPlatformConfig, adPlatforms, dateRange, fetchStats]);
+
+  // 대시보드 로드 시 연동된 광고 계정이 있으면 자동 동기화 (항상 최초 1회 실행)
+  const [autoSynced, setAutoSynced] = useState(false);
+  useEffect(() => {
+    if (autoSynced || isLoading || brandMap.length === 0) return;
+    const configured = adPlatforms.filter((p) => p.isConfigured);
+    if (configured.length === 0) return;
+
+    setAutoSynced(true);
+    handleAdSync();
+  }, [autoSynced, isLoading, brandMap, adPlatforms, handleAdSync]);
 
   return (
     <div className="space-y-6 pb-8">
@@ -1194,7 +1331,12 @@ export default function MultiBrandDashboard() {
       <ChannelBreakdownSection channels={channels} totalRevenue={totalRevenue} />
 
       {/* ── Ad Cost Breakdown ── */}
-      <AdCostBreakdown adPlatforms={adPlatforms} />
+      <AdCostBreakdown
+        adPlatforms={adPlatforms}
+        onSync={handleAdSync}
+        isSyncing={isAdSyncing}
+        syncMessage={adSyncMessage}
+      />
 
       {/* ── Brand Comparison Chart ── */}
       <BrandComparisonBar howpapa={howpapaStats} nucio={nucioStats} />

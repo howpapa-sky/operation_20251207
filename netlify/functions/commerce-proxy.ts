@@ -1,5 +1,6 @@
 import { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
 
 // ========== 환경변수 ==========
 const PROXY_URL = process.env.NAVER_PROXY_URL || "http://49.50.131.90:3100";
@@ -20,8 +21,9 @@ const corsHeaders = {
 interface CommerceProxyRequest {
   action:
     | "naver_token" | "naver_api" | "proxy"
-    | "test-connection" | "sync-orders" | "ad-sync" | "ad-test"
-    | "cafe24-auth-url" | "cafe24-exchange-token" | "cafe24-init-oauth" | "cafe24-complete-oauth";
+    | "test-connection" | "sync-orders"
+    | "cafe24-auth-url" | "cafe24-exchange-token" | "cafe24-init-oauth" | "cafe24-complete-oauth"
+    | "ad-sync";
   // Brand (multi-brand support)
   brandId?: string;
   // Naver token
@@ -40,12 +42,12 @@ interface CommerceProxyRequest {
   channel?: string;
   startDate?: string;
   endDate?: string;
-  // Ad sync
-  platform?: string;
   // Cafe24 OAuth
   mallId?: string;
   code?: string;
   redirectUri?: string;
+  // Ad sync
+  platform?: string;
 }
 
 // ========== 주문 동기화 타입 ==========
@@ -1378,6 +1380,489 @@ async function syncCoupangOrders(params: { startDate: string; endDate: string; b
   };
 }
 
+// ========== 광고비 동기화 (Ad Spend Sync) ==========
+
+// 광고 계정 자격증명 조회
+async function getAdAccountCredentials(brandId: string, platform: string) {
+  const { data, error } = await supabase
+    .from("ad_accounts")
+    .select("*")
+    .eq("brand_id", brandId)
+    .eq("platform", platform)
+    .eq("is_active", true)
+    .single();
+
+  if (error || !data) {
+    throw new Error(`${platform} 광고 계정이 설정되지 않았거나 비활성 상태입니다.`);
+  }
+  return data;
+}
+
+// Meta Marketing API - 일별 광고비 조회 (Netlify에서 직접 호출, IP 제한 없음)
+async function fetchMetaAdInsights(account: Record<string, unknown>, startDate: string, endDate: string) {
+  const accessToken = account.meta_access_token as string;
+  const adAccountId = account.meta_ad_account_id as string;
+
+  if (!accessToken || !adAccountId) {
+    throw new Error("Meta 광고 계정 정보 부족: Access Token, Ad Account ID가 필요합니다.");
+  }
+
+  // act_ 접두사 정리
+  const cleanId = adAccountId.replace(/^act_/, "");
+
+  const params = new URLSearchParams({
+    time_range: JSON.stringify({ since: startDate, until: endDate }),
+    time_increment: "1",
+    fields: "spend,impressions,clicks,ctr,cpc,actions,action_values",
+    access_token: accessToken,
+  });
+
+  const response = await fetch(
+    `https://graph.facebook.com/v19.0/act_${cleanId}/insights?${params}`
+  );
+  const data = await response.json();
+
+  if (data.error) {
+    throw new Error(`Meta API 오류: ${data.error.message || JSON.stringify(data.error)}`);
+  }
+
+  // 일별 데이터 파싱
+  return ((data as any).data || []).map((item: any) => {
+    // actions에서 conversion 추출
+    const actions = item.actions || [];
+    const conversions = actions
+      .filter((a: any) => a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase")
+      .reduce((sum: number, a: any) => sum + (parseInt(a.value) || 0), 0);
+
+    // action_values에서 conversion_value 추출
+    const actionValues = item.action_values || [];
+    const conversionValue = actionValues
+      .filter((a: any) => a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase")
+      .reduce((sum: number, a: any) => sum + (parseFloat(a.value) || 0), 0);
+
+    const spend = parseFloat(item.spend) || 0;
+
+    return {
+      date: item.date_start,
+      spend,
+      impressions: parseInt(item.impressions) || 0,
+      clicks: parseInt(item.clicks) || 0,
+      ctr: parseFloat(item.ctr) || 0,
+      cpc: parseFloat(item.cpc) || 0,
+      conversions,
+      conversionValue,
+      roas: spend > 0 ? (conversionValue / spend) * 100 : 0,
+    };
+  });
+}
+
+// 네이버 검색광고 HMAC-SHA256 서명 생성
+function generateNaverSASignature(timestamp: string, method: string, path: string, secretKey: string): string {
+  const message = `${timestamp}.${method}.${path}`;
+  return crypto.createHmac("sha256", secretKey).update(message).digest("base64");
+}
+
+// 네이버 검색광고 API 직접 호출 헬퍼
+async function naverSARequest(method: string, path: string, queryString: string | null, customerId: string, apiKey: string, secretKey: string) {
+  const timestamp = String(Date.now());
+  const signature = generateNaverSASignature(timestamp, method, path, secretKey);
+
+  const url = `https://api.searchad.naver.com${path}${queryString ? "?" + queryString : ""}`;
+  console.log(`[naver-sa] ${method} ${path} customer=${customerId}`);
+
+  const response = await fetch(url, {
+    method,
+    headers: {
+      "X-API-KEY": apiKey,
+      "X-Customer": customerId,
+      "X-Timestamp": timestamp,
+      "X-Signature": signature,
+      "Content-Type": "application/json",
+    },
+  });
+
+  const text = await response.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Naver SA API parse error (${response.status}): ${text.substring(0, 300)}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(data.title || data.message || `Naver SA API error (${response.status}): ${text.substring(0, 200)}`);
+  }
+
+  return data;
+}
+
+// 네이버 검색광고 - Netlify에서 직접 호출 (IP 제한 없음)
+async function fetchNaverSAReport(account: Record<string, unknown>, startDate: string, endDate: string) {
+  const customerId = account.naver_customer_id as string;
+  const apiKey = account.naver_api_key as string;
+  const secretKey = account.naver_secret_key as string;
+
+  if (!customerId || !apiKey || !secretKey) {
+    throw new Error("네이버 검색광고 계정 정보 부족: Customer ID, API Key, Secret Key가 필요합니다.");
+  }
+
+  // 1. 캠페인 목록 조회
+  let campaigns: any[];
+  try {
+    campaigns = await naverSARequest("GET", "/ncc/campaigns", null, customerId, apiKey, secretKey);
+  } catch (err: any) {
+    throw new Error(`캠페인 목록 조회 실패: ${err.message}`);
+  }
+
+  if (!Array.isArray(campaigns) || campaigns.length === 0) {
+    return [];
+  }
+
+  console.log(`[naver-sa] Found ${campaigns.length} campaigns`);
+
+  // 2. 캠페인별 일별 통계 수집
+  const dailyMap = new Map<string, { spend: number; impressions: number; clicks: number; conversions: number; conversionValue: number }>();
+
+  for (let i = 0; i < campaigns.length; i++) {
+    const campaignId = campaigns[i].nccCampaignId;
+    if (i > 0 && i % 5 === 0) await new Promise((r) => setTimeout(r, 200));
+
+    try {
+      const statsParams = `ids=${encodeURIComponent(campaignId)}&fields=${encodeURIComponent(JSON.stringify(["impCnt", "clkCnt", "salesAmt", "ccnt", "cpc", "ctr"]))}&timeRange=${encodeURIComponent(JSON.stringify({ since: startDate, until: endDate }))}&datePreset=custom`;
+
+      const stats = await naverSARequest("GET", "/stats", statsParams, customerId, apiKey, secretKey);
+      const statItems = Array.isArray(stats) ? stats : [stats];
+
+      for (const item of statItems) {
+        if (item.statById) {
+          for (const [date, dayStat] of Object.entries(item.statById)) {
+            const s = dayStat as any;
+            const entry = dailyMap.get(date) || { spend: 0, impressions: 0, clicks: 0, conversions: 0, conversionValue: 0 };
+            entry.spend += Number(s.salesAmt) || 0;
+            entry.impressions += Number(s.impCnt) || 0;
+            entry.clicks += Number(s.clkCnt) || 0;
+            entry.conversions += Number(s.ccnt) || 0;
+            entry.conversionValue += Number(s.salesAmt) || 0;
+            dailyMap.set(date, entry);
+          }
+        } else {
+          const stat = item.stat || item;
+          if (stat.impCnt !== undefined) {
+            const entry = dailyMap.get(startDate) || { spend: 0, impressions: 0, clicks: 0, conversions: 0, conversionValue: 0 };
+            entry.spend += Number(stat.salesAmt) || 0;
+            entry.impressions += Number(stat.impCnt) || 0;
+            entry.clicks += Number(stat.clkCnt) || 0;
+            entry.conversions += Number(stat.ccnt) || 0;
+            entry.conversionValue += Number(stat.salesAmt) || 0;
+            dailyMap.set(startDate, entry);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.log(`[naver-sa] Campaign ${campaignId} stats error: ${err.message}`);
+    }
+  }
+
+  return Array.from(dailyMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, stats]) => ({
+      date,
+      spend: stats.spend,
+      impressions: stats.impressions,
+      clicks: stats.clicks,
+      conversions: stats.conversions,
+      conversionValue: stats.conversionValue,
+      ctr: stats.impressions > 0 ? (stats.clicks / stats.impressions) * 100 : 0,
+      cpc: stats.clicks > 0 ? stats.spend / stats.clicks : 0,
+      roas: stats.spend > 0 ? (stats.conversionValue / stats.spend) * 100 : 0,
+    }));
+}
+
+// 네이버 GFA - Netlify에서 직접 호출 (SA와 동일 API, 다른 계정)
+async function fetchNaverGFAReport(account: Record<string, unknown>, startDate: string, endDate: string) {
+  const customerId = account.naver_gfa_customer_id as string;
+  const apiKey = account.naver_gfa_api_key as string;
+  const secretKey = account.naver_gfa_secret_key as string;
+
+  if (!customerId || !apiKey || !secretKey) {
+    throw new Error("네이버 GFA 계정 정보 부족: Customer ID, API Key, Secret Key가 필요합니다.");
+  }
+
+  // SA와 동일한 로직 (계정만 다름)
+  let campaigns: any[];
+  try {
+    campaigns = await naverSARequest("GET", "/ncc/campaigns", null, customerId, apiKey, secretKey);
+  } catch (err: any) {
+    throw new Error(`GFA 캠페인 조회 실패: ${err.message}`);
+  }
+
+  if (!Array.isArray(campaigns) || campaigns.length === 0) return [];
+
+  const dailyMap = new Map<string, { spend: number; impressions: number; clicks: number; conversions: number; conversionValue: number }>();
+
+  for (let i = 0; i < campaigns.length; i++) {
+    const campaignId = campaigns[i].nccCampaignId;
+    if (i > 0 && i % 5 === 0) await new Promise((r) => setTimeout(r, 200));
+
+    try {
+      const statsParams = `ids=${encodeURIComponent(campaignId)}&fields=${encodeURIComponent(JSON.stringify(["impCnt", "clkCnt", "salesAmt", "ccnt", "cpc", "ctr"]))}&timeRange=${encodeURIComponent(JSON.stringify({ since: startDate, until: endDate }))}&datePreset=custom`;
+      const stats = await naverSARequest("GET", "/stats", statsParams, customerId, apiKey, secretKey);
+      const statItems = Array.isArray(stats) ? stats : [stats];
+
+      for (const item of statItems) {
+        if (item.statById) {
+          for (const [date, dayStat] of Object.entries(item.statById)) {
+            const s = dayStat as any;
+            const entry = dailyMap.get(date) || { spend: 0, impressions: 0, clicks: 0, conversions: 0, conversionValue: 0 };
+            entry.spend += Number(s.salesAmt) || 0;
+            entry.impressions += Number(s.impCnt) || 0;
+            entry.clicks += Number(s.clkCnt) || 0;
+            entry.conversions += Number(s.ccnt) || 0;
+            entry.conversionValue += Number(s.salesAmt) || 0;
+            dailyMap.set(date, entry);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.log(`[naver-gfa] Campaign ${campaignId} error: ${err.message}`);
+    }
+  }
+
+  return Array.from(dailyMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, stats]) => ({
+      date,
+      spend: stats.spend,
+      impressions: stats.impressions,
+      clicks: stats.clicks,
+      conversions: stats.conversions,
+      conversionValue: stats.conversionValue,
+      ctr: stats.impressions > 0 ? (stats.clicks / stats.impressions) * 100 : 0,
+      cpc: stats.clicks > 0 ? stats.spend / stats.clicks : 0,
+      roas: stats.spend > 0 ? (stats.conversionValue / stats.spend) * 100 : 0,
+    }));
+}
+
+// 쿠팡 광고 HMAC-SHA256 서명 생성
+function generateCoupangAdsSignature(method: string, path: string, query: string, secretKey: string) {
+  const now = new Date();
+  const y = String(now.getUTCFullYear()).slice(2);
+  const mo = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(now.getUTCDate()).padStart(2, "0");
+  const h = String(now.getUTCHours()).padStart(2, "0");
+  const mi = String(now.getUTCMinutes()).padStart(2, "0");
+  const s = String(now.getUTCSeconds()).padStart(2, "0");
+  const datetime = `${y}${mo}${d}T${h}${mi}${s}Z`;
+
+  const message = datetime + method.toUpperCase() + path + query;
+  const signature = crypto.createHmac("sha256", secretKey).update(message).digest("hex");
+
+  return { datetime, signature };
+}
+
+// 쿠팡 광고 API 직접 호출 헬퍼
+async function coupangAdsRequest(method: string, path: string, query: string, accessKey: string, secretKey: string) {
+  const { datetime, signature } = generateCoupangAdsSignature(method, path, query, secretKey);
+  const authorization = `CEA algorithm=HmacSHA256, access-key=${accessKey}, signed-date=${datetime}, signature=${signature}`;
+
+  const url = `https://api-gateway.coupang.com${path}${query ? "?" + query : ""}`;
+  console.log(`[coupang-ads] ${method} ${path}`);
+
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Authorization: authorization,
+      "Content-Type": "application/json;charset=UTF-8",
+    },
+  });
+
+  const text = await response.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Coupang Ads API parse error (${response.status}): ${text.substring(0, 300)}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(data.message || data.error || `Coupang Ads API error (${response.status})`);
+  }
+
+  return data;
+}
+
+// 쿠팡 광고 - Netlify에서 직접 호출 (IP 제한 없음)
+async function fetchCoupangAdsReport(account: Record<string, unknown>, startDate: string, endDate: string) {
+  const vendorId = account.coupang_ads_vendor_id as string;
+  const accessKey = account.coupang_ads_access_key as string;
+  const secretKey = account.coupang_ads_secret_key as string;
+
+  if (!vendorId || !accessKey || !secretKey) {
+    throw new Error("쿠팡 광고 계정 정보 부족: Vendor ID, Access Key, Secret Key가 필요합니다.");
+  }
+
+  // 일별 리포트 시도
+  const path = `/v2/providers/ads/vendors/${vendorId}/reports/daily`;
+  const query = `startDate=${startDate}&endDate=${endDate}`;
+
+  let data: any;
+  try {
+    data = await coupangAdsRequest("GET", path, query, accessKey, secretKey);
+  } catch (err: any) {
+    console.log(`[coupang-ads] Daily report failed: ${err.message}, trying campaigns...`);
+
+    // 대안: 캠페인 목록에서 통계 추출
+    try {
+      const campaignPath = `/v2/providers/ads/vendors/${vendorId}/campaigns`;
+      const campaignData = await coupangAdsRequest("GET", campaignPath, "", accessKey, secretKey);
+      const campaigns = campaignData.data || campaignData.content || [];
+
+      if (campaigns.length === 0) return [];
+
+      let totalSpend = 0, totalImpressions = 0, totalClicks = 0, totalConversions = 0, totalConversionValue = 0;
+      for (const c of campaigns) {
+        totalSpend += Number(c.budget) || Number(c.dailyBudget) || 0;
+        totalImpressions += Number(c.impressions) || 0;
+        totalClicks += Number(c.clicks) || 0;
+        totalConversions += Number(c.conversions) || 0;
+        totalConversionValue += Number(c.revenue) || 0;
+      }
+
+      return [{
+        date: startDate,
+        spend: totalSpend, impressions: totalImpressions, clicks: totalClicks,
+        conversions: totalConversions, conversionValue: totalConversionValue,
+        ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+        cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
+        roas: totalSpend > 0 ? (totalConversionValue / totalSpend) * 100 : 0,
+      }];
+    } catch {
+      throw new Error(`쿠팡 광고 리포트 조회 실패: ${err.message}`);
+    }
+  }
+
+  return (data.data || data.content || []).map((item: any) => ({
+    date: item.date || item.reportDate || startDate,
+    spend: Number(item.cost) || Number(item.spend) || Number(item.adCost) || 0,
+    impressions: Number(item.impressions) || Number(item.impCnt) || 0,
+    clicks: Number(item.clicks) || Number(item.clkCnt) || 0,
+    conversions: Number(item.conversions) || Number(item.cvsCnt) || 0,
+    conversionValue: Number(item.revenue) || Number(item.salesAmt) || 0,
+    ctr: Number(item.ctr) || 0,
+    cpc: Number(item.cpc) || 0,
+    roas: Number(item.roas) || 0,
+  }));
+}
+
+// 광고비 동기화 메인 로직
+async function syncAdSpend(params: {
+  platform: string;
+  brandId: string;
+  startDate: string;
+  endDate: string;
+}) {
+  const { platform, brandId, startDate, endDate } = params;
+
+  console.log(`[ad-sync] platform=${platform} brand=${brandId} ${startDate}~${endDate}`);
+
+  // 1. 광고 계정 자격증명 조회
+  const account = await getAdAccountCredentials(brandId, platform);
+
+  // 2. sync_status를 syncing으로 업데이트
+  await supabase
+    .from("ad_accounts")
+    .update({ sync_status: "syncing", sync_error: null })
+    .eq("id", account.id);
+
+  // 3. 플랫폼별 API 호출
+  let dailyData: any[];
+
+  try {
+    switch (platform) {
+      case "meta":
+        dailyData = await fetchMetaAdInsights(account, startDate, endDate);
+        break;
+      case "naver_sa":
+        dailyData = await fetchNaverSAReport(account, startDate, endDate);
+        break;
+      case "naver_gfa":
+        dailyData = await fetchNaverGFAReport(account, startDate, endDate);
+        break;
+      case "coupang_ads":
+        dailyData = await fetchCoupangAdsReport(account, startDate, endDate);
+        break;
+      default:
+        throw new Error(`${platform}은 아직 지원되지 않는 광고 플랫폼입니다.`);
+    }
+  } catch (apiError: any) {
+    // API 호출 실패 시 sync_status 업데이트
+    await supabase
+      .from("ad_accounts")
+      .update({
+        sync_status: "failed",
+        sync_error: apiError.message,
+      })
+      .eq("id", account.id);
+    throw apiError;
+  }
+
+  // 4. ad_spend_daily에 upsert
+  let recordsUpserted = 0;
+
+  if (dailyData.length > 0) {
+    const rows = dailyData.map((d: any) => ({
+      brand_id: brandId,
+      date: d.date,
+      platform,
+      spend: d.spend || 0,
+      impressions: d.impressions || 0,
+      clicks: d.clicks || 0,
+      conversions: d.conversions || 0,
+      conversion_value: d.conversionValue || 0,
+      ctr: d.ctr || 0,
+      cpc: d.cpc || 0,
+      roas: d.roas || 0,
+      synced_at: new Date().toISOString(),
+    }));
+
+    // 청크 upsert (200건씩)
+    const CHUNK = 200;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const chunk = rows.slice(i, i + CHUNK);
+      const { error: upsertError, data: upsertData } = await supabase
+        .from("ad_spend_daily")
+        .upsert(chunk, { onConflict: "brand_id,date,platform" })
+        .select("id");
+
+      if (upsertError) {
+        console.error("[ad-sync] upsert error:", upsertError);
+        throw new Error(`광고비 데이터 저장 오류: ${upsertError.message}`);
+      }
+      recordsUpserted += upsertData?.length || chunk.length;
+    }
+  }
+
+  // 5. sync_status 업데이트
+  await supabase
+    .from("ad_accounts")
+    .update({
+      sync_status: "success",
+      sync_error: null,
+      last_sync_at: new Date().toISOString(),
+    })
+    .eq("id", account.id);
+
+  console.log(`[ad-sync] Complete: ${recordsUpserted} records upserted`);
+
+  return {
+    success: true,
+    platform,
+    message: `${platform} 광고비 ${dailyData.length}일 데이터 동기화 완료`,
+    recordsCreated: recordsUpserted,
+    dateRange: { start: startDate, end: endDate },
+  };
+}
+
 // ========== Handler ==========
 const handler: Handler = async (
   event: HandlerEvent,
@@ -1769,163 +2254,44 @@ const handler: Handler = async (
         };
       }
 
-      case "ad-test": {
-        const adTestPlatform = request.platform;
-        const adTestBrandId = request.brandId;
-
-        if (adTestPlatform === "naver_sa") {
-          try {
-            // ad_accounts에서 자격증명 조회
-            let testQuery = supabase
-              .from("ad_accounts")
-              .select("naver_api_key, naver_secret_key, naver_customer_id")
-              .eq("platform", "naver_sa")
-              .eq("is_active", true);
-
-            if (adTestBrandId) {
-              testQuery = testQuery.eq("brand_id", adTestBrandId);
-            }
-
-            const { data: testCreds } = await testQuery.limit(1).single();
-
-            if (!testCreds?.naver_api_key || !testCreds?.naver_secret_key || !testCreds?.naver_customer_id) {
-              return {
-                statusCode: 200,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-                body: JSON.stringify({ success: false, message: "네이버 검색광고 자격증명이 설정되지 않았습니다." }),
-              };
-            }
-
-            // NCP 프록시로 테스트
-            const testRes = await fetch(`${PROXY_URL}/api/naver-sa/test`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "x-api-key": PROXY_API_KEY,
-              },
-              body: JSON.stringify({
-                apiKey: testCreds.naver_api_key,
-                secretKey: testCreds.naver_secret_key,
-                customerId: testCreds.naver_customer_id,
-              }),
-            });
-
-            const testResultText = await testRes.text();
-            let testResult: any;
-            try {
-              testResult = JSON.parse(testResultText);
-            } catch {
-              return {
-                statusCode: 200,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-                body: JSON.stringify({ success: false, message: `프록시 응답 파싱 실패` }),
-              };
-            }
-
-            return {
-              statusCode: 200,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              body: JSON.stringify(testResult),
-            };
-          } catch (error: any) {
-            return {
-              statusCode: 200,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              body: JSON.stringify({ success: false, message: `연결 테스트 실패: ${error.message}` }),
-            };
-          }
-        }
-
-        return {
-          statusCode: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          body: JSON.stringify({ success: true, message: "자격증명이 확인되었습니다." }),
-        };
-      }
-
+      // ===== 광고비 동기화 =====
       case "ad-sync": {
-        const adPlatform = request.platform;
-        const adBrandId = request.brandId;
+        const adPlatform = request.platform || request.channel;
 
-        if (!adPlatform) {
+        if (!adPlatform || !request.brandId || !request.startDate || !request.endDate) {
           return {
-            statusCode: 200,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            body: JSON.stringify({ success: false, error: "platform 파라미터가 필요합니다." }),
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({
+              success: false,
+              error: "platform, brandId, startDate, endDate are required",
+            }),
           };
         }
 
-        if (adPlatform === "naver_sa") {
-          try {
-            // ad_accounts 테이블에서 자격증명 조회
-            let adQuery = supabase
-              .from("ad_accounts")
-              .select("naver_api_key, naver_secret_key, naver_customer_id")
-              .eq("platform", "naver_sa")
-              .eq("is_active", true);
+        try {
+          const adResult = await syncAdSpend({
+            platform: adPlatform,
+            brandId: request.brandId,
+            startDate: request.startDate,
+            endDate: request.endDate,
+          });
 
-            if (adBrandId) {
-              adQuery = adQuery.eq("brand_id", adBrandId);
-            }
-
-            const { data: adCreds } = await adQuery.limit(1).single();
-
-            if (!adCreds?.naver_api_key || !adCreds?.naver_secret_key || !adCreds?.naver_customer_id) {
-              return {
-                statusCode: 200,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-                body: JSON.stringify({ success: false, error: "네이버 검색광고 자격증명이 설정되지 않았습니다." }),
-              };
-            }
-
-            // NCP 프록시 서버 경유
-            const naverSaRes = await fetch(`${PROXY_URL}/api/naver-sa/stats`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "x-api-key": PROXY_API_KEY,
-              },
-              body: JSON.stringify({
-                apiKey: adCreds.naver_api_key,
-                secretKey: adCreds.naver_secret_key,
-                customerId: adCreds.naver_customer_id,
-                startDate: request.startDate,
-                endDate: request.endDate,
-              }),
-            });
-
-            const naverSaText = await naverSaRes.text();
-            let naverSaResult: any;
-            try {
-              naverSaResult = JSON.parse(naverSaText);
-            } catch {
-              return {
-                statusCode: 200,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-                body: JSON.stringify({ success: false, error: `프록시 응답 파싱 실패: ${naverSaText.substring(0, 100)}` }),
-              };
-            }
-
-            return {
-              statusCode: 200,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              body: JSON.stringify(naverSaResult),
-            };
-          } catch (error: any) {
-            return {
-              statusCode: 200,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              body: JSON.stringify({ success: false, error: `네이버 검색광고 동기화 실패: ${error.message}` }),
-            };
-          }
+          return {
+            statusCode: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify(adResult),
+          };
+        } catch (adError: any) {
+          return {
+            statusCode: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              success: false,
+              error: adError.message || "광고비 동기화 실패",
+            }),
+          };
         }
-
-        // 미지원 광고 플랫폼
-        return {
-          statusCode: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          body: JSON.stringify({ success: false, error: `${adPlatform} 광고 플랫폼은 아직 지원되지 않습니다.` }),
-        };
       }
 
       default:
