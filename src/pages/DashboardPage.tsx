@@ -76,7 +76,13 @@ const typeIcons: Record<ProjectType, React.ElementType> = {
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { projects, user } = useStore();
-  const { fetchProjects: fetchSeedingProjects, fetchInfluencers, getTodayStats } = useSeedingStore();
+  const {
+    fetchProjects: fetchSeedingProjects,
+    fetchInfluencers,
+    getTodayStats,
+    influencers: seedingInfluencers,
+    projects: seedingProjects,
+  } = useSeedingStore();
 
   // 시딩 데이터 로드
   useEffect(() => {
@@ -84,9 +90,9 @@ export default function DashboardPage() {
     fetchInfluencers();
   }, [fetchSeedingProjects, fetchInfluencers]);
 
-  // 오늘의 시딩 통계
-  const howpapaStats = useMemo(() => getTodayStats('howpapa'), [getTodayStats]);
-  const nucioStats = useMemo(() => getTodayStats('nucio'), [getTodayStats]);
+  // 오늘의 시딩 통계 (influencers/projects 변경 시 재계산)
+  const howpapaStats = useMemo(() => getTodayStats('howpapa'), [getTodayStats, seedingInfluencers, seedingProjects]);
+  const nucioStats = useMemo(() => getTodayStats('nucio'), [getTodayStats, seedingInfluencers, seedingProjects]);
 
   // 오늘 날짜
   const todayString = useMemo(() => {

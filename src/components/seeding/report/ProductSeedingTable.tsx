@@ -15,6 +15,7 @@ interface ProductSeedingData {
 interface ProductSeedingTableProps {
   projects: SeedingProject[];
   influencers: SeedingInfluencer[];
+  completedInfluencers?: SeedingInfluencer[];
   isLoading?: boolean;
 }
 
@@ -43,33 +44,37 @@ function formatCurrency(amount: number): string {
 export default function ProductSeedingTable({
   projects,
   influencers,
+  completedInfluencers,
   isLoading,
 }: ProductSeedingTableProps) {
   // 프로젝트별 통계 계산
   const productData: ProductSeedingData[] = projects
     .map((project) => {
       const projectInfluencers = influencers.filter((i) => i.project_id === project.id);
-      const completedInfluencers = projectInfluencers.filter(
-        (i) => i.status === 'posted' || i.status === 'completed'
-      );
+      // 완료 수: completedInfluencers(completed_at 기준) 사용, 없으면 status 기준
+      const projectCompleted = completedInfluencers
+        ? completedInfluencers.filter((i) => i.project_id === project.id)
+        : projectInfluencers.filter((i) => i.status === 'posted' || i.status === 'completed');
 
       const totalSeedings = projectInfluencers.length;
-      const completedSeedings = completedInfluencers.length;
+      const completedSeedings = projectCompleted.length;
       const postingRate = totalSeedings > 0 ? (completedSeedings / totalSeedings) * 100 : 0;
 
       // 발송 완료 이후 상태 (비용 계산 대상)
       const shippedStatuses = ['shipped', 'guide_sent', 'posted', 'completed'];
 
-      // 성과 합산
+      // 성과 합산 (완료된 인플루언서 기준)
       let totalReach = 0;
       let totalFee = 0;
       let totalProductCost = 0;
 
-      projectInfluencers.forEach((inf) => {
+      projectCompleted.forEach((inf) => {
         if (inf.performance) {
           totalReach += (inf.performance.views || 0) + (inf.performance.story_views || 0);
         }
+      });
 
+      projectInfluencers.forEach((inf) => {
         // 발송완료 상태인 건만 비용 계산
         if (shippedStatuses.includes(inf.status)) {
           const quantity = inf.shipping?.quantity || 1;
@@ -95,7 +100,7 @@ export default function ProductSeedingTable({
         cpm,
       };
     })
-    .filter((data) => data.totalSeedings > 0)
+    .filter((data) => data.totalSeedings > 0 || data.completedSeedings > 0)
     .sort((a, b) => b.totalSeedings - a.totalSeedings);
 
   if (isLoading) {

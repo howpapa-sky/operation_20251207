@@ -36,9 +36,9 @@ export default function TopInfluencersTable({
   isLoading,
   limit = 10,
 }: TopInfluencersTableProps) {
-  // 포스팅 완료된 인플루언서만 필터링하고 조회수 순(없으면 팔로워순)으로 정렬
+  // 완료된 인플루언서를 조회수 순(없으면 팔로워순)으로 정렬
+  // (이미 completed_at 기준으로 필터링된 데이터를 받음)
   const topInfluencers: TopInfluencer[] = influencers
-    .filter((inf) => inf.status === 'posted' || inf.status === 'completed')
     .map((inf) => {
       const views = (inf.performance?.views || 0) + (inf.performance?.story_views || 0);
       const engagement =

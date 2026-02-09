@@ -68,36 +68,48 @@ export default function SeedingReportsPage() {
       filteredProjects = filteredProjects.filter((p) => p.id === selectedProjectId);
     }
 
-    // 날짜 필터 (listed_at 우선, created_at 폴백)
+    // 날짜 필터 (listed_at 우선, created_at 폴백) - 총 시딩 수 기준
+    let dateFilteredInfluencers = filteredInfluencers;
     if (dateRange.start && dateRange.end) {
-      const startStr = dateRange.start; // "YYYY-MM-DD"
-      const endStr = dateRange.end;     // "YYYY-MM-DD"
+      const startStr = dateRange.start;
+      const endStr = dateRange.end;
 
-      filteredInfluencers = filteredInfluencers.filter((i) => {
+      dateFilteredInfluencers = filteredInfluencers.filter((i) => {
         const dateField = i.listed_at || i.created_at;
-        const dateStr = dateField.split('T')[0]; // "YYYY-MM-DD" 부분만 추출
+        const dateStr = dateField.split('T')[0];
         return dateStr >= startStr && dateStr <= endStr;
       });
     }
 
-    return { influencers: filteredInfluencers, projects: filteredProjects };
+    // 완료일(completed_at) 기준 필터 - 포스팅 완료 매칭용
+    let completedInRange = filteredInfluencers.filter((i) => {
+      if (!i.completed_at) return false;
+      if (!dateRange.start || !dateRange.end) return true;
+      const dateStr = i.completed_at.split('T')[0];
+      return dateStr >= dateRange.start && dateStr <= dateRange.end;
+    });
+
+    return {
+      influencers: dateFilteredInfluencers,
+      completedInfluencers: completedInRange,
+      projects: filteredProjects,
+    };
   }, [influencers, projects, selectedBrand, selectedProjectId, dateRange]);
 
   // 요약 통계 계산
   const summaryData = useMemo(() => {
-    const { influencers: filtered } = filteredData;
+    const { influencers: filtered, completedInfluencers } = filteredData;
 
     const totalSeedings = filtered.length;
-    const postedInfluencers = filtered.filter(
-      (i) => i.status === 'posted' || i.status === 'completed'
-    );
-    const postingCount = postedInfluencers.length;
+    // 완료 기준: completed_at이 날짜 범위 내인 인플루언서
+    const postingCount = completedInfluencers.length;
     const postingRate = totalSeedings > 0 ? (postingCount / totalSeedings) * 100 : 0;
 
     let totalReach = 0;
     let totalEngagement = 0;
 
-    filtered.forEach((inf) => {
+    // 도달/참여는 완료된 인플루언서 기준
+    completedInfluencers.forEach((inf) => {
       if (inf.performance) {
         totalReach += (inf.performance.views || 0) + (inf.performance.story_views || 0);
         totalEngagement +=
@@ -114,7 +126,6 @@ export default function SeedingReportsPage() {
       postingRate,
       totalReach,
       totalEngagement,
-      // 전월 대비는 별도 계산 필요 - 여기서는 샘플 값
       seedingChange: undefined,
       postingChange: undefined,
       reachChange: undefined,
@@ -153,30 +164,26 @@ export default function SeedingReportsPage() {
     };
   }, [filteredData, summaryData.totalReach]);
 
-  // 일별 포스팅 데이터 계산
+  // 일별 포스팅 데이터 계산 (completed_at 기준)
   const dailyPostingData = useMemo(() => {
-    const { influencers: filtered } = filteredData;
+    const { completedInfluencers } = filteredData;
 
-    // 날짜별 그룹화
+    // 완료일(completed_at) 기준으로 날짜별 그룹화
     const dailyMap = new Map<string, { postings: number; reach: number }>();
 
-    filtered
-      .filter((inf) => inf.status === 'posted' || inf.status === 'completed')
-      .forEach((inf) => {
-        const date = inf.posted_at
-          ? inf.posted_at.split('T')[0]
-          : inf.created_at.split('T')[0];
+    completedInfluencers.forEach((inf) => {
+      const date = inf.completed_at!.split('T')[0];
 
-        const existing = dailyMap.get(date) || { postings: 0, reach: 0 };
-        const reach = inf.performance
-          ? (inf.performance.views || 0) + (inf.performance.story_views || 0)
-          : 0;
+      const existing = dailyMap.get(date) || { postings: 0, reach: 0 };
+      const reach = inf.performance
+        ? (inf.performance.views || 0) + (inf.performance.story_views || 0)
+        : 0;
 
-        dailyMap.set(date, {
-          postings: existing.postings + 1,
-          reach: existing.reach + reach,
-        });
+      dailyMap.set(date, {
+        postings: existing.postings + 1,
+        reach: existing.reach + reach,
       });
+    });
 
     // 날짜순 정렬
     return Array.from(dailyMap.entries())
@@ -184,16 +191,14 @@ export default function SeedingReportsPage() {
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [filteredData]);
 
-  // 콘텐츠 유형 데이터
+  // 콘텐츠 유형 데이터 (완료된 인플루언서 기준)
   const contentTypeData = useMemo(() => {
-    const { influencers: filtered } = filteredData;
+    const { completedInfluencers } = filteredData;
     const data = { story: 0, reels: 0, feed: 0, both: 0 };
 
-    filtered
-      .filter((inf) => inf.status === 'posted' || inf.status === 'completed')
-      .forEach((inf) => {
-        data[inf.content_type]++;
-      });
+    completedInfluencers.forEach((inf) => {
+      data[inf.content_type]++;
+    });
 
     return data;
   }, [filteredData]);
@@ -313,12 +318,13 @@ export default function SeedingReportsPage() {
       </div>
 
       {/* Top Influencers Table */}
-      <TopInfluencersTable influencers={filteredData.influencers} isLoading={isLoading} />
+      <TopInfluencersTable influencers={filteredData.completedInfluencers} isLoading={isLoading} />
 
       {/* Product Seeding Table */}
       <ProductSeedingTable
         projects={filteredData.projects}
         influencers={filteredData.influencers}
+        completedInfluencers={filteredData.completedInfluencers}
         isLoading={isLoading}
       />
 

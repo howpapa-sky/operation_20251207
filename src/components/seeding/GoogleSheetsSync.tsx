@@ -388,6 +388,7 @@ export default function GoogleSheetsSync({
   // 폼 상태
   const [spreadsheetUrl, setSpreadsheetUrl] = useState('');
   const [sheetName, setSheetName] = useState('Sheet1');
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
   const [step, setStep] = useState<SyncStep>('config');
 
   // 미리보기 상태
@@ -426,8 +427,9 @@ export default function GoogleSheetsSync({
       if (project.listup_sheet_name) {
         setSheetName(project.listup_sheet_name);
       }
+      setAutoSyncEnabled(project.auto_sync_enabled || false);
     }
-  }, [isOpen, project.listup_sheet_url, project.listup_sheet_name]);
+  }, [isOpen, project.listup_sheet_url, project.listup_sheet_name, project.auto_sync_enabled]);
 
   // 미리보기 실행
   const handlePreview = async () => {
@@ -501,10 +503,11 @@ export default function GoogleSheetsSync({
         errors: result.errors,
       });
 
-      // 시트 URL 저장 (다음에 자동으로 불러오기 위해)
+      // 시트 URL + 자동 동기화 설정 저장
       await updateProject(project.id, {
         listup_sheet_url: spreadsheetUrl,
         listup_sheet_name: sheetName,
+        auto_sync_enabled: autoSyncEnabled,
         last_synced_at: new Date().toISOString(),
       });
 
@@ -607,25 +610,45 @@ export default function GoogleSheetsSync({
                   />
                 </div>
 
-                {/* 실시간 연동 안내 */}
-                <div className="p-4 bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-xl">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                      <Zap className="w-5 h-5 text-emerald-600" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-sm text-emerald-900">실시간 연동</span>
+                {/* 자동 동기화 토글 */}
+                <div className={`p-4 rounded-xl border ${autoSyncEnabled ? 'bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${autoSyncEnabled ? 'bg-emerald-100' : 'bg-gray-200'}`}>
+                        <Zap className={`w-5 h-5 ${autoSyncEnabled ? 'text-emerald-600' : 'text-gray-400'}`} />
                       </div>
-                      <div className="text-xs text-emerald-700">
-                        Google Sheets의 모든 데이터를 동기화합니다.
+                      <div className="flex-1">
+                        <div className="font-medium text-sm text-gray-900">
+                          자동 동기화
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          {autoSyncEnabled
+                            ? '매일 오전 9시에 자동으로 동기화됩니다.'
+                            : '활성화하면 매일 오전 9시에 자동 동기화됩니다.'}
+                        </div>
                         {project.last_synced_at && (
-                          <span className="block mt-1 text-emerald-600">
+                          <div className="text-xs text-gray-400 mt-1">
                             마지막 동기화: {new Date(project.last_synced_at).toLocaleString('ko-KR')}
-                          </span>
+                          </div>
                         )}
                       </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newValue = !autoSyncEnabled;
+                        setAutoSyncEnabled(newValue);
+                        // 즉시 DB에 저장 (시트 URL이 있는 경우)
+                        if (project.listup_sheet_url) {
+                          updateProject(project.id, { auto_sync_enabled: newValue });
+                        }
+                      }}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${autoSyncEnabled ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoSyncEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+                      />
+                    </button>
                   </div>
                 </div>
 
