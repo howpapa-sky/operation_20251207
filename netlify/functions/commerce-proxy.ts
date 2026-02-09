@@ -1,5 +1,6 @@
 import { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
 
 // ========== 환경변수 ==========
 const PROXY_URL = process.env.NAVER_PROXY_URL || "http://49.50.131.90:3100";
@@ -1455,7 +1456,47 @@ async function fetchMetaAdInsights(account: Record<string, unknown>, startDate: 
   });
 }
 
-// 네이버 검색광고 - NCP 프록시 경유
+// 네이버 검색광고 HMAC-SHA256 서명 생성
+function generateNaverSASignature(timestamp: string, method: string, path: string, secretKey: string): string {
+  const message = `${timestamp}.${method}.${path}`;
+  return crypto.createHmac("sha256", secretKey).update(message).digest("base64");
+}
+
+// 네이버 검색광고 API 직접 호출 헬퍼
+async function naverSARequest(method: string, path: string, queryString: string | null, customerId: string, apiKey: string, secretKey: string) {
+  const timestamp = String(Date.now());
+  const signature = generateNaverSASignature(timestamp, method, path, secretKey);
+
+  const url = `https://api.searchad.naver.com${path}${queryString ? "?" + queryString : ""}`;
+  console.log(`[naver-sa] ${method} ${path} customer=${customerId}`);
+
+  const response = await fetch(url, {
+    method,
+    headers: {
+      "X-API-KEY": apiKey,
+      "X-Customer": customerId,
+      "X-Timestamp": timestamp,
+      "X-Signature": signature,
+      "Content-Type": "application/json",
+    },
+  });
+
+  const text = await response.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Naver SA API parse error (${response.status}): ${text.substring(0, 300)}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(data.title || data.message || `Naver SA API error (${response.status}): ${text.substring(0, 200)}`);
+  }
+
+  return data;
+}
+
+// 네이버 검색광고 - Netlify에서 직접 호출 (IP 제한 없음)
 async function fetchNaverSAReport(account: Record<string, unknown>, startDate: string, endDate: string) {
   const customerId = account.naver_customer_id as string;
   const apiKey = account.naver_api_key as string;
@@ -1465,31 +1506,79 @@ async function fetchNaverSAReport(account: Record<string, unknown>, startDate: s
     throw new Error("네이버 검색광고 계정 정보 부족: Customer ID, API Key, Secret Key가 필요합니다.");
   }
 
-  const response = await fetch(`${PROXY_URL}/api/ad/naver-sa/report`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": PROXY_API_KEY,
-    },
-    body: JSON.stringify({ customerId, apiKey, secretKey, startDate, endDate }),
-  });
-
-  const text = await response.text();
-  let result: any;
+  // 1. 캠페인 목록 조회
+  let campaigns: any[];
   try {
-    result = JSON.parse(text);
-  } catch {
-    throw new Error(`NCP 프록시 응답 파싱 실패: ${text.substring(0, 200)}`);
+    campaigns = await naverSARequest("GET", "/ncc/campaigns", null, customerId, apiKey, secretKey);
+  } catch (err: any) {
+    throw new Error(`캠페인 목록 조회 실패: ${err.message}`);
   }
 
-  if (!result.success) {
-    throw new Error(result.error || result.message || "네이버 검색광고 리포트 조회 실패");
+  if (!Array.isArray(campaigns) || campaigns.length === 0) {
+    return [];
   }
 
-  return result.data || [];
+  console.log(`[naver-sa] Found ${campaigns.length} campaigns`);
+
+  // 2. 캠페인별 일별 통계 수집
+  const dailyMap = new Map<string, { spend: number; impressions: number; clicks: number; conversions: number; conversionValue: number }>();
+
+  for (let i = 0; i < campaigns.length; i++) {
+    const campaignId = campaigns[i].nccCampaignId;
+    if (i > 0 && i % 5 === 0) await new Promise((r) => setTimeout(r, 200));
+
+    try {
+      const statsParams = `ids=${encodeURIComponent(campaignId)}&fields=${encodeURIComponent(JSON.stringify(["impCnt", "clkCnt", "salesAmt", "ccnt", "cpc", "ctr"]))}&timeRange=${encodeURIComponent(JSON.stringify({ since: startDate, until: endDate }))}&datePreset=custom`;
+
+      const stats = await naverSARequest("GET", "/stats", statsParams, customerId, apiKey, secretKey);
+      const statItems = Array.isArray(stats) ? stats : [stats];
+
+      for (const item of statItems) {
+        if (item.statById) {
+          for (const [date, dayStat] of Object.entries(item.statById)) {
+            const s = dayStat as any;
+            const entry = dailyMap.get(date) || { spend: 0, impressions: 0, clicks: 0, conversions: 0, conversionValue: 0 };
+            entry.spend += Number(s.salesAmt) || 0;
+            entry.impressions += Number(s.impCnt) || 0;
+            entry.clicks += Number(s.clkCnt) || 0;
+            entry.conversions += Number(s.ccnt) || 0;
+            entry.conversionValue += Number(s.salesAmt) || 0;
+            dailyMap.set(date, entry);
+          }
+        } else {
+          const stat = item.stat || item;
+          if (stat.impCnt !== undefined) {
+            const entry = dailyMap.get(startDate) || { spend: 0, impressions: 0, clicks: 0, conversions: 0, conversionValue: 0 };
+            entry.spend += Number(stat.salesAmt) || 0;
+            entry.impressions += Number(stat.impCnt) || 0;
+            entry.clicks += Number(stat.clkCnt) || 0;
+            entry.conversions += Number(stat.ccnt) || 0;
+            entry.conversionValue += Number(stat.salesAmt) || 0;
+            dailyMap.set(startDate, entry);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.log(`[naver-sa] Campaign ${campaignId} stats error: ${err.message}`);
+    }
+  }
+
+  return Array.from(dailyMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, stats]) => ({
+      date,
+      spend: stats.spend,
+      impressions: stats.impressions,
+      clicks: stats.clicks,
+      conversions: stats.conversions,
+      conversionValue: stats.conversionValue,
+      ctr: stats.impressions > 0 ? (stats.clicks / stats.impressions) * 100 : 0,
+      cpc: stats.clicks > 0 ? stats.spend / stats.clicks : 0,
+      roas: stats.spend > 0 ? (stats.conversionValue / stats.spend) * 100 : 0,
+    }));
 }
 
-// 네이버 GFA - NCP 프록시 경유
+// 네이버 GFA - Netlify에서 직접 호출 (SA와 동일 API, 다른 계정)
 async function fetchNaverGFAReport(account: Record<string, unknown>, startDate: string, endDate: string) {
   const customerId = account.naver_gfa_customer_id as string;
   const apiKey = account.naver_gfa_api_key as string;
@@ -1499,31 +1588,110 @@ async function fetchNaverGFAReport(account: Record<string, unknown>, startDate: 
     throw new Error("네이버 GFA 계정 정보 부족: Customer ID, API Key, Secret Key가 필요합니다.");
   }
 
-  const response = await fetch(`${PROXY_URL}/api/ad/naver-gfa/report`, {
-    method: "POST",
+  // SA와 동일한 로직 (계정만 다름)
+  let campaigns: any[];
+  try {
+    campaigns = await naverSARequest("GET", "/ncc/campaigns", null, customerId, apiKey, secretKey);
+  } catch (err: any) {
+    throw new Error(`GFA 캠페인 조회 실패: ${err.message}`);
+  }
+
+  if (!Array.isArray(campaigns) || campaigns.length === 0) return [];
+
+  const dailyMap = new Map<string, { spend: number; impressions: number; clicks: number; conversions: number; conversionValue: number }>();
+
+  for (let i = 0; i < campaigns.length; i++) {
+    const campaignId = campaigns[i].nccCampaignId;
+    if (i > 0 && i % 5 === 0) await new Promise((r) => setTimeout(r, 200));
+
+    try {
+      const statsParams = `ids=${encodeURIComponent(campaignId)}&fields=${encodeURIComponent(JSON.stringify(["impCnt", "clkCnt", "salesAmt", "ccnt", "cpc", "ctr"]))}&timeRange=${encodeURIComponent(JSON.stringify({ since: startDate, until: endDate }))}&datePreset=custom`;
+      const stats = await naverSARequest("GET", "/stats", statsParams, customerId, apiKey, secretKey);
+      const statItems = Array.isArray(stats) ? stats : [stats];
+
+      for (const item of statItems) {
+        if (item.statById) {
+          for (const [date, dayStat] of Object.entries(item.statById)) {
+            const s = dayStat as any;
+            const entry = dailyMap.get(date) || { spend: 0, impressions: 0, clicks: 0, conversions: 0, conversionValue: 0 };
+            entry.spend += Number(s.salesAmt) || 0;
+            entry.impressions += Number(s.impCnt) || 0;
+            entry.clicks += Number(s.clkCnt) || 0;
+            entry.conversions += Number(s.ccnt) || 0;
+            entry.conversionValue += Number(s.salesAmt) || 0;
+            dailyMap.set(date, entry);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.log(`[naver-gfa] Campaign ${campaignId} error: ${err.message}`);
+    }
+  }
+
+  return Array.from(dailyMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, stats]) => ({
+      date,
+      spend: stats.spend,
+      impressions: stats.impressions,
+      clicks: stats.clicks,
+      conversions: stats.conversions,
+      conversionValue: stats.conversionValue,
+      ctr: stats.impressions > 0 ? (stats.clicks / stats.impressions) * 100 : 0,
+      cpc: stats.clicks > 0 ? stats.spend / stats.clicks : 0,
+      roas: stats.spend > 0 ? (stats.conversionValue / stats.spend) * 100 : 0,
+    }));
+}
+
+// 쿠팡 광고 HMAC-SHA256 서명 생성
+function generateCoupangAdsSignature(method: string, path: string, query: string, secretKey: string) {
+  const now = new Date();
+  const y = String(now.getUTCFullYear()).slice(2);
+  const mo = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(now.getUTCDate()).padStart(2, "0");
+  const h = String(now.getUTCHours()).padStart(2, "0");
+  const mi = String(now.getUTCMinutes()).padStart(2, "0");
+  const s = String(now.getUTCSeconds()).padStart(2, "0");
+  const datetime = `${y}${mo}${d}T${h}${mi}${s}Z`;
+
+  const message = datetime + method.toUpperCase() + path + query;
+  const signature = crypto.createHmac("sha256", secretKey).update(message).digest("hex");
+
+  return { datetime, signature };
+}
+
+// 쿠팡 광고 API 직접 호출 헬퍼
+async function coupangAdsRequest(method: string, path: string, query: string, accessKey: string, secretKey: string) {
+  const { datetime, signature } = generateCoupangAdsSignature(method, path, query, secretKey);
+  const authorization = `CEA algorithm=HmacSHA256, access-key=${accessKey}, signed-date=${datetime}, signature=${signature}`;
+
+  const url = `https://api-gateway.coupang.com${path}${query ? "?" + query : ""}`;
+  console.log(`[coupang-ads] ${method} ${path}`);
+
+  const response = await fetch(url, {
+    method,
     headers: {
-      "Content-Type": "application/json",
-      "x-api-key": PROXY_API_KEY,
+      Authorization: authorization,
+      "Content-Type": "application/json;charset=UTF-8",
     },
-    body: JSON.stringify({ customerId, apiKey, secretKey, startDate, endDate }),
   });
 
   const text = await response.text();
-  let result: any;
+  let data: any;
   try {
-    result = JSON.parse(text);
+    data = JSON.parse(text);
   } catch {
-    throw new Error(`NCP 프록시 응답 파싱 실패: ${text.substring(0, 200)}`);
+    throw new Error(`Coupang Ads API parse error (${response.status}): ${text.substring(0, 300)}`);
   }
 
-  if (!result.success) {
-    throw new Error(result.error || result.message || "네이버 GFA 리포트 조회 실패");
+  if (!response.ok) {
+    throw new Error(data.message || data.error || `Coupang Ads API error (${response.status})`);
   }
 
-  return result.data || [];
+  return data;
 }
 
-// 쿠팡 광고 - NCP 프록시 경유
+// 쿠팡 광고 - Netlify에서 직접 호출 (IP 제한 없음)
 async function fetchCoupangAdsReport(account: Record<string, unknown>, startDate: string, endDate: string) {
   const vendorId = account.coupang_ads_vendor_id as string;
   const accessKey = account.coupang_ads_access_key as string;
@@ -1533,28 +1701,57 @@ async function fetchCoupangAdsReport(account: Record<string, unknown>, startDate
     throw new Error("쿠팡 광고 계정 정보 부족: Vendor ID, Access Key, Secret Key가 필요합니다.");
   }
 
-  const response = await fetch(`${PROXY_URL}/api/ad/coupang-ads/report`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": PROXY_API_KEY,
-    },
-    body: JSON.stringify({ vendorId, accessKey, secretKey, startDate, endDate }),
-  });
+  // 일별 리포트 시도
+  const path = `/v2/providers/ads/vendors/${vendorId}/reports/daily`;
+  const query = `startDate=${startDate}&endDate=${endDate}`;
 
-  const text = await response.text();
-  let result: any;
+  let data: any;
   try {
-    result = JSON.parse(text);
-  } catch {
-    throw new Error(`NCP 프록시 응답 파싱 실패: ${text.substring(0, 200)}`);
+    data = await coupangAdsRequest("GET", path, query, accessKey, secretKey);
+  } catch (err: any) {
+    console.log(`[coupang-ads] Daily report failed: ${err.message}, trying campaigns...`);
+
+    // 대안: 캠페인 목록에서 통계 추출
+    try {
+      const campaignPath = `/v2/providers/ads/vendors/${vendorId}/campaigns`;
+      const campaignData = await coupangAdsRequest("GET", campaignPath, "", accessKey, secretKey);
+      const campaigns = campaignData.data || campaignData.content || [];
+
+      if (campaigns.length === 0) return [];
+
+      let totalSpend = 0, totalImpressions = 0, totalClicks = 0, totalConversions = 0, totalConversionValue = 0;
+      for (const c of campaigns) {
+        totalSpend += Number(c.budget) || Number(c.dailyBudget) || 0;
+        totalImpressions += Number(c.impressions) || 0;
+        totalClicks += Number(c.clicks) || 0;
+        totalConversions += Number(c.conversions) || 0;
+        totalConversionValue += Number(c.revenue) || 0;
+      }
+
+      return [{
+        date: startDate,
+        spend: totalSpend, impressions: totalImpressions, clicks: totalClicks,
+        conversions: totalConversions, conversionValue: totalConversionValue,
+        ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+        cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
+        roas: totalSpend > 0 ? (totalConversionValue / totalSpend) * 100 : 0,
+      }];
+    } catch {
+      throw new Error(`쿠팡 광고 리포트 조회 실패: ${err.message}`);
+    }
   }
 
-  if (!result.success) {
-    throw new Error(result.error || result.message || "쿠팡 광고 리포트 조회 실패");
-  }
-
-  return result.data || [];
+  return (data.data || data.content || []).map((item: any) => ({
+    date: item.date || item.reportDate || startDate,
+    spend: Number(item.cost) || Number(item.spend) || Number(item.adCost) || 0,
+    impressions: Number(item.impressions) || Number(item.impCnt) || 0,
+    clicks: Number(item.clicks) || Number(item.clkCnt) || 0,
+    conversions: Number(item.conversions) || Number(item.cvsCnt) || 0,
+    conversionValue: Number(item.revenue) || Number(item.salesAmt) || 0,
+    ctr: Number(item.ctr) || 0,
+    cpc: Number(item.cpc) || 0,
+    roas: Number(item.roas) || 0,
+  }));
 }
 
 // 광고비 동기화 메인 로직
