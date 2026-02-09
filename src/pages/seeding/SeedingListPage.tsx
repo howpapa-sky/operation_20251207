@@ -9,6 +9,7 @@ import {
   Trash2,
   ChevronDown,
   Users,
+  Calendar,
 } from 'lucide-react';
 import { useSeedingStore } from '../../store/seedingStore';
 import {
@@ -67,6 +68,8 @@ export default function SeedingListPage() {
   const [contentTypeFilter, setContentTypeFilter] = useState<ContentType | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [dateFilterStart, setDateFilterStart] = useState('');
+  const [dateFilterEnd, setDateFilterEnd] = useState('');
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkActions, setShowBulkActions] = useState(false);
@@ -167,17 +170,26 @@ export default function SeedingListPage() {
       // Search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
-        return (
-          inf.account_id.toLowerCase().includes(query) ||
-          inf.account_name?.toLowerCase().includes(query) ||
-          inf.email?.toLowerCase().includes(query)
-        );
+        if (
+          !inf.account_id.toLowerCase().includes(query) &&
+          !inf.account_name?.toLowerCase().includes(query) &&
+          !inf.email?.toLowerCase().includes(query)
+        ) {
+          return false;
+        }
+      }
+      // Date filter (listed_at 기준)
+      if (dateFilterStart || dateFilterEnd) {
+        const dateField = inf.listed_at || inf.created_at;
+        const dateStr = dateField.split('T')[0];
+        if (dateFilterStart && dateStr < dateFilterStart) return false;
+        if (dateFilterEnd && dateStr > dateFilterEnd) return false;
       }
       return true;
     });
-  }, [influencers, projectId, statusFilter, seedingTypeFilter, contentTypeFilter, searchQuery]);
+  }, [influencers, projectId, statusFilter, seedingTypeFilter, contentTypeFilter, searchQuery, dateFilterStart, dateFilterEnd]);
 
-  const hasActiveFilters = seedingTypeFilter !== 'all' || contentTypeFilter !== 'all' || searchQuery !== '';
+  const hasActiveFilters = seedingTypeFilter !== 'all' || contentTypeFilter !== 'all' || searchQuery !== '' || dateFilterStart !== '' || dateFilterEnd !== '';
 
   // Handlers
   const handleStatusChange = async (id: string, status: SeedingStatus) => {
@@ -267,6 +279,8 @@ export default function SeedingListPage() {
     setSeedingTypeFilter('all');
     setContentTypeFilter('all');
     setSearchQuery('');
+    setDateFilterStart('');
+    setDateFilterEnd('');
     setShowFilters(false);
   };
 
@@ -496,6 +510,31 @@ export default function SeedingListPage() {
           {/* Expanded Filters */}
           {showFilters && (
             <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t">
+              {/* Date Filter */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-500">날짜 범위</label>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">
+                    <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                    <input
+                      type="date"
+                      value={dateFilterStart}
+                      onChange={(e) => setDateFilterStart(e.target.value)}
+                      className="bg-transparent text-sm text-gray-700 border-none focus:outline-none w-[120px]"
+                    />
+                  </div>
+                  <span className="text-gray-400 text-sm">~</span>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">
+                    <input
+                      type="date"
+                      value={dateFilterEnd}
+                      onChange={(e) => setDateFilterEnd(e.target.value)}
+                      className="bg-transparent text-sm text-gray-700 border-none focus:outline-none w-[120px]"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Seeding Type Filter */}
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-gray-500">시딩 유형</label>
