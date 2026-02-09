@@ -68,26 +68,15 @@ export default function SeedingReportsPage() {
       filteredProjects = filteredProjects.filter((p) => p.id === selectedProjectId);
     }
 
-    // 날짜 필터: 인플루언서의 어떤 활동 날짜라도 범위 안에 있으면 포함
-    // (listed_at, contacted_at, accepted_at, posted_at, completed_at, created_at)
+    // 날짜 필터 (listed_at 우선, created_at 폴백)
     if (dateRange.start && dateRange.end) {
       const startStr = dateRange.start; // "YYYY-MM-DD"
       const endStr = dateRange.end;     // "YYYY-MM-DD"
 
       filteredInfluencers = filteredInfluencers.filter((i) => {
-        const dates = [
-          i.listed_at,
-          i.contacted_at,
-          i.accepted_at,
-          i.posted_at,
-          i.completed_at,
-          i.created_at,
-        ].filter(Boolean) as string[];
-
-        return dates.some((d) => {
-          const dateStr = d.split('T')[0];
-          return dateStr >= startStr && dateStr <= endStr;
-        });
+        const dateField = i.listed_at || i.created_at;
+        const dateStr = dateField.split('T')[0]; // "YYYY-MM-DD" 부분만 추출
+        return dateStr >= startStr && dateStr <= endStr;
       });
     }
 

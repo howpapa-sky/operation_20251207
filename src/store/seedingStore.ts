@@ -412,20 +412,27 @@ export const useSeedingStore = create<SeedingStore>()(
       fetchInfluencers: async (projectId) => {
         set({ isLoading: true, error: null });
         try {
+          // cursor-based pagination (id 기준)
+          // Supabase max_rows 제한으로 .range() offset이 무시될 수 있으므로
+          // id 기반 커서로 전체 데이터를 안정적으로 가져옴
           const allData: any[] = [];
           const pageSize = 1000;
-          let from = 0;
           let hasMore = true;
+          let lastId: string | null = null;
 
           while (hasMore) {
             let query = supabase
               .from('seeding_influencers')
               .select('*')
-              .order('created_at', { ascending: false })
-              .range(from, from + pageSize - 1);
+              .order('id', { ascending: true })
+              .limit(pageSize);
 
             if (projectId) {
               query = query.eq('project_id', projectId);
+            }
+
+            if (lastId) {
+              query = query.gt('id', lastId);
             }
 
             const { data, error } = await query;
@@ -437,7 +444,7 @@ export const useSeedingStore = create<SeedingStore>()(
             if (!data || data.length < pageSize) {
               hasMore = false;
             } else {
-              from += pageSize;
+              lastId = data[data.length - 1].id;
             }
           }
 
