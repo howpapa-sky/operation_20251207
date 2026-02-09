@@ -14,18 +14,18 @@ interface BrandStats {
 }
 
 type AlertType = 'warning' | 'critical';
-type Brand = 'howpapa' | 'nuccio';
+type Brand = 'howpapa' | 'nucio';
 
 // ========== KPI 목표 ==========
 const KPI_TARGETS = {
   howpapa: { listup: 100, acceptance: 15 },
-  nuccio: { listup: 100, acceptance: 15 },
+  nucio: { listup: 100, acceptance: 15 },
 };
 
 // ========== 브랜드별 채널 ID ==========
 const BRAND_CHANNEL_IDS: Record<Brand, string> = {
   howpapa: 'bd36a0be-28d2-0afe-d42e-293607b966cb',
-  nuccio: '7ba5ac6c-73fd-a63d-afc1-8950ce03b601',
+  nucio: '7ba5ac6c-73fd-a63d-afc1-8950ce03b601',
 };
 
 // ========== 유틸 함수 ==========
@@ -285,7 +285,7 @@ const alertHandler: Handler = async (event) => {
 
     console.log(`[KPI Alert] Starting... (type: ${alertType}, threshold: ${threshold * 100}%, test: ${isTest})`);
 
-    const brands: Brand[] = ['howpapa', 'nuccio'];
+    const brands: Brand[] = ['howpapa', 'nucio'];
     const results: any[] = [];
     const alertsSent: string[] = [];
 

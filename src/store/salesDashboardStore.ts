@@ -38,12 +38,12 @@ interface SalesDashboardState {
   error: string | null;
   selectedDateRange: DateRange;
   selectedChannel: SalesChannel | 'all';
-  selectedBrand: 'howpapa' | 'nuccio' | 'all';
+  selectedBrand: 'howpapa' | 'nucio' | 'all';
 
   // Actions
   setDateRange: (range: DateRange) => void;
   setSelectedChannel: (channel: SalesChannel | 'all') => void;
-  setSelectedBrand: (brand: 'howpapa' | 'nuccio' | 'all') => void;
+  setSelectedBrand: (brand: 'howpapa' | 'nucio' | 'all') => void;
   syncWithBrandStore: () => void; // Sync selectedBrand from brandStore
 
   fetchDashboardStats: (dateRange?: DateRange) => Promise<void>;
@@ -61,17 +61,17 @@ interface SalesDashboardState {
 }
 
 // 브랜드 추정 (brand_id 우선, product_name 패턴 매칭 폴백)
-function deriveBrand(productName: string | undefined, brandId?: string | null): 'howpapa' | 'nuccio' | undefined {
+function deriveBrand(productName: string | undefined, brandId?: string | null): 'howpapa' | 'nucio' | undefined {
   // 1. brand_id가 있으면 brands 테이블에서 코드 조회
   if (brandId) {
     const brand = useBrandStore.getState().getBrandById(brandId);
-    if (brand) return brand.code as 'howpapa' | 'nuccio';
+    if (brand) return brand.code as 'howpapa' | 'nucio';
   }
   // 2. 폴백: 상품명 패턴 매칭
   if (!productName) return undefined;
   const lower = productName.toLowerCase();
   if (lower.includes('하우파파') || lower.includes('howpapa')) return 'howpapa';
-  if (lower.includes('누치오') || lower.includes('누씨오') || lower.includes('nucio') || lower.includes('nuccio')) return 'nuccio';
+  if (lower.includes('누치오') || lower.includes('누씨오') || lower.includes('nucio') || lower.includes('nucio')) return 'nucio';
   return undefined;
 }
 
@@ -98,14 +98,14 @@ function enrichOrdersWithSKUCost(
 // orders_raw 레코드를 DailyChannelStats로 집계
 function aggregateOrdersByDateChannel(
   orders: Record<string, unknown>[],
-  brandFilter?: 'howpapa' | 'nuccio' | 'all'
+  brandFilter?: 'howpapa' | 'nucio' | 'all'
 ): DailyChannelStats[] {
   const map = new Map<
     string,
     {
       date: string;
       channel: SalesChannel;
-      brand?: 'howpapa' | 'nuccio';
+      brand?: 'howpapa' | 'nucio';
       orders: number;
       quantity: number;
       revenue: number;
@@ -183,7 +183,7 @@ function aggregateOrdersByDateChannel(
 function buildChannelSummaries(
   currentOrders: Record<string, unknown>[],
   previousOrders: Record<string, unknown>[],
-  brandFilter?: 'howpapa' | 'nuccio' | 'all'
+  brandFilter?: 'howpapa' | 'nucio' | 'all'
 ): ChannelSummaryWithComparison[] {
   const aggregate = (orders: Record<string, unknown>[]) => {
     const map = new Map<SalesChannel, {
@@ -338,7 +338,7 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
     const { selectedBrandId, getBrandById } = useBrandStore.getState();
     if (selectedBrandId) {
       const brand = getBrandById(selectedBrandId);
-      if (brand && (brand.code === 'howpapa' || brand.code === 'nuccio')) {
+      if (brand && (brand.code === 'howpapa' || brand.code === 'nucio')) {
         set({ selectedBrand: brand.code });
         get().fetchDashboardStats();
       }

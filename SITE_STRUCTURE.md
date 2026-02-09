@@ -1,8 +1,8 @@
-# Howpapa & Nuccio 운영 시스템 - 전체 구조 문서
+# Howpapa & Nucio 운영 시스템 - 전체 구조 문서
 
 > **최종 업데이트**: 2026-02-01
 > **프로젝트명**: operation_20251207
-> **목적**: 하우파파(howpapa)와 누치오(nuccio) 브랜드의 운영 관리 시스템
+> **목적**: 하우파파(howpapa)와 누치오(nucio) 브랜드의 운영 관리 시스템
 
 ---
 
@@ -45,7 +45,7 @@
 | 브랜드 | Primary Color | Hex Code |
 |--------|---------------|----------|
 | **howpapa** | `orange-500` | `#f97316` |
-| **nuccio** | `green-500` | `#22c55e` |
+| **nucio** | `green-500` | `#22c55e` |
 
 ---
 
@@ -438,7 +438,7 @@ interface User {
 ### 6.2 브랜드 및 제품
 
 ```typescript
-type Brand = 'howpapa' | 'nuccio';
+type Brand = 'howpapa' | 'nucio';
 
 type ProductCategory =
   | 'shampoo' | 'treatment' | 'essence'
@@ -532,7 +532,7 @@ interface SeedingInfluencer {
 ### 6.5 개발요청
 
 ```typescript
-type DevRequestBrand = 'howpapa' | 'nuccio' | 'common';
+type DevRequestBrand = 'howpapa' | 'nucio' | 'common';
 type DevRequestType = 'feature' | 'ui' | 'bug' | 'other';
 type DevRequestPriority = 'urgent' | 'high' | 'normal' | 'low';
 type DevRequestStatus = 'pending' | 'in_progress' | 'completed' | 'on_hold';
@@ -891,7 +891,7 @@ import { cn } from "@/lib/utils";
 | Zustand 스토어 | 11개 |
 | Netlify Functions | 9개 |
 | DB 테이블 | 14개 |
-| 지원 브랜드 | 2개 (howpapa, nuccio) |
+| 지원 브랜드 | 2개 (howpapa, nucio) |
 | 프로젝트 타입 | 6개 |
 | 시딩 상태 | 8개 |
 

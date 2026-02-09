@@ -15,13 +15,13 @@ interface BrandStats {
 
 interface DailyStats {
   howpapa: BrandStats;
-  nuccio: BrandStats;
+  nucio: BrandStats;
 }
 
 // ========== KPI 목표 ==========
 const KPI_TARGETS = {
   howpapa: { listup: 100, acceptance: 15 },
-  nuccio: { listup: 100, acceptance: 15 },
+  nucio: { listup: 100, acceptance: 15 },
 };
 
 // ========== 유틸 함수 ==========
@@ -64,8 +64,8 @@ async function getTodayStats(): Promise<DailyStats> {
   const howpapaProjectIds = (projects || [])
     .filter((p) => p.brand === 'howpapa')
     .map((p) => p.id);
-  const nuccioProjectIds = (projects || [])
-    .filter((p) => p.brand === 'nuccio')
+  const nucioProjectIds = (projects || [])
+    .filter((p) => p.brand === 'nucio')
     .map((p) => p.id);
 
   // 오늘의 인플루언서 데이터 조회
@@ -90,14 +90,14 @@ async function getTodayStats(): Promise<DailyStats> {
              (acceptedStatuses.includes(inf.status) && inf.accepted_at?.startsWith(today))
   ).length;
 
-  // NUCCIO 통계
-  const nuccioInfluencers = allInfluencers.filter((inf) =>
-    nuccioProjectIds.includes(inf.project_id)
+  // NUCIO 통계
+  const nucioInfluencers = allInfluencers.filter((inf) =>
+    nucioProjectIds.includes(inf.project_id)
   );
-  const nuccioListup = nuccioInfluencers.filter((inf) =>
+  const nucioListup = nucioInfluencers.filter((inf) =>
     inf.listed_at?.startsWith(today)
   ).length;
-  const nuccioAccepted = nuccioInfluencers.filter(
+  const nucioAccepted = nucioInfluencers.filter(
     (inf) => inf.accepted_at?.startsWith(today) ||
              (acceptedStatuses.includes(inf.status) && inf.accepted_at?.startsWith(today))
   ).length;
@@ -107,9 +107,9 @@ async function getTodayStats(): Promise<DailyStats> {
       listup: { actual: howpapaListup, target: KPI_TARGETS.howpapa.listup },
       acceptance: { actual: howpapaAccepted, target: KPI_TARGETS.howpapa.acceptance },
     },
-    nuccio: {
-      listup: { actual: nuccioListup, target: KPI_TARGETS.nuccio.listup },
-      acceptance: { actual: nuccioAccepted, target: KPI_TARGETS.nuccio.acceptance },
+    nucio: {
+      listup: { actual: nucioListup, target: KPI_TARGETS.nucio.listup },
+      acceptance: { actual: nucioAccepted, target: KPI_TARGETS.nucio.acceptance },
     },
   };
 }
@@ -120,7 +120,7 @@ function formatDailyReport(stats: DailyStats): string {
   const today = new Date();
   const dateStr = formatKoreanDate(today);
 
-  const formatBrandStats = (brand: 'HOWPAPA' | 'NUCCIO', data: BrandStats) => {
+  const formatBrandStats = (brand: 'HOWPAPA' | 'NUCIO', data: BrandStats) => {
     const listupPct = Math.round((data.listup.actual / data.listup.target) * 100);
     const acceptPct = Math.round((data.acceptance.actual / data.acceptance.target) * 100);
 
@@ -133,20 +133,20 @@ function formatDailyReport(stats: DailyStats): string {
   const totalActual =
     stats.howpapa.listup.actual +
     stats.howpapa.acceptance.actual +
-    stats.nuccio.listup.actual +
-    stats.nuccio.acceptance.actual;
+    stats.nucio.listup.actual +
+    stats.nucio.acceptance.actual;
   const totalTarget =
     stats.howpapa.listup.target +
     stats.howpapa.acceptance.target +
-    stats.nuccio.listup.target +
-    stats.nuccio.acceptance.target;
+    stats.nucio.listup.target +
+    stats.nucio.acceptance.target;
   const overallPct = Math.round((totalActual / totalTarget) * 100);
 
   return `📊 [일일 시딩 리포트] ${dateStr}
 
 ${formatBrandStats('HOWPAPA', stats.howpapa)}
 
-${formatBrandStats('NUCCIO', stats.nuccio)}
+${formatBrandStats('NUCIO', stats.nucio)}
 
 📈 종합 달성률: ${overallPct}%
 

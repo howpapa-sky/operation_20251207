@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS product_guides (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   product_id UUID REFERENCES products(id) ON DELETE SET NULL,
   product_name VARCHAR(200) NOT NULL,
-  brand VARCHAR(20) NOT NULL CHECK (brand IN ('howpapa', 'nuccio')),
+  brand VARCHAR(20) NOT NULL CHECK (brand IN ('howpapa', 'nucio')),
   content_type VARCHAR(20) DEFAULT 'both' CHECK (content_type IN ('story', 'reels', 'feed', 'both')),
 
   -- 가이드 내용
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS product_guides (
 CREATE TABLE IF NOT EXISTS seeding_projects (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name VARCHAR(200) NOT NULL,
-  brand VARCHAR(20) NOT NULL CHECK (brand IN ('howpapa', 'nuccio')),
+  brand VARCHAR(20) NOT NULL CHECK (brand IN ('howpapa', 'nucio')),
   product_id UUID REFERENCES products(id) ON DELETE SET NULL,
   product_name VARCHAR(200),
 
@@ -143,7 +143,7 @@ CREATE TABLE IF NOT EXISTS outreach_templates (
   content TEXT NOT NULL,
   seeding_type VARCHAR(10) DEFAULT 'all' CHECK (seeding_type IN ('free', 'paid', 'all')),
   content_type VARCHAR(20) DEFAULT 'all' CHECK (content_type IN ('story', 'reels', 'feed', 'both', 'all')),
-  brand VARCHAR(20) DEFAULT 'all' CHECK (brand IN ('howpapa', 'nuccio', 'all')),
+  brand VARCHAR(20) DEFAULT 'all' CHECK (brand IN ('howpapa', 'nucio', 'all')),
   variables TEXT[] DEFAULT '{}',
   usage_count INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),

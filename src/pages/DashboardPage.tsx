@@ -86,7 +86,7 @@ export default function DashboardPage() {
 
   // 오늘의 시딩 통계
   const howpapaStats = useMemo(() => getTodayStats('howpapa'), [getTodayStats]);
-  const nucioStats = useMemo(() => getTodayStats('nuccio'), [getTodayStats]);
+  const nucioStats = useMemo(() => getTodayStats('nucio'), [getTodayStats]);
 
   // 오늘 날짜
   const todayString = useMemo(() => {

@@ -52,7 +52,7 @@ export default function OutreachTemplateCard({
     if (template.brand === 'howpapa') {
       return 'bg-orange-100 text-orange-700';
     }
-    if (template.brand === 'nuccio') {
+    if (template.brand === 'nucio') {
       return 'bg-green-100 text-green-700';
     }
     return 'bg-gray-100 text-gray-700';
@@ -60,7 +60,7 @@ export default function OutreachTemplateCard({
 
   const getBrandLabel = () => {
     if (template.brand === 'howpapa') return '🧡 하우파파';
-    if (template.brand === 'nuccio') return '💚 누씨오';
+    if (template.brand === 'nucio') return '💚 누씨오';
     return '전체 브랜드';
   };
 

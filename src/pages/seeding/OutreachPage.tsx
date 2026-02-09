@@ -129,7 +129,7 @@ export default function OutreachPage() {
       return new Intl.NumberFormat('ko-KR').format(value) + '원';
     };
 
-    const brandName = project?.brand === 'howpapa' ? '하우파파' : project?.brand === 'nuccio' ? '누씨오' : '';
+    const brandName = project?.brand === 'howpapa' ? '하우파파' : project?.brand === 'nucio' ? '누씨오' : '';
 
     const values: Record<string, string | number | undefined> = {
       account_id: '@' + influencer.account_id.replace('@', ''),
@@ -290,9 +290,9 @@ export default function OutreachPage() {
                   하우파파
                 </button>
                 <button
-                  onClick={() => setBrandFilter('nuccio')}
+                  onClick={() => setBrandFilter('nucio')}
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    brandFilter === 'nuccio'
+                    brandFilter === 'nucio'
                       ? 'bg-green-500 text-white'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
