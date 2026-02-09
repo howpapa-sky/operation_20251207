@@ -220,13 +220,17 @@ export const useAdAccountStore = create<AdAccountState>((set, get) => ({
         return { success: false, message: `필수 항목 누락: ${missingFields.join(', ')}` };
       }
 
-      // 실제 API 연결 테스트: 최근 1일 데이터 동기화 시도
+      // 실제 API 연결 테스트: 최근 7일 데이터 동기화 시도
       const { selectedBrandId } = useBrandStore.getState();
       if (!selectedBrandId) {
         return { success: false, message: '브랜드를 선택해주세요.' };
       }
 
-      const today = new Date().toISOString().split('T')[0];
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 6);
+      const fmtDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
       const response = await fetch('/.netlify/functions/commerce-proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -234,8 +238,8 @@ export const useAdAccountStore = create<AdAccountState>((set, get) => ({
           action: 'ad-sync',
           platform,
           brandId: selectedBrandId,
-          startDate: today,
-          endDate: today,
+          startDate: fmtDate(startDate),
+          endDate: fmtDate(endDate),
         }),
       });
 

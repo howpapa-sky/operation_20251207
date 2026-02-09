@@ -869,6 +869,8 @@ export default function MultiBrandDashboard() {
 
   // 브랜드 ID → code 매핑 (sync에서 사용)
   const [brandMap, setBrandMap] = useState<{ id: string; code: string }[]>([]);
+  // 브랜드별 설정된 플랫폼 (sync에서 brand별로 맞는 플랫폼만 호출)
+  const [brandPlatformConfig, setBrandPlatformConfig] = useState<Record<string, string[]>>({});
 
   const fetchStats = useCallback(async (range: DateRange) => {
     setIsLoading(true);
@@ -1001,9 +1003,11 @@ export default function MultiBrandDashboard() {
       try {
         const brandAdData: Record<string, Map<string, number>> = {};
         const configuredPlatforms = new Set<string>();
+        const perBrandConfig: Record<string, string[]> = {};
 
         for (const brand of brands) {
           brandAdData[brand.code] = new Map();
+          const brandConfiguredList: string[] = [];
 
           const { data: adAccounts, error: adAccountsErr } = await (supabase as any)
             .from('ad_accounts').select('platform, is_active').eq('brand_id', brand.id);
@@ -1011,9 +1015,13 @@ export default function MultiBrandDashboard() {
             console.warn(`[ad] ad_accounts 조회 실패 (${brand.code}):`, adAccountsErr.message);
           } else if (adAccounts) {
             for (const a of adAccounts) {
-              if (a.is_active) configuredPlatforms.add(a.platform);
+              if (a.is_active) {
+                configuredPlatforms.add(a.platform);
+                brandConfiguredList.push(a.platform);
+              }
             }
           }
+          perBrandConfig[brand.id] = brandConfiguredList;
 
           const { data: adSpend, error: adSpendErr } = await (supabase as any)
             .from('ad_spend_daily').select('platform, spend')
@@ -1022,13 +1030,18 @@ export default function MultiBrandDashboard() {
           if (adSpendErr) {
             console.warn(`[ad] ad_spend_daily 조회 실패 (${brand.code}):`, adSpendErr.message);
           } else if (adSpend) {
+            console.log(`[ad] ${brand.code}: ad_spend_daily ${adSpend.length}건 조회됨`, adSpend);
             for (const row of adSpend) {
               const p = row.platform as string;
               const map = brandAdData[brand.code];
               map.set(p, (map.get(p) || 0) + (Number(row.spend) || 0));
             }
+          } else {
+            console.log(`[ad] ${brand.code}: ad_spend_daily 0건 (빈 결과)`);
           }
         }
+
+        setBrandPlatformConfig(perBrandConfig);
 
         adPlatformRows = Object.entries(AD_PLATFORM_LABELS).map(([platform, label]) => ({
           platform,
@@ -1128,14 +1141,17 @@ export default function MultiBrandDashboard() {
     let failCount = 0;
     const errors: string[] = [];
 
-    // 각 브랜드 × 연동된 플랫폼 조합으로 동기화
+    // 각 브랜드별 실제 설정된 플랫폼만 동기화
     const syncTasks: Promise<void>[] = [];
 
     for (const brand of brandMap) {
-      for (const platform of configuredPlatforms) {
+      const brandPlatforms = brandPlatformConfig[brand.id] || [];
+      for (const platformKey of brandPlatforms) {
+        const platformInfo = configuredPlatforms.find((p) => p.platform === platformKey);
+        if (!platformInfo) continue;
         syncTasks.push(
           syncAdSpend(
-            platform.platform as AdPlatform,
+            platformKey as AdPlatform,
             brand.id,
             dateRange.start,
             dateRange.end
@@ -1144,11 +1160,17 @@ export default function MultiBrandDashboard() {
               successCount++;
             } else {
               failCount++;
-              errors.push(`${platform.label}: ${result.message}`);
+              errors.push(`${platformInfo.label}: ${result.message}`);
             }
           })
         );
       }
+    }
+
+    if (syncTasks.length === 0) {
+      setAdSyncMessage('동기화할 광고 플랫폼이 없습니다.');
+      setIsAdSyncing(false);
+      return;
     }
 
     await Promise.all(syncTasks);
@@ -1168,16 +1190,14 @@ export default function MultiBrandDashboard() {
 
     // 5초 후 메시지 제거
     setTimeout(() => setAdSyncMessage(''), 5000);
-  }, [isAdSyncing, brandMap, adPlatforms, dateRange, fetchStats]);
+  }, [isAdSyncing, brandMap, brandPlatformConfig, adPlatforms, dateRange, fetchStats]);
 
-  // 대시보드 로드 시 연동된 광고 계정이 있으면 자동 동기화
+  // 대시보드 로드 시 연동된 광고 계정이 있으면 자동 동기화 (항상 최초 1회 실행)
   const [autoSynced, setAutoSynced] = useState(false);
   useEffect(() => {
     if (autoSynced || isLoading || brandMap.length === 0) return;
     const configured = adPlatforms.filter((p) => p.isConfigured);
     if (configured.length === 0) return;
-    const hasData = configured.some((p) => p.total > 0);
-    if (hasData) return;
 
     setAutoSynced(true);
     handleAdSync();
