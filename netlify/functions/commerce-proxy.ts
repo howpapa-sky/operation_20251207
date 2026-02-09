@@ -21,7 +21,8 @@ interface CommerceProxyRequest {
   action:
     | "naver_token" | "naver_api" | "proxy"
     | "test-connection" | "sync-orders"
-    | "cafe24-auth-url" | "cafe24-exchange-token" | "cafe24-init-oauth" | "cafe24-complete-oauth";
+    | "cafe24-auth-url" | "cafe24-exchange-token" | "cafe24-init-oauth" | "cafe24-complete-oauth"
+    | "ad-sync";
   // Brand (multi-brand support)
   brandId?: string;
   // Naver token
@@ -44,6 +45,8 @@ interface CommerceProxyRequest {
   mallId?: string;
   code?: string;
   redirectUri?: string;
+  // Ad sync
+  platform?: string;
 }
 
 // ========== 주문 동기화 타입 ==========
@@ -1376,6 +1379,293 @@ async function syncCoupangOrders(params: { startDate: string; endDate: string; b
   };
 }
 
+// ========== 광고비 동기화 (Ad Spend Sync) ==========
+
+// 광고 계정 자격증명 조회
+async function getAdAccountCredentials(brandId: string, platform: string) {
+  const { data, error } = await supabase
+    .from("ad_accounts")
+    .select("*")
+    .eq("brand_id", brandId)
+    .eq("platform", platform)
+    .eq("is_active", true)
+    .single();
+
+  if (error || !data) {
+    throw new Error(`${platform} 광고 계정이 설정되지 않았거나 비활성 상태입니다.`);
+  }
+  return data;
+}
+
+// Meta Marketing API - 일별 광고비 조회 (Netlify에서 직접 호출, IP 제한 없음)
+async function fetchMetaAdInsights(account: Record<string, unknown>, startDate: string, endDate: string) {
+  const accessToken = account.meta_access_token as string;
+  const adAccountId = account.meta_ad_account_id as string;
+
+  if (!accessToken || !adAccountId) {
+    throw new Error("Meta 광고 계정 정보 부족: Access Token, Ad Account ID가 필요합니다.");
+  }
+
+  // act_ 접두사 정리
+  const cleanId = adAccountId.replace(/^act_/, "");
+
+  const params = new URLSearchParams({
+    time_range: JSON.stringify({ since: startDate, until: endDate }),
+    time_increment: "1",
+    fields: "spend,impressions,clicks,ctr,cpc,actions,action_values",
+    access_token: accessToken,
+  });
+
+  const response = await fetch(
+    `https://graph.facebook.com/v19.0/act_${cleanId}/insights?${params}`
+  );
+  const data = await response.json();
+
+  if (data.error) {
+    throw new Error(`Meta API 오류: ${data.error.message || JSON.stringify(data.error)}`);
+  }
+
+  // 일별 데이터 파싱
+  return ((data as any).data || []).map((item: any) => {
+    // actions에서 conversion 추출
+    const actions = item.actions || [];
+    const conversions = actions
+      .filter((a: any) => a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase")
+      .reduce((sum: number, a: any) => sum + (parseInt(a.value) || 0), 0);
+
+    // action_values에서 conversion_value 추출
+    const actionValues = item.action_values || [];
+    const conversionValue = actionValues
+      .filter((a: any) => a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase")
+      .reduce((sum: number, a: any) => sum + (parseFloat(a.value) || 0), 0);
+
+    const spend = parseFloat(item.spend) || 0;
+
+    return {
+      date: item.date_start,
+      spend,
+      impressions: parseInt(item.impressions) || 0,
+      clicks: parseInt(item.clicks) || 0,
+      ctr: parseFloat(item.ctr) || 0,
+      cpc: parseFloat(item.cpc) || 0,
+      conversions,
+      conversionValue,
+      roas: spend > 0 ? (conversionValue / spend) * 100 : 0,
+    };
+  });
+}
+
+// 네이버 검색광고 - NCP 프록시 경유
+async function fetchNaverSAReport(account: Record<string, unknown>, startDate: string, endDate: string) {
+  const customerId = account.naver_customer_id as string;
+  const apiKey = account.naver_api_key as string;
+  const secretKey = account.naver_secret_key as string;
+
+  if (!customerId || !apiKey || !secretKey) {
+    throw new Error("네이버 검색광고 계정 정보 부족: Customer ID, API Key, Secret Key가 필요합니다.");
+  }
+
+  const response = await fetch(`${PROXY_URL}/api/ad/naver-sa/report`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": PROXY_API_KEY,
+    },
+    body: JSON.stringify({ customerId, apiKey, secretKey, startDate, endDate }),
+  });
+
+  const text = await response.text();
+  let result: any;
+  try {
+    result = JSON.parse(text);
+  } catch {
+    throw new Error(`NCP 프록시 응답 파싱 실패: ${text.substring(0, 200)}`);
+  }
+
+  if (!result.success) {
+    throw new Error(result.error || result.message || "네이버 검색광고 리포트 조회 실패");
+  }
+
+  return result.data || [];
+}
+
+// 네이버 GFA - NCP 프록시 경유
+async function fetchNaverGFAReport(account: Record<string, unknown>, startDate: string, endDate: string) {
+  const customerId = account.naver_gfa_customer_id as string;
+  const apiKey = account.naver_gfa_api_key as string;
+  const secretKey = account.naver_gfa_secret_key as string;
+
+  if (!customerId || !apiKey || !secretKey) {
+    throw new Error("네이버 GFA 계정 정보 부족: Customer ID, API Key, Secret Key가 필요합니다.");
+  }
+
+  const response = await fetch(`${PROXY_URL}/api/ad/naver-gfa/report`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": PROXY_API_KEY,
+    },
+    body: JSON.stringify({ customerId, apiKey, secretKey, startDate, endDate }),
+  });
+
+  const text = await response.text();
+  let result: any;
+  try {
+    result = JSON.parse(text);
+  } catch {
+    throw new Error(`NCP 프록시 응답 파싱 실패: ${text.substring(0, 200)}`);
+  }
+
+  if (!result.success) {
+    throw new Error(result.error || result.message || "네이버 GFA 리포트 조회 실패");
+  }
+
+  return result.data || [];
+}
+
+// 쿠팡 광고 - NCP 프록시 경유
+async function fetchCoupangAdsReport(account: Record<string, unknown>, startDate: string, endDate: string) {
+  const vendorId = account.coupang_ads_vendor_id as string;
+  const accessKey = account.coupang_ads_access_key as string;
+  const secretKey = account.coupang_ads_secret_key as string;
+
+  if (!vendorId || !accessKey || !secretKey) {
+    throw new Error("쿠팡 광고 계정 정보 부족: Vendor ID, Access Key, Secret Key가 필요합니다.");
+  }
+
+  const response = await fetch(`${PROXY_URL}/api/ad/coupang-ads/report`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": PROXY_API_KEY,
+    },
+    body: JSON.stringify({ vendorId, accessKey, secretKey, startDate, endDate }),
+  });
+
+  const text = await response.text();
+  let result: any;
+  try {
+    result = JSON.parse(text);
+  } catch {
+    throw new Error(`NCP 프록시 응답 파싱 실패: ${text.substring(0, 200)}`);
+  }
+
+  if (!result.success) {
+    throw new Error(result.error || result.message || "쿠팡 광고 리포트 조회 실패");
+  }
+
+  return result.data || [];
+}
+
+// 광고비 동기화 메인 로직
+async function syncAdSpend(params: {
+  platform: string;
+  brandId: string;
+  startDate: string;
+  endDate: string;
+}) {
+  const { platform, brandId, startDate, endDate } = params;
+
+  console.log(`[ad-sync] platform=${platform} brand=${brandId} ${startDate}~${endDate}`);
+
+  // 1. 광고 계정 자격증명 조회
+  const account = await getAdAccountCredentials(brandId, platform);
+
+  // 2. sync_status를 syncing으로 업데이트
+  await supabase
+    .from("ad_accounts")
+    .update({ sync_status: "syncing", sync_error: null })
+    .eq("id", account.id);
+
+  // 3. 플랫폼별 API 호출
+  let dailyData: any[];
+
+  try {
+    switch (platform) {
+      case "meta":
+        dailyData = await fetchMetaAdInsights(account, startDate, endDate);
+        break;
+      case "naver_sa":
+        dailyData = await fetchNaverSAReport(account, startDate, endDate);
+        break;
+      case "naver_gfa":
+        dailyData = await fetchNaverGFAReport(account, startDate, endDate);
+        break;
+      case "coupang_ads":
+        dailyData = await fetchCoupangAdsReport(account, startDate, endDate);
+        break;
+      default:
+        throw new Error(`${platform}은 아직 지원되지 않는 광고 플랫폼입니다.`);
+    }
+  } catch (apiError: any) {
+    // API 호출 실패 시 sync_status 업데이트
+    await supabase
+      .from("ad_accounts")
+      .update({
+        sync_status: "failed",
+        sync_error: apiError.message,
+      })
+      .eq("id", account.id);
+    throw apiError;
+  }
+
+  // 4. ad_spend_daily에 upsert
+  let recordsUpserted = 0;
+
+  if (dailyData.length > 0) {
+    const rows = dailyData.map((d: any) => ({
+      brand_id: brandId,
+      date: d.date,
+      platform,
+      spend: d.spend || 0,
+      impressions: d.impressions || 0,
+      clicks: d.clicks || 0,
+      conversions: d.conversions || 0,
+      conversion_value: d.conversionValue || 0,
+      ctr: d.ctr || 0,
+      cpc: d.cpc || 0,
+      roas: d.roas || 0,
+      synced_at: new Date().toISOString(),
+    }));
+
+    // 청크 upsert (200건씩)
+    const CHUNK = 200;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const chunk = rows.slice(i, i + CHUNK);
+      const { error: upsertError, data: upsertData } = await supabase
+        .from("ad_spend_daily")
+        .upsert(chunk, { onConflict: "brand_id,date,platform" })
+        .select("id");
+
+      if (upsertError) {
+        console.error("[ad-sync] upsert error:", upsertError);
+        throw new Error(`광고비 데이터 저장 오류: ${upsertError.message}`);
+      }
+      recordsUpserted += upsertData?.length || chunk.length;
+    }
+  }
+
+  // 5. sync_status 업데이트
+  await supabase
+    .from("ad_accounts")
+    .update({
+      sync_status: "success",
+      sync_error: null,
+      last_sync_at: new Date().toISOString(),
+    })
+    .eq("id", account.id);
+
+  console.log(`[ad-sync] Complete: ${recordsUpserted} records upserted`);
+
+  return {
+    success: true,
+    platform,
+    message: `${platform} 광고비 ${dailyData.length}일 데이터 동기화 완료`,
+    recordsCreated: recordsUpserted,
+    dateRange: { start: startDate, end: endDate },
+  };
+}
+
 // ========== Handler ==========
 const handler: Handler = async (
   event: HandlerEvent,
@@ -1765,6 +2055,46 @@ const handler: Handler = async (
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           body: JSON.stringify(result),
         };
+      }
+
+      // ===== 광고비 동기화 =====
+      case "ad-sync": {
+        const adPlatform = request.platform || request.channel;
+
+        if (!adPlatform || !request.brandId || !request.startDate || !request.endDate) {
+          return {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({
+              success: false,
+              error: "platform, brandId, startDate, endDate are required",
+            }),
+          };
+        }
+
+        try {
+          const adResult = await syncAdSpend({
+            platform: adPlatform,
+            brandId: request.brandId,
+            startDate: request.startDate,
+            endDate: request.endDate,
+          });
+
+          return {
+            statusCode: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify(adResult),
+          };
+        } catch (adError: any) {
+          return {
+            statusCode: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              success: false,
+              error: adError.message || "광고비 동기화 실패",
+            }),
+          };
+        }
       }
 
       default:

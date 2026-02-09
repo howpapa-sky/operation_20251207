@@ -2,11 +2,14 @@
  * 광고 비용 데이터 동기화 서비스
  *
  * 지원 플랫폼:
- * - Meta Ads (Facebook/Instagram)
- * - 네이버 검색광고
+ * - Meta Ads (Facebook/Instagram) - Netlify에서 직접 호출
+ * - 네이버 검색광고 - NCP 프록시 경유
+ * - 네이버 GFA - NCP 프록시 경유
+ * - 쿠팡 광고 - NCP 프록시 경유
  *
- * 실제 API 호출은 NCP 프록시 서버를 경유합니다.
- * 프록시 서버에 광고 API 엔드포인트 구현 후 활성화됩니다.
+ * 데이터 플로우:
+ * 프론트엔드 → commerce-proxy (Netlify Function) → ad_spend_daily (DB)
+ * commerce-proxy가 자격증명 조회, API 호출, DB 저장을 모두 처리합니다.
  */
 
 import { supabase } from '../lib/supabase';
@@ -30,214 +33,9 @@ export interface AdSyncResult {
 }
 
 /**
- * Meta Ads 광고비 동기화
+ * 플랫폼별 광고 동기화 (commerce-proxy 경유)
  *
- * Meta Marketing API를 통해 일별 광고비 데이터를 가져옵니다.
- * API: GET /v19.0/act_{ad_account_id}/insights
- */
-export async function syncMetaAds(
-  brandId: string,
-  startDate: string,
-  endDate: string,
-  callback?: AdSyncProgressCallback
-): Promise<AdSyncResult> {
-  try {
-    callback?.onProgress('Meta Ads 데이터 조회 중...', 10);
-
-    // NCP 프록시 서버를 통한 Meta Ads API 호출
-    // 프록시 서버에 /api/meta/insights 엔드포인트 구현 필요
-    const response = await fetch('/.netlify/functions/commerce-proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'ad-sync',
-        platform: 'meta',
-        brandId,
-        startDate,
-        endDate,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!result.success) {
-      const errorMsg = result.error || 'Meta Ads 동기화 실패';
-      callback?.onError(errorMsg);
-      return {
-        success: false,
-        platform: 'meta',
-        message: errorMsg,
-        recordsCreated: 0,
-        recordsUpdated: 0,
-        dateRange: { start: startDate, end: endDate },
-      };
-    }
-
-    // 결과 데이터를 ad_spend_daily에 upsert
-    const records = result.data || [];
-    callback?.onProgress(`${records.length}개 레코드 저장 중...`, 70);
-
-    let created = 0;
-    let updated = 0;
-
-    for (const record of records) {
-      const { error } = await (supabase as any)
-        .from('ad_spend_daily')
-        .upsert({
-          brand_id: brandId,
-          date: record.date,
-          platform: 'meta',
-          spend: record.spend || 0,
-          impressions: record.impressions || 0,
-          clicks: record.clicks || 0,
-          conversions: record.conversions || 0,
-          conversion_value: record.conversionValue || 0,
-          ctr: record.ctr || 0,
-          cpc: record.cpc || 0,
-          roas: record.roas || 0,
-          raw_data: record.rawData || null,
-          synced_at: new Date().toISOString(),
-        }, {
-          onConflict: 'brand_id,date,platform',
-        });
-
-      if (!error) {
-        created++;
-      }
-    }
-
-    callback?.onProgress('완료', 100);
-
-    const syncResult: AdSyncResult = {
-      success: true,
-      platform: 'meta',
-      message: `Meta Ads ${records.length}일 데이터 동기화 완료`,
-      recordsCreated: created,
-      recordsUpdated: updated,
-      dateRange: { start: startDate, end: endDate },
-    };
-
-    callback?.onComplete(syncResult);
-    return syncResult;
-  } catch (error) {
-    const errorMsg = `Meta Ads 동기화 오류: ${(error as Error).message}`;
-    callback?.onError(errorMsg);
-    return {
-      success: false,
-      platform: 'meta',
-      message: errorMsg,
-      recordsCreated: 0,
-      recordsUpdated: 0,
-      dateRange: { start: startDate, end: endDate },
-    };
-  }
-}
-
-/**
- * 네이버 검색광고 광고비 동기화
- *
- * 네이버 검색광고 API를 통해 일별 광고비 데이터를 가져옵니다.
- * API: GET /stats
- */
-export async function syncNaverSearchAds(
-  brandId: string,
-  startDate: string,
-  endDate: string,
-  callback?: AdSyncProgressCallback
-): Promise<AdSyncResult> {
-  try {
-    callback?.onProgress('네이버 검색광고 데이터 조회 중...', 10);
-
-    // NCP 프록시 서버를 통한 네이버 검색광고 API 호출
-    // 프록시 서버에 /api/naver-sa/stats 엔드포인트 구현 필요
-    const response = await fetch('/.netlify/functions/commerce-proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'ad-sync',
-        platform: 'naver_sa',
-        brandId,
-        startDate,
-        endDate,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!result.success) {
-      const errorMsg = result.error || '네이버 검색광고 동기화 실패';
-      callback?.onError(errorMsg);
-      return {
-        success: false,
-        platform: 'naver_sa',
-        message: errorMsg,
-        recordsCreated: 0,
-        recordsUpdated: 0,
-        dateRange: { start: startDate, end: endDate },
-      };
-    }
-
-    const records = result.data || [];
-    callback?.onProgress(`${records.length}개 레코드 저장 중...`, 70);
-
-    let created = 0;
-    let updated = 0;
-
-    for (const record of records) {
-      const { error } = await (supabase as any)
-        .from('ad_spend_daily')
-        .upsert({
-          brand_id: brandId,
-          date: record.date,
-          platform: 'naver_sa',
-          spend: record.spend || 0,
-          impressions: record.impressions || 0,
-          clicks: record.clicks || 0,
-          conversions: record.conversions || 0,
-          conversion_value: record.conversionValue || 0,
-          ctr: record.ctr || 0,
-          cpc: record.cpc || 0,
-          roas: record.roas || 0,
-          raw_data: record.rawData || null,
-          synced_at: new Date().toISOString(),
-        }, {
-          onConflict: 'brand_id,date,platform',
-        });
-
-      if (!error) {
-        created++;
-      }
-    }
-
-    callback?.onProgress('완료', 100);
-
-    const syncResult: AdSyncResult = {
-      success: true,
-      platform: 'naver_sa',
-      message: `네이버 검색광고 ${records.length}일 데이터 동기화 완료`,
-      recordsCreated: created,
-      recordsUpdated: updated,
-      dateRange: { start: startDate, end: endDate },
-    };
-
-    callback?.onComplete(syncResult);
-    return syncResult;
-  } catch (error) {
-    const errorMsg = `네이버 검색광고 동기화 오류: ${(error as Error).message}`;
-    callback?.onError(errorMsg);
-    return {
-      success: false,
-      platform: 'naver_sa',
-      message: errorMsg,
-      recordsCreated: 0,
-      recordsUpdated: 0,
-      dateRange: { start: startDate, end: endDate },
-    };
-  }
-}
-
-/**
- * 플랫폼별 광고 동기화 디스패처
+ * commerce-proxy가 자격증명 조회 → API 호출 → ad_spend_daily upsert를 모두 처리합니다.
  */
 export async function syncAdSpend(
   platform: AdPlatform,
@@ -246,20 +44,69 @@ export async function syncAdSpend(
   endDate: string,
   callback?: AdSyncProgressCallback
 ): Promise<AdSyncResult> {
-  switch (platform) {
-    case 'meta':
-      return syncMetaAds(brandId, startDate, endDate, callback);
-    case 'naver_sa':
-      return syncNaverSearchAds(brandId, startDate, endDate, callback);
-    default:
+  const platformLabels: Record<string, string> = {
+    meta: 'Meta (FB/IG)',
+    naver_sa: '네이버 검색광고',
+    naver_gfa: '네이버 GFA',
+    coupang_ads: '쿠팡 광고',
+  };
+
+  const label = platformLabels[platform] || platform;
+
+  try {
+    callback?.onProgress(`${label} 데이터 동기화 중...`, 20);
+
+    const response = await fetch('/.netlify/functions/commerce-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'ad-sync',
+        platform,
+        brandId,
+        startDate,
+        endDate,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      const errorMsg = result.error || `${label} 동기화 실패`;
+      callback?.onError(errorMsg);
       return {
         success: false,
         platform,
-        message: `${platform} 플랫폼은 아직 지원되지 않습니다.`,
+        message: errorMsg,
         recordsCreated: 0,
         recordsUpdated: 0,
         dateRange: { start: startDate, end: endDate },
       };
+    }
+
+    callback?.onProgress('완료', 100);
+
+    const syncResult: AdSyncResult = {
+      success: true,
+      platform,
+      message: result.message || `${label} 동기화 완료`,
+      recordsCreated: result.recordsCreated || 0,
+      recordsUpdated: 0,
+      dateRange: { start: startDate, end: endDate },
+    };
+
+    callback?.onComplete(syncResult);
+    return syncResult;
+  } catch (error) {
+    const errorMsg = `${label} 동기화 오류: ${(error as Error).message}`;
+    callback?.onError(errorMsg);
+    return {
+      success: false,
+      platform,
+      message: errorMsg,
+      recordsCreated: 0,
+      recordsUpdated: 0,
+      dateRange: { start: startDate, end: endDate },
+    };
   }
 }
 
