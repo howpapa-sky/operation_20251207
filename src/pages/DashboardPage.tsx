@@ -90,9 +90,25 @@ export default function DashboardPage() {
     fetchInfluencers();
   }, [fetchSeedingProjects, fetchInfluencers]);
 
-  // 오늘의 시딩 통계 (influencers/projects 변경 시 재계산)
+  // 시딩 누적 통계 (influencers/projects 변경 시 재계산)
   const howpapaStats = useMemo(() => getTodayStats('howpapa'), [getTodayStats, seedingInfluencers, seedingProjects]);
   const nucioStats = useMemo(() => getTodayStats('nucio'), [getTodayStats, seedingInfluencers, seedingProjects]);
+
+  // 브랜드별 목표 합계 (진행중 프로젝트의 target_count 합산)
+  const howpapaTargets = useMemo(() => {
+    const active = seedingProjects.filter((p) => p.brand === 'howpapa' && (p.status === 'active' || p.status === 'planning'));
+    return {
+      listup: active.reduce((s, p) => s + (p.target_count || 0), 0) || 100,
+      acceptance: Math.round(active.reduce((s, p) => s + (p.target_count || 0), 0) * 0.15) || 15,
+    };
+  }, [seedingProjects]);
+  const nucioTargets = useMemo(() => {
+    const active = seedingProjects.filter((p) => p.brand === 'nucio' && (p.status === 'active' || p.status === 'planning'));
+    return {
+      listup: active.reduce((s, p) => s + (p.target_count || 0), 0) || 100,
+      acceptance: Math.round(active.reduce((s, p) => s + (p.target_count || 0), 0) * 0.15) || 15,
+    };
+  }, [seedingProjects]);
 
   // 오늘 날짜
   const todayString = useMemo(() => {
@@ -380,7 +396,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-indigo-600" />
-              <CardTitle className="text-base">오늘의 시딩 현황</CardTitle>
+              <CardTitle className="text-base">시딩 현황</CardTitle>
             </div>
             <span className="text-sm text-gray-500">{todayString}</span>
           </div>
@@ -389,15 +405,15 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <SeedingKPICard
               brand="howpapa"
-              targetListup={100}
-              targetAcceptance={15}
+              targetListup={howpapaTargets.listup}
+              targetAcceptance={howpapaTargets.acceptance}
               actualListup={howpapaStats.listup}
               actualAcceptance={howpapaStats.accepted}
             />
             <SeedingKPICard
               brand="nucio"
-              targetListup={100}
-              targetAcceptance={15}
+              targetListup={nucioTargets.listup}
+              targetAcceptance={nucioTargets.acceptance}
               actualListup={nucioStats.listup}
               actualAcceptance={nucioStats.accepted}
             />

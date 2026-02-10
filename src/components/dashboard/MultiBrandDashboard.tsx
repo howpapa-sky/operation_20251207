@@ -38,7 +38,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { syncAdSpend } from '@/services/adSyncService';
-import { useAutoSync } from '@/hooks/useAutoSync';
+import { syncOrders } from '@/services/orderSyncService';
 import type { AdPlatform } from '@/types/ecommerce';
 
 // ─── Constants ───────────────────────────────────────────
@@ -914,15 +914,9 @@ export default function MultiBrandDashboard() {
   // 브랜드별 설정된 플랫폼 (sync에서 brand별로 맞는 플랫폼만 호출)
   const [brandPlatformConfig, setBrandPlatformConfig] = useState<Record<string, string[]>>({});
 
-  // 주문 자동 동기화 (1분마다 최근 7일 동기화)
+  // 주문 자동 동기화 (브랜드별로 각각 동기화)
+  const [orderSyncDone, setOrderSyncDone] = useState(false);
   const [fetchStatsRef] = useState<{ fn: ((range: DateRange) => void) | null }>({ fn: null });
-  const autoSync = useAutoSync(
-    ['smartstore', 'cafe24', 'coupang'],
-    () => {
-      // 동기화 완료 후 대시보드 자동 갱신
-      if (fetchStatsRef.fn) fetchStatsRef.fn(dateRange);
-    }
-  );
 
   const fetchStats = useCallback(async (range: DateRange) => {
     setIsLoading(true);
@@ -1164,6 +1158,50 @@ export default function MultiBrandDashboard() {
   useEffect(() => {
     fetchStats(dateRange);
   }, [fetchStats, dateRange]);
+
+  // 브랜드별 주문 자동 동기화 (최초 1회 + 5분마다)
+  useEffect(() => {
+    if (brandMap.length === 0 || isLoading) return;
+
+    const SYNC_INTERVAL = 5 * 60 * 1000; // 5분
+    const RECENT_DAYS = 7;
+
+    const doMultiBrandSync = async () => {
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(endDate.getDate() - RECENT_DAYS);
+      const fmtD = (d: Date) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const sd = fmtD(startDate);
+      const ed = fmtD(endDate);
+      const channels = ['smartstore', 'cafe24', 'coupang'];
+
+      // 각 브랜드별로 각각 동기화 (핵심: brandId를 전달해야 해당 credential 사용)
+      for (const brand of brandMap) {
+        for (const ch of channels) {
+          try {
+            await syncOrders({ channel: ch, startDate: sd, endDate: ed, brandId: brand.id });
+          } catch {
+            // 개별 실패 무시
+          }
+        }
+      }
+
+      // 동기화 완료 후 대시보드 갱신
+      if (fetchStatsRef.fn) fetchStatsRef.fn(dateRange);
+    };
+
+    // 최초 1회 실행 (이전 동기화 건너뛰기 방지)
+    if (!orderSyncDone) {
+      setOrderSyncDone(true);
+      doMultiBrandSync();
+    }
+
+    // 5분마다 반복
+    const interval = setInterval(doMultiBrandSync, SYNC_INTERVAL);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brandMap, isLoading]);
 
   const handleDateApply = () => {
     setActiveQuick(0);

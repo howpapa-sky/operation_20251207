@@ -1344,49 +1344,36 @@ export const useSeedingStore = create<SeedingStore>()(
 
       getTodayStats: (brand) => {
         const { influencers, projects } = get();
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
-        // 해당 브랜드의 프로젝트 ID 목록
-        const brandProjectIds = new Set(
-          projects.filter((p) => p.brand === brand).map((p) => p.id)
+        // 해당 브랜드의 진행중 프로젝트만 (active/planning)
+        const brandProjects = projects.filter(
+          (p) => p.brand === brand && (p.status === 'active' || p.status === 'planning')
         );
+        const brandProjectIds = new Set(brandProjects.map((p) => p.id));
 
         // 해당 브랜드의 인플루언서만 필터링
         const brandInfluencers = influencers.filter((inf) =>
           brandProjectIds.has(inf.project_id)
         );
 
+        // 누적 통계 (전체 상태별 카운트)
+        const acceptedStatuses = ['accepted', 'shipped', 'guide_sent', 'posted', 'completed'];
+        const shippedStatuses = ['shipped', 'guide_sent', 'posted', 'completed'];
+        const postedStatuses = ['posted', 'completed'];
+
         const stats: TodaySeedingStats = {
-          listup: 0,
-          dmSent: 0,
-          responded: 0,
-          accepted: 0,
-          rejected: 0,
+          listup: brandInfluencers.length, // 전체 리스트업 수
+          dmSent: brandInfluencers.filter((inf) =>
+            inf.status !== 'listed' // listed 제외 = DM 이상 진행된 수
+          ).length,
+          responded: brandInfluencers.filter((inf) =>
+            acceptedStatuses.includes(inf.status) || inf.status === 'rejected'
+          ).length,
+          accepted: brandInfluencers.filter((inf) =>
+            acceptedStatuses.includes(inf.status)
+          ).length,
+          rejected: brandInfluencers.filter((inf) => inf.status === 'rejected').length,
         };
-
-        brandInfluencers.forEach((inf) => {
-          // 리스트업: listed_at이 오늘인 경우
-          if (inf.listed_at?.startsWith(today)) {
-            stats.listup++;
-          }
-
-          // DM 발송: contacted_at이 오늘인 경우
-          if (inf.contacted_at?.startsWith(today)) {
-            stats.dmSent++;
-          }
-
-          // 수락: accepted_at이 오늘인 경우
-          if (inf.accepted_at?.startsWith(today)) {
-            stats.accepted++;
-            stats.responded++; // 수락도 응답에 포함
-          }
-
-          // 거절: rejected_at이 오늘인 경우
-          if (inf.rejected_at?.startsWith(today)) {
-            stats.rejected++;
-            stats.responded++; // 거절도 응답에 포함
-          }
-        });
 
         return stats;
       },
