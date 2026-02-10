@@ -70,9 +70,8 @@ export interface AdAccount {
   updatedAt: string;
 }
 
-export const adPlatformLabels: Record<AdPlatform, string> = {
+export const adPlatformLabels: Record<string, string> = {
   naver_sa: '네이버 검색광고',
-  naver_gfa: '네이버 GFA',
   meta: '메타 (FB/IG)',
   coupang_ads: '쿠팡 광고',
 };
@@ -305,8 +304,7 @@ export interface DailyAdStats {
   createdAt: string;
 }
 
-export const adChannelLabels: Record<AdChannel, string> = {
-  naver_gfa: '네이버 GFA',
+export const adChannelLabels: Record<string, string> = {
   naver_sa: '네이버 검색광고',
   meta: '메타 (FB/IG)',
   coupang_ads: '쿠팡 광고',

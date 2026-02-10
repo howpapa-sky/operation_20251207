@@ -4,7 +4,6 @@
  * 지원 플랫폼:
  * - Meta Ads (Facebook/Instagram) - Netlify에서 직접 호출
  * - 네이버 검색광고 - NCP 프록시 경유
- * - 네이버 GFA - NCP 프록시 경유
  * - 쿠팡 광고 - NCP 프록시 경유
  *
  * 데이터 플로우:
@@ -47,7 +46,6 @@ export async function syncAdSpend(
   const platformLabels: Record<string, string> = {
     meta: 'Meta (FB/IG)',
     naver_sa: '네이버 검색광고',
-    naver_gfa: '네이버 GFA',
     coupang_ads: '쿠팡 광고',
   };
 
