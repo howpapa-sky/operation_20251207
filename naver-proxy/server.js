@@ -547,7 +547,10 @@ app.post('/api/coupang/sync', authenticate, async (req, res) => {
       while (true) {
         if (pageCount > 0) await new Promise(r => setTimeout(r, 300));
 
-        let query = `createdAtFrom=${startDate}&createdAtTo=${endDate}&maxPerPage=${MAX_PER_PAGE}&status=${status}`;
+        // 쿠팡 API는 YYYY-MM-DDTHH:MM 형식 필요 (시간 없으면 빈 결과 반환)
+        const fromDate = startDate.includes('T') ? startDate : `${startDate}T00:00`;
+        const toDate = endDate.includes('T') ? endDate : `${endDate}T23:59`;
+        let query = `createdAtFrom=${fromDate}&createdAtTo=${toDate}&maxPerPage=${MAX_PER_PAGE}&status=${status}`;
         if (nextToken) query += `&nextToken=${encodeURIComponent(nextToken)}`;
 
         let data;
