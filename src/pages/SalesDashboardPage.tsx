@@ -918,7 +918,13 @@ export default function SalesDashboardPage() {
     setActiveQuick(days);
     const end = new Date();
     const start = new Date();
-    start.setDate(start.getDate() - (days - 1));
+    if (days === -1) {
+      // 어제
+      end.setDate(end.getDate() - 1);
+      start.setDate(start.getDate() - 1);
+    } else {
+      start.setDate(start.getDate() - (days - 1));
+    }
 
     const fmt = (d: Date) =>
       `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -1064,6 +1070,8 @@ export default function SalesDashboardPage() {
         <div className="inline-flex rounded-lg bg-gray-100 p-0.5">
           {[
             { days: 1, label: '오늘' },
+            { days: -1, label: '어제' },
+            { days: 3, label: '3일' },
             { days: 7, label: '7일' },
             { days: 30, label: '30일' },
             { days: 90, label: '90일' },

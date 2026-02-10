@@ -60,7 +60,6 @@ const CHANNEL_COLORS: Record<string, string> = {
 
 const AD_PLATFORM_LABELS: Record<string, string> = {
   naver_sa: '네이버 검색광고',
-  naver_gfa: '네이버 GFA',
   meta: '메타 (FB/IG)',
   coupang_ads: '쿠팡 광고',
 };
@@ -134,6 +133,12 @@ interface AdPlatformRow {
   nucio: number;
   total: number;
   isConfigured: boolean;
+  // 상세 메트릭
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  conversionValue: number;
+  roas: number;
 }
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -749,6 +754,10 @@ function AdCostBreakdown({
                 <th className="text-right py-3 px-3 text-xs font-semibold text-orange-500">하우파파</th>
                 <th className="text-right py-3 px-3 text-xs font-semibold text-green-500">누씨오</th>
                 <th className="text-right py-3 px-3 text-xs font-semibold text-gray-600">합계</th>
+                <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400">클릭</th>
+                <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400">전환</th>
+                <th className="text-right py-3 px-3 text-xs font-semibold text-gray-400">전환매출</th>
+                <th className="text-right py-3 px-3 text-xs font-semibold text-violet-500">ROAS</th>
                 <th className="text-center py-3 px-3 text-xs font-semibold text-gray-400">상태</th>
               </tr>
             </thead>
@@ -764,6 +773,22 @@ function AdCostBreakdown({
                   </td>
                   <td className="text-right py-3 px-3 font-semibold text-gray-900">
                     {p.total > 0 ? `${formatCompact(p.total)}원` : '-'}
+                  </td>
+                  <td className="text-right py-3 px-3 text-gray-600">
+                    {p.clicks > 0 ? p.clicks.toLocaleString() : '-'}
+                  </td>
+                  <td className="text-right py-3 px-3 text-gray-600">
+                    {p.conversions > 0 ? p.conversions.toLocaleString() : '-'}
+                  </td>
+                  <td className="text-right py-3 px-3 text-gray-600">
+                    {p.conversionValue > 0 ? `${formatCompact(p.conversionValue)}원` : '-'}
+                  </td>
+                  <td className="text-right py-3 px-3">
+                    {p.roas > 0 ? (
+                      <span className={cn('font-semibold', p.roas >= 100 ? 'text-emerald-600' : 'text-red-500')}>
+                        {p.roas.toFixed(0)}%
+                      </span>
+                    ) : <span className="text-gray-300">-</span>}
                   </td>
                   <td className="text-center py-3 px-3">
                     {p.isConfigured ? (
@@ -786,6 +811,22 @@ function AdCostBreakdown({
                 </td>
                 <td className="text-right py-3 px-3 font-bold text-gray-900">
                   {totalCost > 0 ? `${formatCompact(totalCost)}원` : '-'}
+                </td>
+                <td className="text-right py-3 px-3 font-semibold text-gray-600">
+                  {(() => { const t = adPlatforms.reduce((s, p) => s + p.clicks, 0); return t > 0 ? t.toLocaleString() : '-'; })()}
+                </td>
+                <td className="text-right py-3 px-3 font-semibold text-gray-600">
+                  {(() => { const t = adPlatforms.reduce((s, p) => s + p.conversions, 0); return t > 0 ? t.toLocaleString() : '-'; })()}
+                </td>
+                <td className="text-right py-3 px-3 font-semibold text-gray-600">
+                  {(() => { const t = adPlatforms.reduce((s, p) => s + p.conversionValue, 0); return t > 0 ? `${formatCompact(t)}원` : '-'; })()}
+                </td>
+                <td className="text-right py-3 px-3">
+                  {(() => {
+                    const totalConvVal = adPlatforms.reduce((s, p) => s + p.conversionValue, 0);
+                    const roasVal = totalCost > 0 ? (totalConvVal / totalCost) * 100 : 0;
+                    return roasVal > 0 ? <span className={cn('font-bold', roasVal >= 100 ? 'text-emerald-600' : 'text-red-500')}>{roasVal.toFixed(0)}%</span> : '-';
+                  })()}
                 </td>
                 <td />
               </tr>
@@ -1002,6 +1043,7 @@ export default function MultiBrandDashboard() {
       let adPlatformRows: AdPlatformRow[] = [];
       try {
         const brandAdData: Record<string, Map<string, number>> = {};
+        const adMetrics: Record<string, { impressions: number; clicks: number; conversions: number; conversionValue: number }> = {};
         const configuredPlatforms = new Set<string>();
         const perBrandConfig: Record<string, string[]> = {};
 
@@ -1024,7 +1066,7 @@ export default function MultiBrandDashboard() {
           perBrandConfig[brand.id] = brandConfiguredList;
 
           const { data: adSpend, error: adSpendErr } = await (supabase as any)
-            .from('ad_spend_daily').select('platform, spend')
+            .from('ad_spend_daily').select('platform, spend, impressions, clicks, conversions, conversion_value')
             .eq('brand_id', brand.id)
             .gte('date', range.start).lte('date', range.end);
           if (adSpendErr) {
@@ -1035,6 +1077,13 @@ export default function MultiBrandDashboard() {
               const p = row.platform as string;
               const map = brandAdData[brand.code];
               map.set(p, (map.get(p) || 0) + (Number(row.spend) || 0));
+              // 상세 메트릭 집계
+              const key = `${brand.code}::${p}`;
+              if (!adMetrics[key]) adMetrics[key] = { impressions: 0, clicks: 0, conversions: 0, conversionValue: 0 };
+              adMetrics[key].impressions += Number(row.impressions) || 0;
+              adMetrics[key].clicks += Number(row.clicks) || 0;
+              adMetrics[key].conversions += Number(row.conversions) || 0;
+              adMetrics[key].conversionValue += Number(row.conversion_value) || 0;
             }
           } else {
             console.log(`[ad] ${brand.code}: ad_spend_daily 0건 (빈 결과)`);
@@ -1043,14 +1092,25 @@ export default function MultiBrandDashboard() {
 
         setBrandPlatformConfig(perBrandConfig);
 
-        adPlatformRows = Object.entries(AD_PLATFORM_LABELS).map(([platform, label]) => ({
-          platform,
-          label,
-          howpapa: brandAdData['howpapa']?.get(platform) || 0,
-          nucio: brandAdData['nucio']?.get(platform) || 0,
-          total: (brandAdData['howpapa']?.get(platform) || 0) + (brandAdData['nucio']?.get(platform) || 0),
-          isConfigured: configuredPlatforms.has(platform),
-        }));
+        adPlatformRows = Object.entries(AD_PLATFORM_LABELS).map(([platform, label]) => {
+          const totalSpend = (brandAdData['howpapa']?.get(platform) || 0) + (brandAdData['nucio']?.get(platform) || 0);
+          const hMetrics = adMetrics[`howpapa::${platform}`] || { impressions: 0, clicks: 0, conversions: 0, conversionValue: 0 };
+          const nMetrics = adMetrics[`nucio::${platform}`] || { impressions: 0, clicks: 0, conversions: 0, conversionValue: 0 };
+          const totalConversionValue = hMetrics.conversionValue + nMetrics.conversionValue;
+          return {
+            platform,
+            label,
+            howpapa: brandAdData['howpapa']?.get(platform) || 0,
+            nucio: brandAdData['nucio']?.get(platform) || 0,
+            total: totalSpend,
+            isConfigured: configuredPlatforms.has(platform),
+            impressions: hMetrics.impressions + nMetrics.impressions,
+            clicks: hMetrics.clicks + nMetrics.clicks,
+            conversions: hMetrics.conversions + nMetrics.conversions,
+            conversionValue: totalConversionValue,
+            roas: totalSpend > 0 ? (totalConversionValue / totalSpend) * 100 : 0,
+          };
+        });
 
         // Update brand stats with ad costs
         for (const brand of brands) {
@@ -1092,7 +1152,13 @@ export default function MultiBrandDashboard() {
     setActiveQuick(days);
     const end = new Date();
     const start = new Date();
-    start.setDate(start.getDate() - (days - 1));
+    if (days === -1) {
+      // 어제
+      end.setDate(end.getDate() - 1);
+      start.setDate(start.getDate() - 1);
+    } else {
+      start.setDate(start.getDate() - (days - 1));
+    }
     const newRange = { start: fmtDate(start), end: fmtDate(end) };
     setStartDate(newRange.start);
     setEndDate(newRange.end);
@@ -1240,6 +1306,8 @@ export default function MultiBrandDashboard() {
         <div className="inline-flex rounded-lg bg-gray-100 p-0.5">
           {[
             { days: 1, label: '오늘' },
+            { days: -1, label: '어제' },
+            { days: 3, label: '3일' },
             { days: 7, label: '7일' },
             { days: 30, label: '30일' },
             { days: 90, label: '90일' },
