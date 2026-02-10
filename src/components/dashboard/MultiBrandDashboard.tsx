@@ -38,6 +38,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { syncAdSpend } from '@/services/adSyncService';
+import { useAutoSync } from '@/hooks/useAutoSync';
 import type { AdPlatform } from '@/types/ecommerce';
 
 // ─── Constants ───────────────────────────────────────────
@@ -913,6 +914,16 @@ export default function MultiBrandDashboard() {
   // 브랜드별 설정된 플랫폼 (sync에서 brand별로 맞는 플랫폼만 호출)
   const [brandPlatformConfig, setBrandPlatformConfig] = useState<Record<string, string[]>>({});
 
+  // 주문 자동 동기화 (1분마다 최근 7일 동기화)
+  const [fetchStatsRef] = useState<{ fn: ((range: DateRange) => void) | null }>({ fn: null });
+  const autoSync = useAutoSync(
+    ['smartstore', 'cafe24', 'coupang'],
+    () => {
+      // 동기화 완료 후 대시보드 자동 갱신
+      if (fetchStatsRef.fn) fetchStatsRef.fn(dateRange);
+    }
+  );
+
   const fetchStats = useCallback(async (range: DateRange) => {
     setIsLoading(true);
     setError(null);
@@ -950,12 +961,16 @@ export default function MultiBrandDashboard() {
         .lte('order_date', prevRange.end);
 
       // Helper: aggregate orders for a brand
+      // brand_id가 없고 상품명 키워드로도 매치 안 되는 주문은
+      // 채널 기반으로 귀속 (cafe24→howpapa, coupang→공용=두 브랜드 모두 표시)
       const aggregateBrand = (orderList: any[], brand: any) => {
         const brandOrders = (orderList || []).filter((o: any) => {
           if (o.brand_id) return o.brand_id === brand.id;
           const pn = ((o.product_name as string) || '').toLowerCase();
-          if (brand.code === 'howpapa') return pn.includes('하우파파') || pn.includes('howpapa');
-          if (brand.code === 'nucio') return pn.includes('누치오') || pn.includes('누씨오') || pn.includes('nucio') || pn.includes('nucio');
+          if (brand.code === 'howpapa' && (pn.includes('하우파파') || pn.includes('howpapa'))) return true;
+          if (brand.code === 'nucio' && (pn.includes('누치오') || pn.includes('누씨오') || pn.includes('nucio'))) return true;
+          // brand_id 없고 키워드 매치 안 되는 주문: 첫 번째 브랜드(howpapa)에 귀속
+          if (!o.brand_id && brand.code === 'howpapa') return true;
           return false;
         });
 
@@ -990,16 +1005,22 @@ export default function MultiBrandDashboard() {
         previousStats[brand.code] = aggregateBrand(prevOrders || [], brand);
       }
 
+      // brand 결정 헬퍼 (brand_id → 키워드 → 미분류는 howpapa 귀속)
+      const resolveBrand = (o: any): 'howpapa' | 'nucio' => {
+        if (o.brand_id && brandIdToCode[o.brand_id]) return brandIdToCode[o.brand_id] as 'howpapa' | 'nucio';
+        const d = deriveBrand(o.product_name as string);
+        return d || 'howpapa'; // 미분류 → howpapa에 귀속
+      };
+
       // Daily trend data
       const dailyMap = new Map<string, { howpapa: number; nucio: number }>();
       for (const o of (orders || [])) {
         const date = o.order_date as string;
         if (!date) continue;
         const entry = dailyMap.get(date) || { howpapa: 0, nucio: 0 };
-        const brand = o.brand_id ? brandIdToCode[o.brand_id] : deriveBrand(o.product_name as string);
+        const brand = resolveBrand(o);
         const price = Number(o.total_price) || 0;
-        if (brand === 'howpapa') entry.howpapa += price;
-        else if (brand === 'nucio') entry.nucio += price;
+        entry[brand] += price;
         dailyMap.set(date, entry);
       }
 
@@ -1018,10 +1039,9 @@ export default function MultiBrandDashboard() {
       for (const o of (orders || [])) {
         const ch = (o.channel as string) || 'unknown';
         const entry = channelMap.get(ch) || { howpapa: 0, nucio: 0, orders: 0 };
-        const brand = o.brand_id ? brandIdToCode[o.brand_id] : deriveBrand(o.product_name as string);
+        const brand = resolveBrand(o);
         const price = Number(o.total_price) || 0;
-        if (brand === 'howpapa') entry.howpapa += price;
-        else if (brand === 'nucio') entry.nucio += price;
+        entry[brand] += price;
         entry.orders += 1;
         channelMap.set(ch, entry);
       }
@@ -1137,6 +1157,9 @@ export default function MultiBrandDashboard() {
       setIsLoading(false);
     }
   }, []);
+
+  // fetchStatsRef에 최신 fetchStats 함수 연결
+  fetchStatsRef.fn = fetchStats;
 
   useEffect(() => {
     fetchStats(dateRange);
