@@ -667,8 +667,9 @@ async function getCafe24Credentials(brandId?: string): Promise<{
   clientSecret: string;
   accessToken?: string;
   refreshToken?: string;
+  resolvedBrandId?: string;
 }> {
-  const selectFields = "cafe24_mall_id, cafe24_client_id, cafe24_client_secret, cafe24_access_token, cafe24_refresh_token";
+  const selectFields = "cafe24_mall_id, cafe24_client_id, cafe24_client_secret, cafe24_access_token, cafe24_refresh_token, brand_id";
 
   // 브랜드별 자격증명 우선 조회
   if (brandId) {
@@ -687,6 +688,7 @@ async function getCafe24Credentials(brandId?: string): Promise<{
         clientSecret: brandData.cafe24_client_secret,
         accessToken: brandData.cafe24_access_token || undefined,
         refreshToken: brandData.cafe24_refresh_token || undefined,
+        resolvedBrandId: brandData.brand_id || undefined,
       };
     }
   }
@@ -709,6 +711,7 @@ async function getCafe24Credentials(brandId?: string): Promise<{
     clientSecret: data.cafe24_client_secret,
     accessToken: data.cafe24_access_token || undefined,
     refreshToken: data.cafe24_refresh_token || undefined,
+    resolvedBrandId: data.brand_id || undefined,
   };
 }
 
@@ -966,7 +969,8 @@ function transformCafe24Order(raw: Record<string, unknown>): NaverOrder[] {
 
 // Cafe24 주문 동기화
 async function syncCafe24Orders(params: { startDate: string; endDate: string; brandId?: string }) {
-  const { startDate, endDate, brandId } = params;
+  const { startDate, endDate } = params;
+  let brandId = params.brandId;
   const channel = "cafe24";
 
   console.log(`[cafe24] Syncing orders: ${startDate} ~ ${endDate} (brand: ${brandId || 'default'})`);
@@ -975,6 +979,11 @@ async function syncCafe24Orders(params: { startDate: string; endDate: string; br
   let creds;
   try {
     creds = await getCafe24Credentials(brandId);
+    // brandId가 없으면 credential의 brand_id 사용 (주문에 브랜드 귀속)
+    if (!brandId && creds.resolvedBrandId) {
+      brandId = creds.resolvedBrandId;
+      console.log(`[cafe24] Using credential brand_id: ${brandId}`);
+    }
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -1137,8 +1146,9 @@ async function getCoupangCredentials(brandId?: string): Promise<{
   vendorId: string;
   accessKey: string;
   secretKey: string;
+  resolvedBrandId?: string;
 }> {
-  const selectFields = "coupang_vendor_id, coupang_access_key, coupang_secret_key";
+  const selectFields = "coupang_vendor_id, coupang_access_key, coupang_secret_key, brand_id";
 
   // 브랜드별 자격증명 우선 조회
   if (brandId) {
@@ -1155,6 +1165,7 @@ async function getCoupangCredentials(brandId?: string): Promise<{
         vendorId: brandData.coupang_vendor_id,
         accessKey: brandData.coupang_access_key,
         secretKey: brandData.coupang_secret_key,
+        resolvedBrandId: brandData.brand_id || undefined,
       };
     }
   }
@@ -1175,6 +1186,7 @@ async function getCoupangCredentials(brandId?: string): Promise<{
     vendorId: data.coupang_vendor_id,
     accessKey: data.coupang_access_key,
     secretKey: data.coupang_secret_key,
+    resolvedBrandId: data.brand_id || undefined,
   };
 }
 
@@ -1261,7 +1273,8 @@ function transformCoupangOrder(raw: Record<string, unknown>): NaverOrder[] {
 
 // Coupang 주문 동기화
 async function syncCoupangOrders(params: { startDate: string; endDate: string; brandId?: string }) {
-  const { startDate, endDate, brandId } = params;
+  const { startDate, endDate } = params;
+  let brandId = params.brandId;
   const channel = "coupang";
 
   console.log(`[coupang] Syncing orders: ${startDate} ~ ${endDate} (brand: ${brandId || 'default'})`);
@@ -1272,6 +1285,12 @@ async function syncCoupangOrders(params: { startDate: string; endDate: string; b
     creds = await getCoupangCredentials(brandId);
   } catch (error: any) {
     return { success: false, error: error.message };
+  }
+
+  // brandId가 없으면 credential의 brand_id 사용
+  if (!brandId && creds.resolvedBrandId) {
+    brandId = creds.resolvedBrandId;
+    console.log(`[coupang] Using credential brand_id: ${brandId}`);
   }
 
   // NCP 프록시 서버 경유 (쿠팡 API IP 제한으로 고정 IP 필요)
@@ -1367,7 +1386,7 @@ async function syncCoupangOrders(params: { startDate: string; endDate: string; b
 
       validOrders.push({
         channel,
-        brand_id: null, // 쿠팡은 하우파파/누씨오 공용 → 브랜드 필터 무관하게 항상 표시
+        brand_id: brandId || null,
         order_id: uniqueOrderId,
         order_date: toDateStr(order.orderDate),
         order_datetime: order.orderDate || null,
