@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { handleApiError } from '../lib/apiErrorHandler';
 import { ApiCredential, SalesChannel, SyncStatus } from '../types';
 import { useBrandStore } from './brandStore';
 
@@ -62,6 +63,7 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
       }));
       set({ credentials });
     } catch (error) {
+      handleApiError(error, 'API 인증정보 조회');
       console.error('Fetch credentials error:', error);
       set({ error: '자격증명을 불러오는데 실패했습니다.' });
     } finally {
@@ -91,6 +93,7 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
       await get().fetchCredentials();
       return true;
     } catch (error) {
+      handleApiError(error, 'API 인증정보 저장');
       console.error('Save credential error:', error);
       set({ error: '자격증명 저장에 실패했습니다.' });
       return false;
@@ -108,6 +111,7 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
       if (error) throw error;
       set((state) => ({ credentials: state.credentials.filter((c) => c.channel !== channel) }));
     } catch (error) {
+      handleApiError(error, 'API 인증정보 삭제');
       console.error('Delete credential error:', error);
       set({ error: '자격증명 삭제에 실패했습니다.' });
     }
@@ -124,6 +128,7 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
       if (error) throw error;
       set((state) => ({ credentials: state.credentials.map((c) => c.channel === channel ? { ...c, isActive } : c) }));
     } catch (error) {
+      handleApiError(error, '채널 활성화 변경');
       console.error('Toggle active error:', error);
     }
   },
@@ -139,7 +144,7 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
       if (selectedBrandId) { query = query.eq('brand_id', selectedBrandId); }
       await query;
       set((state) => ({ credentials: state.credentials.map((c) => c.channel === channel ? { ...c, syncStatus: status, syncError: error, lastSyncAt: status === 'success' ? new Date().toISOString() : c.lastSyncAt } : c) }));
-    } catch (err) { console.error('Update sync status error:', err); }
+    } catch (err) { handleApiError(err, '동기화 상태 업데이트'); console.error('Update sync status error:', err); }
   },
 
   testConnection: async (channel) => {

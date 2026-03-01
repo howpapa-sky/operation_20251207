@@ -1,7 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
-import { Toaster } from '@/components/ui/toaster';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { useStore } from '../../store/useStore';
 
@@ -33,7 +32,6 @@ export default function Layout() {
         </main>
       </div>
 
-      <Toaster />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '@/lib/supabase';
 import type { Brand, BrandCode } from '@/types/ecommerce';
+import { handleApiError } from '@/lib/apiErrorHandler';
 
 interface BrandState {
   // Data
@@ -72,6 +73,7 @@ export const useBrandStore = create<BrandState>()(
             set({ selectedBrandId: brands[0].id });
           }
         } catch (err: any) {
+          handleApiError(err, '브랜드 목록 조회');
           console.error('[brandStore] fetchBrands error:', err);
           set({ error: err.message, isLoading: false });
         }

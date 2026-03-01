@@ -98,15 +98,15 @@ export default function DashboardPage() {
   const howpapaTargets = useMemo(() => {
     const active = seedingProjects.filter((p) => p.brand === 'howpapa' && (p.status === 'active' || p.status === 'planning'));
     return {
-      listup: active.reduce((s, p) => s + (p.target_count ?? 0), 0) ?? 100,
-      acceptance: Math.round(active.reduce((s, p) => s + (p.target_count ?? 0), 0) * 0.15) ?? 15,
+      listup: active.reduce((s, p) => s + (p.target_count ?? 0), 0) || 100,
+      acceptance: Math.round(active.reduce((s, p) => s + (p.target_count ?? 0), 0) * 0.15) || 15,
     };
   }, [seedingProjects]);
   const nucioTargets = useMemo(() => {
     const active = seedingProjects.filter((p) => p.brand === 'nucio' && (p.status === 'active' || p.status === 'planning'));
     return {
-      listup: active.reduce((s, p) => s + (p.target_count ?? 0), 0) ?? 100,
-      acceptance: Math.round(active.reduce((s, p) => s + (p.target_count ?? 0), 0) * 0.15) ?? 15,
+      listup: active.reduce((s, p) => s + (p.target_count ?? 0), 0) || 100,
+      acceptance: Math.round(active.reduce((s, p) => s + (p.target_count ?? 0), 0) * 0.15) || 15,
     };
   }, [seedingProjects]);
 

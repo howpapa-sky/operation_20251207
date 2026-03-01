@@ -295,10 +295,10 @@ Step 5: 외부 API 직접 테스트
 | 파일 | 역할 | 사용 위치 |
 |------|------|----------|
 | `src/components/common/ErrorBoundary.tsx` | React Error Boundary (에러 시 새로고침 버튼 표시) | `App.tsx` 최상위, `Layout.tsx` Outlet 감싸기 |
-| `src/lib/apiErrorHandler.ts` | API 에러 핸들러 (인증/네트워크/일반 에러 분류 + toast 알림) | 6개 스토어에서 `handleApiError()` 호출 |
+| `src/lib/apiErrorHandler.ts` | API 에러 핸들러 (인증/네트워크/일반 에러 분류 + toast 알림) | 15개 스토어에서 `handleApiError()` 호출 |
 | `src/lib/envCheck.ts` | 앱 시작 시 필수 환경변수 체크 | `main.tsx`에서 호출 |
 | `src/components/common/ApiStatusMonitor.tsx` | 설정 페이지에서 채널별 API 연결 상태 표시 | `SettingsPage.tsx` API 탭 |
-| `src/components/ui/toaster.tsx` | Toast 알림 렌더링 | `App.tsx`, `Layout.tsx` |
+| `src/components/ui/toaster.tsx` | Toast 알림 렌더링 | `App.tsx` (루트에만 1개) |
 
 ---
 
@@ -310,6 +310,9 @@ Step 5: 외부 API 직접 테스트
 | Cafe24 주문 조회 6개월 제한 | 플랫폼 제한 | API 스펙 | 30일 단위 분할 조회로 대응 중 |
 | Naver API IP 제한 | 구조적 | 고정IP 필요 | NCP 프록시 경유 |
 | Google Sheets 동기화 시 기존 데이터 삭제 | 의도된 동작 | 전체 교체 방식 | 향후 증분 동기화로 개선 예정 |
+| DashboardPage 기본값 미동작 | 수정완료 | `reduce() ?? 100` → `0 ?? 100 = 0` (기본값 미적용) | 집계 함수 결과에는 `\|\|` 사용 |
+| Toaster 중복 렌더링 | 수정완료 | App.tsx + Layout.tsx 양쪽에 Toaster 존재 | App.tsx 루트에만 1개 유지 |
+| 9개 스토어 에러 토스트 미표시 | 수정완료 | `console.error`만 사용, `handleApiError` 누락 | 모든 스토어 catch에 `handleApiError` 추가 |
 
 ---
 
@@ -361,6 +364,9 @@ Step 5: 외부 API 직접 테스트
 | 7 | 광고비 미표시 | NCP 프록시 경유 실패 | 광고 API는 직접 호출 |
 | 8 | 데이터 누락 | Supabase 1000건 limit | cursor-based pagination |
 | 9 | 0원/0명 표시 안됨 | `\|\|` 연산자가 0을 falsy로 처리 | 숫자 필드에 `??` 사용 |
+| 10 | DashboardPage 기본값 미동작 | `reduce()` 결과에 `??` 사용 (0은 nullish 아님) | 집계 결과 기본값에는 `\|\|` 사용 |
+| 11 | 토스트 알림 중복 표시 | App.tsx + Layout.tsx에 Toaster 이중 렌더링 | 루트(App.tsx)에만 Toaster 유지 |
+| 12 | 9개 스토어 에러 시 사용자 알림 없음 | `console.error`만 사용, `handleApiError` 누락 | 모든 스토어 catch 블록에 `handleApiError` 추가 |
 
 ---
 

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { handleApiError } from '../lib/apiErrorHandler';
 import { notifyDevRequestCompleted } from '../lib/sendNaverWorks';
 
 // Type workaround - dev_requests 테이블이 아직 타입에 없음
@@ -198,6 +199,7 @@ export const useDevRequestStore = create<DevRequestState>((set, get) => ({
         requestType: request.request_type,
         completedAt,
       }).catch((error) => {
+        handleApiError(error, '완료 알림 전송');
         console.error('개발요청 완료 알림 전송 실패:', error);
       });
     }
