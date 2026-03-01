@@ -162,7 +162,7 @@ function dbToInfluencer(record: any): SeedingInfluencer {
     listed_at: record.listed_at ?? undefined,
     seeding_type: record.seeding_type,
     content_type: record.content_type,
-    fee: parseFloat(record.fee) ?? 0,
+    fee: parseFloat(record.fee) || 0,
     payment: record.payment != null ? parseFloat(record.payment) : 0,
     product_name: record.product_name || undefined,
     product_price: record.product_price != null ? parseFloat(record.product_price) : undefined,
