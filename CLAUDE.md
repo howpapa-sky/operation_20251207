@@ -15,6 +15,28 @@
 
 ---
 
+## 모든 작업 시 필수 규칙
+
+1. 이 파일을 먼저 읽고 시작할 것
+2. 수정 전 해당 파일의 import/export 의존성을 grep으로 파악할 것
+3. 작업 완료 후 반드시 실행: `npx tsc --noEmit && npm run build`
+4. 에러 발생 시 모두 수정 후 빌드 재확인
+5. 마지막에 변경 파일 목록과 변경 사항 요약
+
+---
+
+## Supabase SQL 필수 규칙
+
+프론트엔드에서 새 테이블/컬럼/함수를 사용하는 코드를 작성할 때:
+
+1. 해당 SQL(CREATE TABLE, ALTER TABLE, RLS, Function 등)을 반드시 먼저 작성할 것
+2. SQL 파일은 프로젝트 루트에 저장 — 파일명 형식: `supabase-[기능명]-schema.sql`
+3. 작업 완료 시 "실행할 SQL" 섹션을 반드시 포함할 것
+4. RLS 정책 빠뜨리지 말 것
+5. 절대 프론트엔드 코드만 만들고 SQL을 빠뜨리지 말 것
+
+---
+
 ## 프로젝트 개요
 하우파파(howpapa)와 누치오(nucio) 브랜드의 운영 관리 시스템.
 인플루언서 시딩, 프로젝트 관리, 매출 분석, 주문 동기화, 광고비 관리를 통합 제공.
@@ -280,6 +302,10 @@ npx shadcn@latest add [name]       # shadcn 컴포넌트 추가
 5. **일관성**: 새 UI 작성 전 shadcn/ui 컴포넌트 확인 필수
 6. **브랜드 필터링**: 데이터 조회 시 반드시 brand 필터 적용
 7. **Cafe24 OAuth**: state 파라미터에 `cafe24auth_브랜드ID` 형식 사용
+8. **0값 보호**: `||` 대신 `??` 사용 (단, parseFloat/Number/parseInt 결과는 `||` 사용)
+9. **Supabase 쿼리 후 error 체크 필수**: `const { data, error } = await ...` 후 반드시 error 확인
+10. **날짜 포맷 파싱 시 한국어 형식 고려**: '2024년 1월 15일' 등 한국어 날짜 처리
+11. **Zustand store 변경 시 구독 컴포넌트 확인**: 스토어 인터페이스 변경 시 사용처 전체 검색
 
 ---
 
