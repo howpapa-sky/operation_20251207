@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { handleApiError } from '../lib/apiErrorHandler';
 import { User, UserRole, userRoleLevels } from '../types';
 
 interface UserManagementState {
@@ -48,6 +49,7 @@ export const useUserManagementStore = create<UserManagementState>((set, get) => 
       console.log('[fetchUsers] Mapped users:', users.length);
       set({ users, isLoading: false });
     } catch (error) {
+      handleApiError(error, '사용자 목록 조회');
       console.error('Fetch users error:', error);
       set({ error: '사용자 목록을 불러오는 데 실패했습니다.', isLoading: false });
     }
@@ -78,6 +80,7 @@ export const useUserManagementStore = create<UserManagementState>((set, get) => 
 
       return true;
     } catch (error) {
+      handleApiError(error, '권한 변경');
       console.error('Update user role error:', error);
       set({ error: '권한 변경에 실패했습니다.' });
       return false;

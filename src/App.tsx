@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate, useSearchParams, useLocation, u
 import { Loader2 } from 'lucide-react';
 import { useStore } from './store/useStore';
 import Layout from './components/layout/Layout';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { Toaster } from './components/ui/toaster';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
@@ -140,6 +142,7 @@ function App() {
   }, [checkAuth]);
 
   return (
+    <ErrorBoundary fallbackTitle="앱 오류가 발생했습니다">
     <BrowserRouter>
       <Cafe24OAuthInterceptor />
       <Routes>
@@ -228,7 +231,9 @@ function App() {
         {/* Catch all - redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <Toaster />
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

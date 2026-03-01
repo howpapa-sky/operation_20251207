@@ -178,8 +178,8 @@ export default function SKUMasterPage() {
       sku.effectiveDate,
       sku.barcode || '',
       sku.supplier || '',
-      (sku.minStock || 0).toString(),
-      (sku.currentStock || 0).toString(),
+      (sku.minStock ?? 0).toString(),
+      (sku.currentStock ?? 0).toString(),
       sku.isActive ? 'Y' : 'N',
       sku.notes || '',
     ]);
@@ -276,8 +276,8 @@ export default function SKUMasterPage() {
         effectiveDate: sku.effectiveDate,
         barcode: sku.barcode || '',
         supplier: sku.supplier || '',
-        minStock: sku.minStock || 0,
-        currentStock: sku.currentStock || 0,
+        minStock: sku.minStock ?? 0,
+        currentStock: sku.currentStock ?? 0,
         isActive: sku.isActive,
         notes: sku.notes || '',
       });

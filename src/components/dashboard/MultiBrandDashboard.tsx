@@ -324,7 +324,7 @@ function RevenueTrendSection({
     label?: string;
   }) => {
     if (!active || !payload) return null;
-    const total = payload.reduce((s, p) => s + (p.value || 0), 0);
+    const total = payload.reduce((s, p) => s + (p.value ?? 0), 0);
     return (
       <div className="bg-white/95 backdrop-blur-sm border border-gray-100 rounded-xl shadow-xl p-4 min-w-[180px]">
         <p className="text-xs font-semibold text-gray-500 mb-2">{label}</p>
@@ -852,9 +852,9 @@ function BrandComparisonBar({
   nucio: BrandStats | null;
 }) {
   const data = [
-    { metric: '결제금액', 하우파파: howpapa?.revenue || 0, 누씨오: nucio?.revenue || 0 },
-    { metric: '매출총이익', 하우파파: howpapa?.grossProfit || 0, 누씨오: nucio?.grossProfit || 0 },
-    { metric: '공헌이익', 하우파파: howpapa?.contributionProfit || 0, 누씨오: nucio?.contributionProfit || 0 },
+    { metric: '결제금액', 하우파파: howpapa?.revenue ?? 0, 누씨오: nucio?.revenue ?? 0 },
+    { metric: '매출총이익', 하우파파: howpapa?.grossProfit ?? 0, 누씨오: nucio?.grossProfit ?? 0 },
+    { metric: '공헌이익', 하우파파: howpapa?.contributionProfit ?? 0, 누씨오: nucio?.contributionProfit ?? 0 },
   ];
 
   return (
@@ -1107,15 +1107,15 @@ export default function MultiBrandDashboard() {
         setBrandPlatformConfig(perBrandConfig);
 
         adPlatformRows = Object.entries(AD_PLATFORM_LABELS).map(([platform, label]) => {
-          const totalSpend = (brandAdData['howpapa']?.get(platform) || 0) + (brandAdData['nucio']?.get(platform) || 0);
+          const totalSpend = (brandAdData['howpapa']?.get(platform) ?? 0) + (brandAdData['nucio']?.get(platform) ?? 0);
           const hMetrics = adMetrics[`howpapa::${platform}`] || { impressions: 0, clicks: 0, conversions: 0, conversionValue: 0 };
           const nMetrics = adMetrics[`nucio::${platform}`] || { impressions: 0, clicks: 0, conversions: 0, conversionValue: 0 };
           const totalConversionValue = hMetrics.conversionValue + nMetrics.conversionValue;
           return {
             platform,
             label,
-            howpapa: brandAdData['howpapa']?.get(platform) || 0,
-            nucio: brandAdData['nucio']?.get(platform) || 0,
+            howpapa: brandAdData['howpapa']?.get(platform) ?? 0,
+            nucio: brandAdData['nucio']?.get(platform) ?? 0,
             total: totalSpend,
             isConfigured: configuredPlatforms.has(platform),
             impressions: hMetrics.impressions + nMetrics.impressions,
@@ -1227,14 +1227,14 @@ export default function MultiBrandDashboard() {
   };
 
   // Computed values
-  const totalRevenue = (howpapaStats?.revenue || 0) + (nucioStats?.revenue || 0);
-  const totalOrders = (howpapaStats?.orders || 0) + (nucioStats?.orders || 0);
-  const totalAdCost = (howpapaStats?.adCost || 0) + (nucioStats?.adCost || 0);
-  const totalProfit = (howpapaStats?.contributionProfit || 0) + (nucioStats?.contributionProfit || 0);
+  const totalRevenue = (howpapaStats?.revenue ?? 0) + (nucioStats?.revenue ?? 0);
+  const totalOrders = (howpapaStats?.orders ?? 0) + (nucioStats?.orders ?? 0);
+  const totalAdCost = (howpapaStats?.adCost ?? 0) + (nucioStats?.adCost ?? 0);
+  const totalProfit = (howpapaStats?.contributionProfit ?? 0) + (nucioStats?.contributionProfit ?? 0);
 
-  const prevTotalRevenue = (prevHowpapaStats?.revenue || 0) + (prevNucioStats?.revenue || 0);
-  const prevTotalOrders = (prevHowpapaStats?.orders || 0) + (prevNucioStats?.orders || 0);
-  const prevTotalProfit = (prevHowpapaStats?.contributionProfit || 0) + (prevNucioStats?.contributionProfit || 0);
+  const prevTotalRevenue = (prevHowpapaStats?.revenue ?? 0) + (prevNucioStats?.revenue ?? 0);
+  const prevTotalOrders = (prevHowpapaStats?.orders ?? 0) + (prevNucioStats?.orders ?? 0);
+  const prevTotalProfit = (prevHowpapaStats?.contributionProfit ?? 0) + (prevNucioStats?.contributionProfit ?? 0);
 
   const revenueChange = prevTotalRevenue > 0 ? ((totalRevenue - prevTotalRevenue) / prevTotalRevenue) * 100 : 0;
   const ordersChange = prevTotalOrders > 0 ? ((totalOrders - prevTotalOrders) / prevTotalOrders) * 100 : 0;

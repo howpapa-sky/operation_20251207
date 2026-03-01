@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { handleApiError } from '../lib/apiErrorHandler';
 import { ProjectFieldSetting, ProjectType, FieldType } from '../types';
 
 // 기본 필드 설정 (DB에 데이터가 없을 때 사용)
@@ -144,6 +145,7 @@ export const useProjectFieldsStore = create<ProjectFieldsState>((set, get) => ({
         set({ fieldSettings: allDefaults, isLoading: false });
       }
     } catch (error) {
+      handleApiError(error, '필드 설정 조회');
       console.error('Error fetching field settings:', error);
       set({ error: '필드 설정을 불러오는 데 실패했습니다.', isLoading: false });
     }
@@ -227,6 +229,7 @@ export const useProjectFieldsStore = create<ProjectFieldsState>((set, get) => ({
 
       return true;
     } catch (error) {
+      handleApiError(error, '필드 추가');
       console.error('Error adding field:', error);
       return false;
     }
@@ -312,6 +315,7 @@ export const useProjectFieldsStore = create<ProjectFieldsState>((set, get) => ({
 
       return true;
     } catch (error) {
+      handleApiError(error, '필드 수정');
       console.error('Error updating field:', error);
       return false;
     }
@@ -365,6 +369,7 @@ export const useProjectFieldsStore = create<ProjectFieldsState>((set, get) => ({
 
       return true;
     } catch (error) {
+      handleApiError(error, '필드 삭제');
       console.error('Error deleting field:', error);
       return false;
     }
@@ -403,6 +408,7 @@ export const useProjectFieldsStore = create<ProjectFieldsState>((set, get) => ({
 
       return true;
     } catch (error) {
+      handleApiError(error, '필드 정렬');
       console.error('Error reordering fields:', error);
       return false;
     }

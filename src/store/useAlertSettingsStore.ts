@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { handleApiError } from '../lib/apiErrorHandler';
 import { AlertSettings } from '../types';
 
 interface AlertSettingsState {
@@ -57,6 +58,7 @@ export const useAlertSettingsStore = create<AlertSettingsState>((set, get) => ({
       set({ settings: dbToAlertSettings(data) });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to fetch alert settings';
+      handleApiError(err, '알림 설정 조회');
       console.error('fetchAlertSettings error:', err);
       set({ error: message });
     } finally {
@@ -94,6 +96,7 @@ export const useAlertSettingsStore = create<AlertSettingsState>((set, get) => ({
       // 실패 시 롤백
       set({ settings: current });
       const message = err instanceof Error ? err.message : 'Failed to update alert settings';
+      handleApiError(err, '알림 설정 변경');
       console.error('updateAlertSettings error:', err);
       set({ error: message });
     }
@@ -122,6 +125,7 @@ export const useAlertSettingsStore = create<AlertSettingsState>((set, get) => ({
       set({ settings: dbToAlertSettings(data) });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to init alert settings';
+      handleApiError(err, '알림 설정 초기화');
       console.error('initAlertSettings error:', err);
       set({ error: message });
     }

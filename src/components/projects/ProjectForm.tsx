@@ -98,7 +98,7 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
     if (type === 'sampling' && ratings.length === 0) {
       const categoryValue = dynamicFieldValues['category'] as string || '크림';
       const categoryRatings = [...evaluationCriteria]
-        .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
+        .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
         .filter((c) => c.category === categoryValue && c.isActive)
         .map((c) => ({
           criteriaId: c.id,
@@ -119,7 +119,7 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
     // 샘플링에서 카테고리가 변경되면 평가 항목 초기화 - displayOrder로 정렬
     if (type === 'sampling' && fieldKey === 'category') {
       const newRatings = [...evaluationCriteria]
-        .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
+        .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
         .filter((c) => c.category === value && c.isActive)
         .map((c) => ({
           criteriaId: c.id,
@@ -164,15 +164,15 @@ export default function ProjectForm({ type, project, onSave, onDelete }: Project
 
     // 제품 발주인 경우 총액 계산
     if (type === 'product_order') {
-      const qty = dynamicFieldValues['quantity'] as number || 0;
-      const price = dynamicFieldValues['unitPrice'] as number || 0;
+      const qty = (dynamicFieldValues['quantity'] as number) ?? 0;
+      const price = (dynamicFieldValues['unitPrice'] as number) ?? 0;
       projectData.totalAmount = qty * price;
     }
 
     // 공동구매인 경우 이익률 계산
     if (type === 'group_purchase') {
-      const rev = dynamicFieldValues['revenue'] as number || 0;
-      const profit = dynamicFieldValues['contributionProfit'] as number || 0;
+      const rev = (dynamicFieldValues['revenue'] as number) ?? 0;
+      const profit = (dynamicFieldValues['contributionProfit'] as number) ?? 0;
       projectData.profitMargin = rev > 0 ? (profit / rev) * 100 : undefined;
     }
 

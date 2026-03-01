@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { handleApiError } from '../lib/apiErrorHandler';
 import { v4 as uuidv4 } from 'uuid';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -114,6 +115,7 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set) => ({
 
       set({ notes, notesLoading: false });
     } catch (error) {
+      handleApiError(error, '메모 조회');
       console.error('Fetch notes error:', error);
       set({ notesLoading: false });
     }
@@ -153,6 +155,7 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set) => ({
 
       set((state) => ({ notes: [newNote, ...state.notes] }));
     } catch (error) {
+      handleApiError(error, '메모 추가');
       console.error('Add note error:', error);
     }
   },
@@ -179,6 +182,7 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set) => ({
         ),
       }));
     } catch (error) {
+      handleApiError(error, '메모 수정');
       console.error('Update note error:', error);
     }
   },
@@ -192,6 +196,7 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set) => ({
         notes: state.notes.filter((n) => n.id !== id),
       }));
     } catch (error) {
+      handleApiError(error, '메모 삭제');
       console.error('Delete note error:', error);
     }
   },
@@ -221,6 +226,7 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set) => ({
 
       set({ statusUpdates, statusUpdatesLoading: false });
     } catch (error) {
+      handleApiError(error, '상태 업데이트 조회');
       console.error('Fetch status updates error:', error);
       set({ statusUpdatesLoading: false });
     }
@@ -269,6 +275,7 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set) => ({
         statusUpdates: [newUpdate, ...state.statusUpdates],
       }));
     } catch (error) {
+      handleApiError(error, '상태 업데이트 추가');
       console.error('Add status update error:', error);
     }
   },
@@ -310,6 +317,7 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set) => ({
 
       set({ myTasks, tasksLoading: false });
     } catch (error) {
+      handleApiError(error, '내 업무 조회');
       console.error('Fetch my tasks error:', error);
       set({ tasksLoading: false });
     }
@@ -338,6 +346,7 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set) => ({
         ),
       }));
     } catch (error) {
+      handleApiError(error, '업무 상태 변경');
       console.error('Update task status error:', error);
     }
   },

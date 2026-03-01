@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { useStore } from '../../store/useStore';
 
 export default function Layout() {
@@ -25,9 +26,12 @@ export default function Layout() {
       >
         <Header />
         <main className="p-4 md:p-6">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
+
     </div>
   );
 }

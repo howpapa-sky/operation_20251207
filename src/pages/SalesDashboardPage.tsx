@@ -434,8 +434,8 @@ function RevenueTrendChart({
       }
 
       const entry = dateMap.get(key) || {};
-      entry[stat.channel] = (entry[stat.channel] || 0) + stat.totalRevenue;
-      entry['total'] = (entry['total'] || 0) + stat.totalRevenue;
+      entry[stat.channel] = (entry[stat.channel] ?? 0) + stat.totalRevenue;
+      entry['total'] = (entry['total'] ?? 0) + stat.totalRevenue;
       dateMap.set(key, entry);
     }
 
@@ -467,7 +467,7 @@ function RevenueTrendChart({
           {label}
         </p>
         {[...payload]
-          .sort((a, b) => (b.value || 0) - (a.value || 0))
+          .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
           .map((entry) => (
             <div key={entry.name} className="flex items-center justify-between gap-4 py-0.5">
               <div className="flex items-center gap-2">
@@ -952,7 +952,7 @@ export default function SalesDashboardPage() {
         dateChannelMap.set(stat.channel, new Map());
       }
       const channelMap = dateChannelMap.get(stat.channel)!;
-      channelMap.set(stat.date, (channelMap.get(stat.date) || 0) + stat.totalRevenue);
+      channelMap.set(stat.date, (channelMap.get(stat.date) ?? 0) + stat.totalRevenue);
     }
 
     for (const [channel, dateMap] of dateChannelMap) {
@@ -968,7 +968,7 @@ export default function SalesDashboardPage() {
   const dailyRevenueTotals = useMemo(() => {
     const dateMap = new Map<string, number>();
     for (const stat of channelStats) {
-      dateMap.set(stat.date, (dateMap.get(stat.date) || 0) + stat.totalRevenue);
+      dateMap.set(stat.date, (dateMap.get(stat.date) ?? 0) + stat.totalRevenue);
     }
     return Array.from(dateMap.entries())
       .sort(([a], [b]) => a.localeCompare(b))

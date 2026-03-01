@@ -313,7 +313,7 @@ export default function SeedingListPage() {
         formatDate(inf.listed_at),
         inf.account_id,
         inf.follower_count,
-        inf.following_count || 0,
+        inf.following_count ?? 0,
         inf.email || '',
         flags.dmSent ? 'O' : '',
         flags.responseReceived ? 'O' : '',

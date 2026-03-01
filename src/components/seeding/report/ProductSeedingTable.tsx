@@ -70,17 +70,17 @@ export default function ProductSeedingTable({
 
       projectCompleted.forEach((inf) => {
         if (inf.performance) {
-          totalReach += (inf.performance.views || 0) + (inf.performance.story_views || 0);
+          totalReach += (inf.performance.views ?? 0) + (inf.performance.story_views ?? 0);
         }
       });
 
       projectInfluencers.forEach((inf) => {
         // 발송완료 상태인 건만 비용 계산
         if (shippedStatuses.includes(inf.status)) {
-          const quantity = inf.shipping?.quantity || 1;
-          const productPrice = inf.product_price || project.cost_price || 0;
+          const quantity = inf.shipping?.quantity ?? 1;
+          const productPrice = inf.product_price ?? project.cost_price ?? 0;
           totalProductCost += quantity * productPrice;
-          totalFee += inf.fee || 0;
+          totalFee += inf.fee ?? 0;
         }
       });
 

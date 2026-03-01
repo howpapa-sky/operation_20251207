@@ -58,9 +58,9 @@ export default function SamplingDashboard({ projects }: SamplingDashboardProps) 
     setSendingNotification(true);
     try {
       // 요약 정보 생성
-      const avgRating = filteredProjects.reduce((sum, p) => sum + (p.averageRating || 0), 0) / filteredProjects.length;
-      const highRated = filteredProjects.filter(p => (p.averageRating || 0) >= 4).length;
-      const lowRated = filteredProjects.filter(p => (p.averageRating || 0) < 3).length;
+      const avgRating = filteredProjects.reduce((sum, p) => sum + (p.averageRating ?? 0), 0) / filteredProjects.length;
+      const highRated = filteredProjects.filter(p => (p.averageRating ?? 0) >= 4).length;
+      const lowRated = filteredProjects.filter(p => (p.averageRating ?? 0) < 3).length;
 
       let filterInfo = '';
       if (selectedCategory) filterInfo += `카테고리: ${selectedCategory}\n`;
@@ -116,7 +116,7 @@ ${filteredProjects
         stats[p.category] = { count: 0, avgRating: 0, totalRating: 0, projects: [] };
       }
       stats[p.category].count++;
-      stats[p.category].totalRating += p.averageRating || 0;
+      stats[p.category].totalRating += p.averageRating ?? 0;
       stats[p.category].projects.push(p);
     });
 
@@ -143,7 +143,7 @@ ${filteredProjects
         stats[p.manufacturer] = { count: 0, avgRating: 0, totalRating: 0, projects: [] };
       }
       stats[p.manufacturer].count++;
-      stats[p.manufacturer].totalRating += p.averageRating || 0;
+      stats[p.manufacturer].totalRating += p.averageRating ?? 0;
       stats[p.manufacturer].projects.push(p);
     });
 
@@ -170,7 +170,7 @@ ${filteredProjects
         stats[p.brand] = { count: 0, avgRating: 0, totalRating: 0 };
       }
       stats[p.brand].count++;
-      stats[p.brand].totalRating += p.averageRating || 0;
+      stats[p.brand].totalRating += p.averageRating ?? 0;
     });
 
     Object.keys(stats).forEach((key) => {
@@ -194,7 +194,7 @@ ${filteredProjects
       if (!roundData[p.round]) {
         roundData[p.round] = { total: 0, count: 0 };
       }
-      roundData[p.round].total += p.averageRating || 0;
+      roundData[p.round].total += p.averageRating ?? 0;
       roundData[p.round].count++;
     });
 
@@ -218,7 +218,7 @@ ${filteredProjects
     ];
 
     filteredProjects.forEach((p) => {
-      const rating = p.averageRating || 0;
+      const rating = p.averageRating ?? 0;
       if (rating < 1) {
         distribution[0].count++;
         distribution[0].projects.push(p);
@@ -244,10 +244,10 @@ ${filteredProjects
   const summary = useMemo(() => {
     const total = filteredProjects.length;
     const avgRating = total > 0
-      ? filteredProjects.reduce((sum, p) => sum + (p.averageRating || 0), 0) / total
+      ? filteredProjects.reduce((sum, p) => sum + (p.averageRating ?? 0), 0) / total
       : 0;
-    const highRated = filteredProjects.filter(p => (p.averageRating || 0) >= 4).length;
-    const lowRated = filteredProjects.filter(p => (p.averageRating || 0) < 3).length;
+    const highRated = filteredProjects.filter(p => (p.averageRating ?? 0) >= 4).length;
+    const lowRated = filteredProjects.filter(p => (p.averageRating ?? 0) < 3).length;
 
     return { total, avgRating, highRated, lowRated };
   }, [filteredProjects]);

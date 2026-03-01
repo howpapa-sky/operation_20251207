@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { handleApiError } from '../lib/apiErrorHandler';
 import { ProjectType, ProjectTypeSetting, NotificationSettings } from '../types';
 
 // 기본 프로젝트 유형 설정
@@ -102,6 +103,7 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
         set({ projectTypeSettings: settings });
       }
     } catch (error) {
+      handleApiError(error, '프로젝트 설정 조회');
       console.error('Fetch project type settings error:', error);
       // 에러 시 기본값 사용
       const defaultSettings: ProjectTypeSetting[] = defaultProjectTypes.map((pt) => ({
@@ -143,6 +145,7 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
         .eq('user_id', user.id)
         .eq('project_type', projectType);
     } catch (error) {
+      handleApiError(error, '프로젝트 설정 수정');
       console.error('Update project type setting error:', error);
     }
   },
@@ -234,6 +237,7 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
         });
       }
     } catch (error) {
+      handleApiError(error, '알림 설정 조회');
       console.error('Fetch notification settings error:', error);
       // 에러 시 기본값 사용
       set({
@@ -285,6 +289,7 @@ export const useProjectSettingsStore = create<ProjectSettingsState>((set, get) =
           : null,
       }));
     } catch (error) {
+      handleApiError(error, '알림 설정 수정');
       console.error('Update notification settings error:', error);
     }
   },

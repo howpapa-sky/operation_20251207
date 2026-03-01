@@ -194,9 +194,9 @@ export default function SalesPage() {
   const channelChartData = channelOptions.map((ch) => ({
     name: channelLabels[ch],
     channel: ch,
-    매출: summary.byChannel[ch]?.revenue || 0,
-    이익: summary.byChannel[ch]?.profit || 0,
-    건수: summary.byChannel[ch]?.count || 0,
+    매출: summary.byChannel[ch]?.revenue ?? 0,
+    이익: summary.byChannel[ch]?.profit ?? 0,
+    건수: summary.byChannel[ch]?.count ?? 0,
   }));
 
   // 제품별 매출 파이차트 데이터
@@ -640,7 +640,7 @@ export default function SalesPage() {
                         </div>
                       </td>
                       <td className="table-cell text-right font-medium">{formatNumber(ch.매출)}원</td>
-                      <td className="table-cell text-right">{formatNumber(summary.byChannel[ch.channel]?.cost || 0)}원</td>
+                      <td className="table-cell text-right">{formatNumber(summary.byChannel[ch.channel]?.cost ?? 0)}원</td>
                       <td className="table-cell text-right text-green-600 font-medium">{formatNumber(ch.이익)}원</td>
                       <td className="table-cell text-right">
                         {ch.매출 > 0 ? ((ch.이익 / ch.매출) * 100).toFixed(1) : 0}%

@@ -69,14 +69,14 @@ export default function StatisticsPage() {
     }).length;
 
     const totalBudget = filteredProjects.reduce((sum, p) => {
-      if ('budget' in p) return sum + (p.budget || 0);
-      if ('totalAmount' in p) return sum + (p.totalAmount || 0);
-      if ('revenue' in p) return sum + (p.revenue || 0);
+      if ('budget' in p) return sum + (p.budget ?? 0);
+      if ('totalAmount' in p) return sum + (p.totalAmount ?? 0);
+      if ('revenue' in p) return sum + (p.revenue ?? 0);
       return sum;
     }, 0);
 
     const usedBudget = filteredProjects.reduce((sum, p) => {
-      if ('actualCost' in p) return sum + (p.actualCost || 0);
+      if ('actualCost' in p) return sum + (p.actualCost ?? 0);
       return sum;
     }, 0);
 
@@ -169,9 +169,9 @@ export default function StatisticsPage() {
       const typeName = projectTypeLabels[p.type];
       if (!budgets[typeName]) budgets[typeName] = 0;
 
-      if ('budget' in p) budgets[typeName] += p.budget || 0;
-      if ('totalAmount' in p) budgets[typeName] += p.totalAmount || 0;
-      if ('revenue' in p) budgets[typeName] += p.revenue || 0;
+      if ('budget' in p) budgets[typeName] += p.budget ?? 0;
+      if ('totalAmount' in p) budgets[typeName] += p.totalAmount ?? 0;
+      if ('revenue' in p) budgets[typeName] += p.revenue ?? 0;
     });
 
     return Object.entries(budgets)

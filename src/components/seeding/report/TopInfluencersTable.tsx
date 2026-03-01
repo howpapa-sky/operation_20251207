@@ -40,12 +40,12 @@ export default function TopInfluencersTable({
   // (이미 completed_at 기준으로 필터링된 데이터를 받음)
   const topInfluencers: TopInfluencer[] = influencers
     .map((inf) => {
-      const views = (inf.performance?.views || 0) + (inf.performance?.story_views || 0);
+      const views = (inf.performance?.views ?? 0) + (inf.performance?.story_views ?? 0);
       const engagement =
-        (inf.performance?.likes || 0) +
-        (inf.performance?.comments || 0) +
-        (inf.performance?.saves || 0) +
-        (inf.performance?.shares || 0);
+        (inf.performance?.likes ?? 0) +
+        (inf.performance?.comments ?? 0) +
+        (inf.performance?.saves ?? 0) +
+        (inf.performance?.shares ?? 0);
       const engagementRate = views > 0 ? (engagement / views) * 100 : 0;
 
       return {

@@ -25,7 +25,7 @@ export default function SamplingEmailGenerator({ project }: SamplingEmailGenerat
     if (!project.ratings || project.ratings.length === 0) {
       return { status: 'none', average: 0 };
     }
-    const avg = project.averageRating || 0;
+    const avg = project.averageRating ?? 0;
     if (avg >= 4) return { status: 'excellent', average: avg };
     if (avg >= 3) return { status: 'good', average: avg };
     if (avg >= 2) return { status: 'needs_improvement', average: avg };
@@ -102,7 +102,7 @@ export default function SamplingEmailGenerator({ project }: SamplingEmailGenerat
         const { highScores, mediumScores, lowScores, criteriaAverages } = ratingAnalysis;
         const strongPoints = criteriaAverages.filter(c => c.avgScore >= 4).map(c => c.name);
         const weakPoints = criteriaAverages.filter(c => c.avgScore < 3).map(c => c.name);
-        const avgScore = project.averageRating || 0;
+        const avgScore = project.averageRating ?? 0;
 
         let summary = '';
 
@@ -155,7 +155,7 @@ ${brandName}의 ${project.title} 관련 ${project.round}차 샘플에 대한 종
 ■ 종합 평가 결과
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   • 평균 점수: ${avgRating}점 / 5점
-  • 총 평가 항목: ${ratingAnalysis?.totalEvaluations || 0}개
+  • 총 평가 항목: ${ratingAnalysis?.totalEvaluations ?? 0}개
 
 ■ 항목별 세부 평가
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -436,7 +436,7 @@ ${brandName} 담당자 드림`;
               </div>
               <div>
                 <span className="text-gray-500">평가 항목:</span>{' '}
-                <span className="text-gray-900">{project.ratings?.length || 0}개</span>
+                <span className="text-gray-900">{project.ratings?.length ?? 0}개</span>
               </div>
             </div>
           </Card>

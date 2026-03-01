@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { handleApiError } from '../lib/apiErrorHandler';
 import { Product, SalesRecord, SalesChannel, Brand, SeedingMarketingCost } from '../types';
 
 interface SalesState {
@@ -92,6 +93,7 @@ export const useSalesStore = create<SalesState>((set, get) => ({
         set({ products });
       }
     } catch (error) {
+      handleApiError(error, '제품 목록 조회');
       console.error('Fetch products error:', error);
     } finally {
       set({ isLoading: false });
@@ -134,6 +136,7 @@ export const useSalesStore = create<SalesState>((set, get) => ({
         set((state) => ({ products: [...state.products, product] }));
       }
     } catch (error) {
+      handleApiError(error, '제품 추가');
       console.error('Add product error:', error);
     }
   },
@@ -166,6 +169,7 @@ export const useSalesStore = create<SalesState>((set, get) => ({
         }));
       }
     } catch (error) {
+      handleApiError(error, '제품 수정');
       console.error('Update product error:', error);
     }
   },
@@ -187,6 +191,7 @@ export const useSalesStore = create<SalesState>((set, get) => ({
         }));
       }
     } catch (error) {
+      handleApiError(error, '제품 삭제');
       console.error('Delete product error:', error);
     }
   },
@@ -231,6 +236,7 @@ export const useSalesStore = create<SalesState>((set, get) => ({
         set({ salesRecords: records });
       }
     } catch (error) {
+      handleApiError(error, '주문 데이터 조회');
       console.error('Fetch sales records error:', error);
     } finally {
       set({ isLoading: false });
@@ -280,6 +286,7 @@ export const useSalesStore = create<SalesState>((set, get) => ({
         }));
       }
     } catch (error) {
+      handleApiError(error, '매출 기록 추가');
       console.error('Add sales record error:', error);
     }
   },
@@ -323,6 +330,7 @@ export const useSalesStore = create<SalesState>((set, get) => ({
         }));
       }
     } catch (error) {
+      handleApiError(error, '매출 기록 수정');
       console.error('Update sales record error:', error);
     }
   },
@@ -344,6 +352,7 @@ export const useSalesStore = create<SalesState>((set, get) => ({
         }));
       }
     } catch (error) {
+      handleApiError(error, '매출 기록 삭제');
       console.error('Delete sales record error:', error);
     }
   },
@@ -487,6 +496,7 @@ export const useSalesStore = create<SalesState>((set, get) => ({
       const total = productCost + payment + shippingCost;
       return { productCost, payment, shippingCost, total, count: filteredData.length };
     } catch (err) {
+      handleApiError(err, '시딩 마케팅비 조회');
       console.error('getSeedingMarketingCost error:', err);
       return empty;
     }

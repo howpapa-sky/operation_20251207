@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { handleApiError } from '../lib/apiErrorHandler';
 import type { SalesChannel, SalesChannelSettings } from '../types/ecommerce';
 
 const db = supabase as any;
@@ -46,6 +47,7 @@ export const useChannelSettingsStore = create<ChannelSettingsState>((set, get) =
       set({ channels, isLoading: false });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
+      handleApiError(error, '채널 설정 조회');
       console.error('Fetch channel settings error:', message);
       set({ error: message, isLoading: false });
     }
@@ -74,6 +76,7 @@ export const useChannelSettingsStore = create<ChannelSettingsState>((set, get) =
       }));
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
+      handleApiError(error, '채널 설정 변경');
       console.error('Update channel error:', message);
       set({ error: message });
     }
