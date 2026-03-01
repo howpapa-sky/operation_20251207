@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { handleApiError } from '../lib/apiErrorHandler';
 import { SKUMaster, SKUCostHistory, ChannelOptionMapping, SalesChannel } from '../types/ecommerce';
 
 // Type workaround - 새 테이블들이 아직 타입에 없음
@@ -48,8 +49,8 @@ function dbToSKU(record: any): SKUMaster {
     effectiveDate: record.effective_date,
     barcode: record.barcode || undefined,
     supplier: record.supplier || undefined,
-    minStock: record.min_stock || 0,
-    currentStock: record.current_stock || 0,
+    minStock: record.min_stock ?? 0,
+    currentStock: record.current_stock ?? 0,
     isActive: record.is_active,
     notes: record.notes || undefined,
     createdAt: record.created_at,
@@ -105,6 +106,7 @@ export const useSKUMasterStore = create<SKUMasterState>((set, get) => ({
       const skus = (data || []).map(dbToSKU);
       set({ skus, isLoading: false });
     } catch (error: any) {
+      handleApiError(error, 'SKU 목록 조회');
       console.error('Fetch SKUs error:', error);
       set({ error: error.message, isLoading: false });
     }
@@ -125,8 +127,8 @@ export const useSKUMasterStore = create<SKUMasterState>((set, get) => ({
           effective_date: skuData.effectiveDate,
           barcode: skuData.barcode || null,
           supplier: skuData.supplier || null,
-          min_stock: skuData.minStock || 0,
-          current_stock: skuData.currentStock || 0,
+          min_stock: skuData.minStock ?? 0,
+          current_stock: skuData.currentStock ?? 0,
           is_active: skuData.isActive,
           notes: skuData.notes || null,
         })
@@ -151,6 +153,7 @@ export const useSKUMasterStore = create<SKUMasterState>((set, get) => ({
 
       return newSKU;
     } catch (error: any) {
+      handleApiError(error, 'SKU 추가');
       console.error('Add SKU error:', error);
       set({ error: error.message, isLoading: false });
       return null;
@@ -174,8 +177,8 @@ export const useSKUMasterStore = create<SKUMasterState>((set, get) => ({
         effective_date: skuData.effectiveDate,
         barcode: skuData.barcode || null,
         supplier: skuData.supplier || null,
-        min_stock: skuData.minStock || 0,
-        current_stock: skuData.currentStock || 0,
+        min_stock: skuData.minStock ?? 0,
+        current_stock: skuData.currentStock ?? 0,
         is_active: skuData.isActive,
         notes: skuData.notes || null,
       }));
@@ -209,6 +212,7 @@ export const useSKUMasterStore = create<SKUMasterState>((set, get) => ({
       set({ isLoading: false });
       return { success, failed };
     } catch (error: any) {
+      handleApiError(error, 'SKU 일괄 추가');
       console.error('Bulk add SKUs error:', error);
       set({ error: error.message, isLoading: false });
       return { success: 0, failed: skuDataList.length };
@@ -246,6 +250,7 @@ export const useSKUMasterStore = create<SKUMasterState>((set, get) => ({
 
       if (error) throw error;
     } catch (error: any) {
+      handleApiError(error, 'SKU 수정');
       console.error('Update SKU error:', error);
       set({ skus: previousSKUs, error: error.message });
     }
@@ -266,6 +271,7 @@ export const useSKUMasterStore = create<SKUMasterState>((set, get) => ({
 
       if (error) throw error;
     } catch (error: any) {
+      handleApiError(error, 'SKU 삭제');
       console.error('Delete SKU error:', error);
       set({ skus: previousSKUs, error: error.message });
     }
@@ -315,6 +321,7 @@ export const useSKUMasterStore = create<SKUMasterState>((set, get) => ({
       // 4. 이력 새로고침
       await get().fetchCostHistory(id);
     } catch (error: any) {
+      handleApiError(error, 'SKU 원가 수정');
       console.error('Update cost price error:', error);
       set({ error: error.message });
     }
@@ -333,6 +340,7 @@ export const useSKUMasterStore = create<SKUMasterState>((set, get) => ({
       const history = (data || []).map(dbToCostHistory);
       set({ costHistory: history });
     } catch (error: any) {
+      handleApiError(error, 'SKU 원가 이력 조회');
       console.error('Fetch cost history error:', error);
     }
   },
@@ -352,6 +360,7 @@ export const useSKUMasterStore = create<SKUMasterState>((set, get) => ({
       const mappings = (data || []).map(dbToChannelMapping);
       set({ channelMappings: mappings });
     } catch (error: any) {
+      handleApiError(error, '채널 매핑 조회');
       console.error('Fetch channel mappings error:', error);
     }
   },
@@ -378,6 +387,7 @@ export const useSKUMasterStore = create<SKUMasterState>((set, get) => ({
         channelMappings: [...state.channelMappings, newMapping],
       }));
     } catch (error: any) {
+      handleApiError(error, '채널 매핑 추가');
       console.error('Add channel mapping error:', error);
       set({ error: error.message });
     }
@@ -398,6 +408,7 @@ export const useSKUMasterStore = create<SKUMasterState>((set, get) => ({
 
       if (error) throw error;
     } catch (error: any) {
+      handleApiError(error, '채널 매핑 삭제');
       console.error('Delete channel mapping error:', error);
       set({ channelMappings: previousMappings, error: error.message });
     }
@@ -413,7 +424,7 @@ export const useSKUMasterStore = create<SKUMasterState>((set, get) => ({
         howpapa: skus.filter((s) => s.brand === 'howpapa').length,
         nucio: skus.filter((s) => s.brand === 'nucio').length,
       },
-      totalCostValue: activeSkus.reduce((sum, s) => sum + (s.costPrice * (s.currentStock || 0)), 0),
+      totalCostValue: activeSkus.reduce((sum, s) => sum + (s.costPrice * (s.currentStock ?? 0)), 0),
     };
   },
 }));

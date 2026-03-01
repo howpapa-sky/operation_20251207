@@ -87,7 +87,7 @@ export async function syncAdSpend(
       success: true,
       platform,
       message: result.message || `${label} 동기화 완료`,
-      recordsCreated: result.recordsCreated || 0,
+      recordsCreated: result.recordsCreated ?? 0,
       recordsUpdated: 0,
       dateRange: { start: startDate, end: endDate },
     };

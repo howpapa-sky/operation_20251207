@@ -62,9 +62,9 @@ export default function ProductMasterForm({ product, onSave, onDelete }: Product
   const [factoryLocation, setFactoryLocation] = useState(product?.factoryLocation || '');
 
   // 가격 정보
-  const [costPrice, setCostPrice] = useState(product?.costPrice || 0);
-  const [sellingPrice, setSellingPrice] = useState(product?.sellingPrice || 0);
-  const [supplyPrice, setSupplyPrice] = useState(product?.supplyPrice || 0);
+  const [costPrice, setCostPrice] = useState(product?.costPrice ?? 0);
+  const [sellingPrice, setSellingPrice] = useState(product?.sellingPrice ?? 0);
+  const [supplyPrice, setSupplyPrice] = useState(product?.supplyPrice ?? 0);
 
   // 인증 정보
   const [certifications, setCertifications] = useState<CertificationInfo>(
@@ -415,7 +415,7 @@ export default function ProductMasterForm({ product, onSave, onDelete }: Product
               placeholder="0"
               min="0"
             />
-            <p className="text-xs text-gray-500 mt-1">₩{formatPrice(supplyPrice || 0)}</p>
+            <p className="text-xs text-gray-500 mt-1">₩{formatPrice(supplyPrice ?? 0)}</p>
           </div>
         </div>
 
@@ -963,7 +963,7 @@ function OptionModal({ isOpen, onClose, option, onSave }: OptionModalProps) {
     if (option) {
       setName(option.name);
       setValue(option.value);
-      setAdditionalPrice(option.additionalPrice || 0);
+      setAdditionalPrice(option.additionalPrice ?? 0);
       setSku(option.sku || '');
       setBarcode(option.barcode || '');
     } else {

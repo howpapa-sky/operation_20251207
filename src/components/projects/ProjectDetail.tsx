@@ -224,11 +224,11 @@ export default function ProjectDetail({ project }: ProjectDetailProps) {
               </div>
               <div>
                 <p className="text-sm text-gray-500">단가</p>
-                <p className="font-medium">{formatCurrency(project.unitPrice || 0)}</p>
+                <p className="font-medium">{formatCurrency(project.unitPrice ?? 0)}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">총액</p>
-                <p className="font-medium text-primary-600">{formatCurrency(project.totalAmount || 0)}</p>
+                <p className="font-medium text-primary-600">{formatCurrency(project.totalAmount ?? 0)}</p>
               </div>
             </div>
           </Card>

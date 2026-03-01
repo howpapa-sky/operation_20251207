@@ -16,6 +16,7 @@ import {
   ScheduleType,
 } from '../types';
 import type { Json } from '../types/database';
+import { handleApiError } from '../lib/apiErrorHandler';
 import { v4 as uuidv4 } from 'uuid';
 
 interface AppState {
@@ -192,6 +193,7 @@ export const useStore = create<AppState>()(
 
           set({ user: null, isAuthenticated: false, isLoading: false });
         } catch (error) {
+          handleApiError(error, '인증 확인', { silent: true });
           console.error('Auth check error:', error);
           set({ user: null, isAuthenticated: false, isLoading: false });
         }
@@ -236,6 +238,7 @@ export const useStore = create<AppState>()(
 
           return { success: true };
         } catch (error: any) {
+          handleApiError(error, '로그인');
           return { success: false, error: error.message };
         }
       },
@@ -275,6 +278,7 @@ export const useStore = create<AppState>()(
 
           return { success: true };
         } catch (error: any) {
+          handleApiError(error, '회원가입');
           return { success: false, error: error.message };
         }
       },
@@ -329,6 +333,7 @@ export const useStore = create<AppState>()(
             set({ projects });
           }
         } catch (error) {
+          handleApiError(error, '프로젝트 조회');
           console.error('Fetch projects error:', error);
         }
       },
@@ -393,6 +398,7 @@ export const useStore = create<AppState>()(
             }
           }
         } catch (error) {
+          handleApiError(error, '프로젝트 추가');
           console.error('Add project error:', error);
         }
       },
@@ -470,6 +476,7 @@ export const useStore = create<AppState>()(
             }
           }
         } catch (error) {
+          handleApiError(error, '프로젝트 수정');
           console.error('Update project error:', error);
         }
       },
@@ -508,6 +515,7 @@ export const useStore = create<AppState>()(
             });
           }
         } catch (error) {
+          handleApiError(error, '프로젝트 삭제');
           console.error('Delete project error:', error);
         }
       },
@@ -653,7 +661,7 @@ export const useStore = create<AppState>()(
               displayOrder: c.display_order ?? 0,
             }));
             // displayOrder로 정렬 (display_order 컬럼이 있는 경우)
-            criteria.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+            criteria.sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
             set({ evaluationCriteria: criteria });
           }
         } catch (error) {
@@ -669,7 +677,7 @@ export const useStore = create<AppState>()(
         try {
           // 현재 최대 displayOrder 값 계산
           const currentCriteria = get().evaluationCriteria;
-          const maxOrder = currentCriteria.reduce((max, c) => Math.max(max, c.displayOrder || 0), 0);
+          const maxOrder = currentCriteria.reduce((max, c) => Math.max(max, c.displayOrder ?? 0), 0);
           const newDisplayOrder = criteriaData.displayOrder ?? maxOrder + 1;
 
           // 기본 데이터 (display_order 컬럼이 없을 수 있음)
@@ -729,6 +737,7 @@ export const useStore = create<AppState>()(
             }
           }
         } catch (error) {
+          handleApiError(error, '평가기준 추가');
           console.error('Add criteria error:', error);
         }
       },
@@ -761,6 +770,7 @@ export const useStore = create<AppState>()(
             }));
           }
         } catch (error) {
+          handleApiError(error, '평가기준 수정');
           console.error('Update criteria error:', error);
         }
       },
@@ -783,6 +793,7 @@ export const useStore = create<AppState>()(
             }));
           }
         } catch (error) {
+          handleApiError(error, '평가기준 삭제');
           console.error('Delete criteria error:', error);
         }
       },

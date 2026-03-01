@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '../lib/supabase';
 import { Json } from '../types/database';
+import { handleApiError } from '../lib/apiErrorHandler';
 import {
   SeedingProject,
   SeedingInfluencer,
@@ -129,7 +130,7 @@ function dbToProject(record: any): SeedingProject {
     product_name: record.product_name || '',
     start_date: record.start_date,
     end_date: record.end_date,
-    target_count: record.target_count || 0,
+    target_count: record.target_count ?? 0,
     cost_price: parseFloat(record.cost_price) || 0,
     selling_price: parseFloat(record.selling_price) || 0,
     status: record.status,
@@ -203,7 +204,7 @@ function dbToTemplate(record: any): OutreachTemplate {
     content_type: record.content_type,
     brand: record.brand,
     variables: record.variables || [],
-    usage_count: record.usage_count || 0,
+    usage_count: record.usage_count ?? 0,
     created_at: record.created_at,
     updated_at: record.updated_at,
   };
@@ -292,6 +293,7 @@ export const useSeedingStore = create<SeedingStore>()(
           const projects = (data || []).map(dbToProject);
           set({ projects, isLoading: false });
         } catch (error: any) {
+          handleApiError(error, '프로젝트 목록 조회');
           set({ error: error.message, isLoading: false });
           throw error;
         }
@@ -332,6 +334,7 @@ export const useSeedingStore = create<SeedingStore>()(
 
           return newProject;
         } catch (error: any) {
+          handleApiError(error, '프로젝트 추가');
           set({ error: error.message, isLoading: false });
           throw error;
         }
@@ -374,6 +377,7 @@ export const useSeedingStore = create<SeedingStore>()(
 
           if (error) throw error;
         } catch (error: any) {
+          handleApiError(error, '프로젝트 수정');
           // 롤백
           set({ projects: previousProjects, error: error.message });
           throw error;
@@ -463,6 +467,7 @@ export const useSeedingStore = create<SeedingStore>()(
             set({ influencers, isLoading: false });
           }
         } catch (error: any) {
+          handleApiError(error, '인플루언서 목록 조회');
           set({ error: error.message, isLoading: false });
           throw error;
         }
@@ -512,6 +517,7 @@ export const useSeedingStore = create<SeedingStore>()(
 
           return newInfluencer;
         } catch (error: any) {
+          handleApiError(error, '인플루언서 추가');
           set({ error: error.message, isLoading: false });
           throw error;
         }
@@ -666,6 +672,7 @@ export const useSeedingStore = create<SeedingStore>()(
           }
 
         } catch (error: any) {
+          handleApiError(error, '인플루언서 일괄 추가');
           console.error('[addInfluencersBulk] Error:', error);
           set({ error: error.message, isLoading: false });
           throw error;
@@ -735,6 +742,7 @@ export const useSeedingStore = create<SeedingStore>()(
 
           if (error) throw error;
         } catch (error: any) {
+          handleApiError(error, '인플루언서 수정');
           set({ influencers: previousInfluencers, error: error.message });
           throw error;
         }
@@ -813,6 +821,7 @@ export const useSeedingStore = create<SeedingStore>()(
 
           if (error) throw error;
         } catch (error: any) {
+          handleApiError(error, '인플루언서 삭제');
           set({ influencers: previousInfluencers, error: error.message });
           throw error;
         }
@@ -858,6 +867,7 @@ export const useSeedingStore = create<SeedingStore>()(
 
           if (error) throw error;
         } catch (error: any) {
+          handleApiError(error, '인플루언서 삭제');
           set({ influencers: previousInfluencers, error: error.message });
           throw error;
         }
@@ -882,6 +892,7 @@ export const useSeedingStore = create<SeedingStore>()(
           const templates = (data || []).map(dbToTemplate);
           set({ templates, isLoading: false });
         } catch (error: any) {
+          handleApiError(error, '템플릿 조회');
           set({ error: error.message, isLoading: false });
           throw error;
         }
@@ -914,6 +925,7 @@ export const useSeedingStore = create<SeedingStore>()(
 
           return newTemplate;
         } catch (error: any) {
+          handleApiError(error, '템플릿 추가');
           set({ error: error.message, isLoading: false });
           throw error;
         }
@@ -944,6 +956,7 @@ export const useSeedingStore = create<SeedingStore>()(
 
           if (error) throw error;
         } catch (error: any) {
+          handleApiError(error, '템플릿 수정');
           set({ templates: previousTemplates, error: error.message });
           throw error;
         }
@@ -1009,6 +1022,7 @@ export const useSeedingStore = create<SeedingStore>()(
           const guides = (data || []).map(dbToGuide);
           set({ guides, isLoading: false });
         } catch (error: any) {
+          handleApiError(error, '가이드 조회');
           set({ error: error.message, isLoading: false });
           throw error;
         }
@@ -1053,6 +1067,7 @@ export const useSeedingStore = create<SeedingStore>()(
 
           return newGuide;
         } catch (error: any) {
+          handleApiError(error, '가이드 추가');
           set({ error: error.message, isLoading: false });
           throw error;
         }
@@ -1090,6 +1105,7 @@ export const useSeedingStore = create<SeedingStore>()(
 
           if (error) throw error;
         } catch (error: any) {
+          handleApiError(error, '가이드 수정');
           set({ guides: previousGuides, error: error.message });
           throw error;
         }
@@ -1110,6 +1126,7 @@ export const useSeedingStore = create<SeedingStore>()(
 
           if (error) throw error;
         } catch (error: any) {
+          handleApiError(error, '가이드 삭제');
           set({ guides: previousGuides, error: error.message });
           throw error;
         }
@@ -1244,21 +1261,21 @@ export const useSeedingStore = create<SeedingStore>()(
 
           // 비용 계산 (발송완료 상태인 건만 계산)
           if (shippedStatuses.includes(inf.status)) {
-            const quantity = inf.shipping?.quantity || 1;
+            const quantity = inf.shipping?.quantity ?? 1;
             // 인플루언서별 제품단가 우선, 없으면 프로젝트 원가 사용
-            const productPrice = inf.product_price || project?.cost_price || 0;
+            const productPrice = inf.product_price ?? project?.cost_price ?? 0;
             stats.total_cost += quantity * productPrice;
           }
-          stats.total_fee += inf.fee || 0;
+          stats.total_fee += inf.fee ?? 0;
 
           // 성과 합산
           if (inf.performance) {
-            stats.total_reach += (inf.performance.views || 0) + (inf.performance.story_views || 0);
+            stats.total_reach += (inf.performance.views ?? 0) + (inf.performance.story_views ?? 0);
             stats.total_engagement +=
-              (inf.performance.likes || 0) +
-              (inf.performance.comments || 0) +
-              (inf.performance.saves || 0) +
-              (inf.performance.shares || 0);
+              (inf.performance.likes ?? 0) +
+              (inf.performance.comments ?? 0) +
+              (inf.performance.saves ?? 0) +
+              (inf.performance.shares ?? 0);
           }
         });
 
@@ -1294,22 +1311,22 @@ export const useSeedingStore = create<SeedingStore>()(
 
           // 비용 계산 (발송완료 상태인 건만 계산)
           if (shippedStatuses.includes(inf.status)) {
-            const quantity = inf.shipping?.quantity || 1;
+            const quantity = inf.shipping?.quantity ?? 1;
             // 인플루언서별 제품단가 우선, 없으면 프로젝트 원가 사용
-            const productPrice = inf.product_price || project?.cost_price || 0;
+            const productPrice = inf.product_price ?? project?.cost_price ?? 0;
             stats.total_cost += quantity * productPrice;
-            stats.total_value += quantity * (project?.selling_price || 0);
+            stats.total_value += quantity * (project?.selling_price ?? 0);
           }
-          stats.total_fee += inf.fee || 0;
+          stats.total_fee += inf.fee ?? 0;
 
           // 성과 합산
           if (inf.performance) {
-            stats.total_reach += (inf.performance.views || 0) + (inf.performance.story_views || 0);
+            stats.total_reach += (inf.performance.views ?? 0) + (inf.performance.story_views ?? 0);
             stats.total_engagement +=
-              (inf.performance.likes || 0) +
-              (inf.performance.comments || 0) +
-              (inf.performance.saves || 0) +
-              (inf.performance.shares || 0);
+              (inf.performance.likes ?? 0) +
+              (inf.performance.comments ?? 0) +
+              (inf.performance.saves ?? 0) +
+              (inf.performance.shares ?? 0);
           }
         });
 

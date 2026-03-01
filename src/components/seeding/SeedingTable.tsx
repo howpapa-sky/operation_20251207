@@ -78,7 +78,7 @@ export default function SeedingTable({
           comparison = a.follower_count - b.follower_count;
           break;
         case 'following_count':
-          comparison = (a.following_count || 0) - (b.following_count || 0);
+          comparison = (a.following_count ?? 0) - (b.following_count ?? 0);
           break;
         case 'email':
           comparison = (a.email || '').localeCompare(b.email || '');
@@ -99,7 +99,7 @@ export default function SeedingTable({
           comparison = (a.product_name || '').localeCompare(b.product_name || '');
           break;
         case 'product_price':
-          comparison = (a.product_price || 0) - (b.product_price || 0);
+          comparison = (a.product_price ?? 0) - (b.product_price ?? 0);
           break;
         case 'posted_at':
           const aPosted = a.posted_at;

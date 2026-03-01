@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { handleApiError } from '../lib/apiErrorHandler';
 import { useBrandStore } from './brandStore';
 import type { AdAccount, AdPlatform } from '../types/ecommerce';
 
@@ -83,6 +84,7 @@ export const useAdAccountStore = create<AdAccountState>((set, get) => ({
       const accounts = (data || []).map((row: Record<string, unknown>) => mapRowToAdAccount(row));
       set({ accounts });
     } catch (error) {
+      handleApiError(error, '광고 계정 조회');
       console.error('Fetch ad accounts error:', error);
       set({ error: '광고 계정을 불러오는데 실패했습니다.' });
     } finally {
@@ -135,6 +137,7 @@ export const useAdAccountStore = create<AdAccountState>((set, get) => ({
       await get().fetchAccounts();
       return true;
     } catch (error) {
+      handleApiError(error, '광고 계정 저장');
       console.error('Save ad account error:', error);
       set({ error: '광고 계정 저장에 실패했습니다.' });
       return false;
@@ -158,6 +161,7 @@ export const useAdAccountStore = create<AdAccountState>((set, get) => ({
         accounts: state.accounts.filter((a) => a.platform !== platform),
       }));
     } catch (error) {
+      handleApiError(error, '광고 계정 삭제');
       console.error('Delete ad account error:', error);
       set({ error: '광고 계정 삭제에 실패했습니다.' });
     }
@@ -182,6 +186,7 @@ export const useAdAccountStore = create<AdAccountState>((set, get) => ({
         ),
       }));
     } catch (error) {
+      handleApiError(error, '광고 계정 활성화 변경');
       console.error('Toggle ad account active error:', error);
     }
   },
@@ -253,7 +258,7 @@ export const useAdAccountStore = create<AdAccountState>((set, get) => ({
         }));
         return {
           success: true,
-          message: `API 연결 성공! ${result.recordsCreated || 0}건의 데이터가 확인되었습니다.`
+          message: `API 연결 성공! ${result.recordsCreated ?? 0}건의 데이터가 확인되었습니다.`
         };
       } else {
         // 실패 시 sync_status를 failed로 업데이트
@@ -272,6 +277,7 @@ export const useAdAccountStore = create<AdAccountState>((set, get) => ({
         return { success: false, message: result.error || 'API 연결 실패' };
       }
     } catch (err) {
+      handleApiError(err, '광고 연결 테스트');
       return { success: false, message: `연결 테스트 오류: ${(err as Error).message}` };
     } finally {
       set({ testingPlatform: null });

@@ -53,7 +53,7 @@ export default function CombinedEmailGenerator({ projects, isOpen, onClose }: Co
     }));
 
     // 전체 평균 점수
-    const totalAvgRating = projects.reduce((sum, p) => sum + (p.averageRating || 0), 0) / projects.length;
+    const totalAvgRating = projects.reduce((sum, p) => sum + (p.averageRating ?? 0), 0) / projects.length;
 
     // 대표 프로젝트 정보
     const firstProject = projects[0];

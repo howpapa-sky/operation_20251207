@@ -315,8 +315,8 @@ export const useProductMasterStore = create<ProductMasterState>()(
           if (existing) {
             existing.totalSales += order.salesAmount;
             existing.totalPayment += order.paymentAmount;
-            existing.totalCost += order.costAmount || 0;
-            existing.totalProfit += order.profitAmount || 0;
+            existing.totalCost += order.costAmount ?? 0;
+            existing.totalProfit += order.profitAmount ?? 0;
             existing.orderCount += 1;
           } else {
             channelMap.set(order.channel, {
@@ -324,8 +324,8 @@ export const useProductMasterStore = create<ProductMasterState>()(
               channelLabel: salesChannelLabels[order.channel],
               totalSales: order.salesAmount,
               totalPayment: order.paymentAmount,
-              totalCost: order.costAmount || 0,
-              totalProfit: order.profitAmount || 0,
+              totalCost: order.costAmount ?? 0,
+              totalProfit: order.profitAmount ?? 0,
               orderCount: 1,
               productCount: 0,
             });
@@ -348,7 +348,7 @@ export const useProductMasterStore = create<ProductMasterState>()(
           if (existing) {
             existing.totalSales += order.salesAmount;
             existing.totalQuantity += order.quantity;
-            existing.totalProfit += order.profitAmount || 0;
+            existing.totalProfit += order.profitAmount ?? 0;
             if (!existing.channels.includes(order.channel)) {
               existing.channels.push(order.channel);
             }
@@ -359,7 +359,7 @@ export const useProductMasterStore = create<ProductMasterState>()(
               brand: order.brand,
               totalSales: order.salesAmount,
               totalQuantity: order.quantity,
-              totalProfit: order.profitAmount || 0,
+              totalProfit: order.profitAmount ?? 0,
               avgPrice: order.salesAmount / order.quantity,
               channels: [order.channel],
             });
@@ -390,8 +390,8 @@ export const useProductMasterStore = create<ProductMasterState>()(
           if (existing) {
             existing.totalSales += order.salesAmount;
             existing.totalPayment += order.paymentAmount;
-            existing.totalCost += order.costAmount || 0;
-            existing.totalProfit += order.profitAmount || 0;
+            existing.totalCost += order.costAmount ?? 0;
+            existing.totalProfit += order.profitAmount ?? 0;
             existing.orderCount += 1;
           } else {
             periodMap.set(period, {
@@ -399,8 +399,8 @@ export const useProductMasterStore = create<ProductMasterState>()(
               periodType,
               totalSales: order.salesAmount,
               totalPayment: order.paymentAmount,
-              totalCost: order.costAmount || 0,
-              totalProfit: order.profitAmount || 0,
+              totalCost: order.costAmount ?? 0,
+              totalProfit: order.profitAmount ?? 0,
               profitRate: 0,
               orderCount: 1,
               byChannel: [],
@@ -432,12 +432,12 @@ export const useProductMasterStore = create<ProductMasterState>()(
         // 이번 달 매출
         const monthOrders = orders.filter((o) => o.orderDate.startsWith(currentMonth) && o.orderStatus === 'normal');
         const monthSales = monthOrders.reduce((sum, o) => sum + o.salesAmount, 0);
-        const monthProfit = monthOrders.reduce((sum, o) => sum + (o.profitAmount || 0), 0);
+        const monthProfit = monthOrders.reduce((sum, o) => sum + (o.profitAmount ?? 0), 0);
 
         // 지난 달 매출
         const lastMonthOrders = orders.filter((o) => o.orderDate.startsWith(lastMonth) && o.orderStatus === 'normal');
         const lastMonthSales = lastMonthOrders.reduce((sum, o) => sum + o.salesAmount, 0);
-        const lastMonthProfit = lastMonthOrders.reduce((sum, o) => sum + (o.profitAmount || 0), 0);
+        const lastMonthProfit = lastMonthOrders.reduce((sum, o) => sum + (o.profitAmount ?? 0), 0);
 
         // 변화율 계산
         const salesChangeRate = lastMonthSales > 0
@@ -457,7 +457,7 @@ export const useProductMasterStore = create<ProductMasterState>()(
           last30Days.push({
             date: dateStr,
             sales: dayOrders.reduce((sum, o) => sum + o.salesAmount, 0),
-            profit: dayOrders.reduce((sum, o) => sum + (o.profitAmount || 0), 0),
+            profit: dayOrders.reduce((sum, o) => sum + (o.profitAmount ?? 0), 0),
           });
         }
 
@@ -471,7 +471,7 @@ export const useProductMasterStore = create<ProductMasterState>()(
           last12Months.push({
             month: monthStr,
             sales: monthOrders.reduce((sum, o) => sum + o.salesAmount, 0),
-            profit: monthOrders.reduce((sum, o) => sum + (o.profitAmount || 0), 0),
+            profit: monthOrders.reduce((sum, o) => sum + (o.profitAmount ?? 0), 0),
           });
         }
 

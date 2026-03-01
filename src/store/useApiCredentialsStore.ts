@@ -226,7 +226,7 @@ export const useApiCredentialsStore = create<ApiCredentialsState>((set, get) => 
       if (result.success) {
         await get().updateSyncStatus(channel, 'success');
         await get().fetchCredentials();
-        return { success: true, message: result.message || '동기화 완료', data: { totalOrders: result.total || result.synced || 0, created: result.synced || 0, updated: 0 } };
+        return { success: true, message: result.message || '동기화 완료', data: { totalOrders: result.total ?? result.synced ?? 0, created: result.synced ?? 0, updated: 0 } };
       } else {
         const errorMsg = result.error || result.message || '동기화 실패';
         await get().updateSyncStatus(channel, 'failed', errorMsg);

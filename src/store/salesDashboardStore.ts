@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
+import { handleApiError } from '../lib/apiErrorHandler';
 import {
   DailyChannelStats,
   DailyAdStats,
@@ -438,10 +439,10 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
             id: record.id,
             date: record.date,
             channel: record.channel || undefined,
-            totalImpressions: record.total_impressions || 0,
-            totalClicks: record.total_clicks || 0,
+            totalImpressions: record.total_impressions ?? 0,
+            totalClicks: record.total_clicks ?? 0,
             totalCost: parseFloat(record.total_cost) || 0,
-            totalConversions: record.total_conversions || 0,
+            totalConversions: record.total_conversions ?? 0,
             totalConversionValue: parseFloat(record.total_conversion_value) || 0,
             avgCtr: parseFloat(record.avg_ctr) || 0,
             avgCpc: parseFloat(record.avg_cpc) || 0,
@@ -558,6 +559,7 @@ export const useSalesDashboardStore = create<SalesDashboardState>((set, get) => 
         isLoading: false,
       });
     } catch (error: any) {
+      handleApiError(error, '매출 데이터 조회');
       console.error('Fetch dashboard stats error:', error);
       set({ error: error.message, isLoading: false });
     }

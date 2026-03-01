@@ -111,12 +111,12 @@ export default function SeedingReportsPage() {
     // 도달/참여는 완료된 인플루언서 기준
     completedInfluencers.forEach((inf) => {
       if (inf.performance) {
-        totalReach += (inf.performance.views || 0) + (inf.performance.story_views || 0);
+        totalReach += (inf.performance.views ?? 0) + (inf.performance.story_views ?? 0);
         totalEngagement +=
-          (inf.performance.likes || 0) +
-          (inf.performance.comments || 0) +
-          (inf.performance.saves || 0) +
-          (inf.performance.shares || 0);
+          (inf.performance.likes ?? 0) +
+          (inf.performance.comments ?? 0) +
+          (inf.performance.saves ?? 0) +
+          (inf.performance.shares ?? 0);
       }
     });
 
@@ -148,12 +148,12 @@ export default function SeedingReportsPage() {
     filtered.forEach((inf) => {
       // 발송완료 상태인 건만 비용 계산
       if (shippedStatuses.includes(inf.status)) {
-        const quantity = inf.shipping?.quantity || 1;
-        const productPrice = inf.product_price || 0;
-        const payment = inf.payment || 0;
-        const shippingCost = inf.shipping_cost || 0;
+        const quantity = inf.shipping?.quantity ?? 1;
+        const productPrice = inf.product_price ?? 0;
+        const payment = inf.payment ?? 0;
+        const shippingCost = inf.shipping_cost ?? 0;
         totalSeedingCost += (quantity * productPrice) + payment + shippingCost;
-        totalFee += inf.fee || 0;
+        totalFee += inf.fee ?? 0;
       }
     });
 
@@ -176,7 +176,7 @@ export default function SeedingReportsPage() {
 
       const existing = dailyMap.get(date) || { postings: 0, reach: 0 };
       const reach = inf.performance
-        ? (inf.performance.views || 0) + (inf.performance.story_views || 0)
+        ? (inf.performance.views ?? 0) + (inf.performance.story_views ?? 0)
         : 0;
 
       dailyMap.set(date, {
@@ -226,16 +226,16 @@ export default function SeedingReportsPage() {
 
       // 비용은 발송완료 상태만
       if (shippedStatuses.includes(inf.status)) {
-        const quantity = inf.shipping?.quantity || 1;
-        const productPrice = inf.product_price || 0;
-        const payment = inf.payment || 0;
-        const shippingCost = inf.shipping_cost || 0;
+        const quantity = inf.shipping?.quantity ?? 1;
+        const productPrice = inf.product_price ?? 0;
+        const payment = inf.payment ?? 0;
+        const shippingCost = inf.shipping_cost ?? 0;
         const cost = (quantity * productPrice) + payment + shippingCost;
 
         if (inf.seeding_type === 'free') {
           freeCost += cost;
         } else {
-          paidCost += cost + (inf.fee || 0);
+          paidCost += cost + (inf.fee ?? 0);
         }
       }
     });

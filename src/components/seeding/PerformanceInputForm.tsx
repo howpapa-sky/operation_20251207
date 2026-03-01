@@ -56,7 +56,7 @@ export default function PerformanceInputForm({
   };
 
   // 총 참여 수 계산
-  const totalEngagement = (formData.likes || 0) + (formData.comments || 0) + (formData.saves || 0) + (formData.shares || 0);
+  const totalEngagement = (formData.likes ?? 0) + (formData.comments ?? 0) + (formData.saves ?? 0) + (formData.shares ?? 0);
 
   // 참여율 계산
   const engagementRate = formData.views && formData.views > 0
@@ -69,7 +69,7 @@ export default function PerformanceInputForm({
       <div className="grid grid-cols-2 gap-3">
         <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl">
           <div className="text-xs text-blue-600 font-medium mb-1">총 조회수</div>
-          <div className="text-2xl font-bold text-blue-900">{formatNumber(formData.views || 0)}</div>
+          <div className="text-2xl font-bold text-blue-900">{formatNumber(formData.views ?? 0)}</div>
         </div>
         <div className="p-4 bg-gradient-to-br from-pink-50 to-rose-50 rounded-xl">
           <div className="text-xs text-pink-600 font-medium mb-1">참여율</div>
@@ -217,7 +217,7 @@ export default function PerformanceInputForm({
         <div className="flex items-baseline gap-2">
           <span className="text-2xl font-bold text-gray-900">{formatNumber(totalEngagement)}</span>
           <span className="text-sm text-gray-500">
-            (좋아요 {formData.likes || 0} + 댓글 {formData.comments || 0} + 저장 {formData.saves || 0} + 공유 {formData.shares || 0})
+            (좋아요 {formData.likes ?? 0} + 댓글 {formData.comments ?? 0} + 저장 {formData.saves ?? 0} + 공유 {formData.shares ?? 0})
           </span>
         </div>
       </div>

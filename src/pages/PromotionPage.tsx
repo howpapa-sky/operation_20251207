@@ -830,7 +830,7 @@ function PackModal({ isOpen, onClose, pack, products, onSave }: PackModalProps) 
       const option = product.options.find(o => o.id === selectedOptionId);
       if (option) {
         optionName = option.value;
-        unitPrice = product.sellingPrice + (option.additionalPrice || 0);
+        unitPrice = product.sellingPrice + (option.additionalPrice ?? 0);
       }
     }
 

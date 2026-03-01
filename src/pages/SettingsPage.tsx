@@ -39,6 +39,7 @@ import { EvaluationCriteria, ProductCategory, SalesChannel, SyncStatus, ProjectT
 import type { AdPlatform } from '../types/ecommerce';
 import { adPlatformLabels } from '../types/ecommerce';
 import { channelInfo } from '../services/salesApiService';
+import { ApiStatusMonitor } from '../components/common/ApiStatusMonitor';
 import {
   Beaker,
   FileImage,
@@ -264,7 +265,7 @@ export default function SettingsPage() {
       });
     } else {
       // Calculate next displayOrder
-      const maxOrder = evaluationCriteria.reduce((max, c) => Math.max(max, c.displayOrder || 0), 0);
+      const maxOrder = evaluationCriteria.reduce((max, c) => Math.max(max, c.displayOrder ?? 0), 0);
       addEvaluationCriteria({
         name: criteriaName,
         description: criteriaDescription,
@@ -288,7 +289,7 @@ export default function SettingsPage() {
   };
 
   // Sort criteria by displayOrder first
-  const sortedCriteria = [...evaluationCriteria].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+  const sortedCriteria = [...evaluationCriteria].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
 
   const filteredCriteria = filterCategory
     ? sortedCriteria.filter((c) => c.category === filterCategory)
@@ -999,6 +1000,9 @@ export default function SettingsPage() {
 
           {activeTab === 'api' && (
             <>
+              {/* API 연결 상태 모니터 */}
+              <ApiStatusMonitor />
+
               {/* 브랜드 선택 */}
               <Card>
                 <div className="flex items-center justify-between">
